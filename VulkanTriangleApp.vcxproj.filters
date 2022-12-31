@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="GLSLShaders">
+      <UniqueIdentifier>{6e085784-dc41-4d7d-8ba5-6b80c27f2b9a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Batch Files">
+      <UniqueIdentifier>{95caa7b0-a006-4fb5-85a7-29a9192fef8b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VkDraw">
+      <UniqueIdentifier>{13711786-ff6f-4808-9b24-c3b40b65aaa6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="extensionProxy.cpp">
+      <Filter>VkDraw</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>VkDraw</Filter>
+    </ClCompile>
+    <ClCompile Include="VkDraw.cpp">
+      <Filter>VkDraw</Filter>
+    </ClCompile>
+    <ClCompile Include="VkDrawContext.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ApplicationConstants.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="extensionProxy.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="VkDraw.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="VkDrawConstants.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="VkDrawContext.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\shader.frag">
+      <Filter>GLSLShaders</Filter>
+    </None>
+    <None Include="shaders\shader.vert">
+      <Filter>GLSLShaders</Filter>
+    </None>
+    <None Include="bat\compile.bat">
+      <Filter>Batch Files</Filter>
+    </None>
+  </ItemGroup>
+</Project>
