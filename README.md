@@ -7,7 +7,7 @@
 - [x] Create context struct for global variables
 - [x] resizable window
 - [x] Fix viewport orientation
-- [ ] Reorder initVulkan content 
+- [x] Reorder initVulkan content 
 - [ ] Clean up device/instance extension checking
 - [ ] Cache format properties
 - [ ] Best practices refactor

@@ -206,7 +206,7 @@ void VkDraw::CreateInstance()
 #ifdef _DEBUG
 	// best practice validation
 	std::vector<VkValidationFeatureEnableEXT> enables =
-	{ VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT };
+	{ /*VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT*/ };
 
 	VkValidationFeaturesEXT features = {};
 	features.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
@@ -311,7 +311,7 @@ void VkDraw::RecreateSwapChain()
 	CleanupSwapChain();
 
 	CreateSwapChain();
-	CreateImageViews();
+	CreateSwapChainImageViews();
 	CreateColorResources();
 	CreateDepthResources();
 	CreateFramebuffers();
@@ -337,7 +337,7 @@ VkImageView VkDraw::CreateImageView(VkImage image, VkFormat format, VkImageAspec
 	return imageView;
 }
 
-void VkDraw::CreateImageViews()
+void VkDraw::CreateSwapChainImageViews()
 {
 	mySwapChainImageViews.resize(mySwapChainImages.size());
 
@@ -413,24 +413,13 @@ void VkDraw::CreateGraphicsPipeline()
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-	VkViewport viewport{};
-	viewport.x = 0.f;
-	viewport.y = static_cast<float>(myVkContext.swapChainExtent.height);
-	viewport.width = static_cast<float>(myVkContext.swapChainExtent.width);
-	viewport.height = -static_cast<float>(myVkContext.swapChainExtent.height);
-	viewport.minDepth = 0.f;
-	viewport.maxDepth = 1.f;
-
-	VkRect2D scissor{};
-	scissor.offset = { 0, 0 };
-	scissor.extent = myVkContext.swapChainExtent;
-
+	// viewport and scissors are given during drawing
 	VkPipelineViewportStateCreateInfo viewportState{};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportState.viewportCount = 1;
-	viewportState.pViewports = &viewport;
+	viewportState.pViewports = nullptr;
 	viewportState.scissorCount = 1;
-	viewportState.pScissors = &scissor;
+	viewportState.pScissors = nullptr;
 
 	VkPipelineRasterizationStateCreateInfo rasterizer{};
 	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -699,11 +688,6 @@ void VkDraw::CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, V
 
 void VkDraw::CreateTextureImage()
 {
-// 	VkImageFormatProperties imageFormatProperties{};
-// 	VkResult result = vkGetPhysicalDeviceImageFormatProperties(myPhysicalDevice, VK_FORMAT_B8G8R8A8_SRGB, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0, &imageFormatProperties);
-// 	if (result != VK_SUCCESS)
-// 		throw std::runtime_error("what?!");
-
 	int texWidth, texHeight, texChannels;
 	stbi_uc* pixels = stbi_load(VkDrawConstants::TEXTURE_PATH, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	if (!pixels)
@@ -888,7 +872,7 @@ void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWid
 		throw std::runtime_error("texture image format does not support linear blitting!");
 
 	// It should be noted that it is uncommon in practice to generate the mipmap levels at runtime anyway. 
-	// Usually they are pregenerated and stored in the texture file alongside the base level to improve loading speed. 
+	// Usually they are pre-generated and stored in the texture file alongside the base level to improve loading speed. 
 	// Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
 
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPool);
@@ -1319,26 +1303,33 @@ void VkDraw::InitVulkan()
 	myVkContext.GetSwapChainCreationInfo();
 	myVkContext.GetMaxMSAASampleCount();
 	myVkContext.GetDepthFormat();
-	CreateSwapChain();
 
-	CreateImageViews();
+	// swap chain
+	CreateSwapChain();
+	CreateSwapChainImageViews();
+
+	CreateCommandPool();
+	CreateDescriptorPool();
 	CreateRenderPass();
 	CreateDescriptorSetLayout();
-	CreateGraphicsPipeline();
-	CreateCommandPool();
 	CreateColorResources();
 	CreateDepthResources();
-	CreateFramebuffers();
+	CreateUniformBuffers();
+	
+	// load textures
 	CreateTextureImage();
 	CreateTextureImageView();
 	CreateTextureSampler();
+
+	// load 3d models
 	LoadModel();
 	CreateVertexBuffer();
 	CreateIndexBuffer();
-	CreateUniformBuffers();
-	CreateDescriptorPool();
-	CreateDescriptorSets();
+
 	CreateCommandBuffers();
+	CreateFramebuffers();
+	CreateGraphicsPipeline();
+	CreateDescriptorSets();
 	CreateSyncObjects();
 }
 

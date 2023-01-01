@@ -87,7 +87,7 @@ private:
 	void CleanupSwapChain();
 	void RecreateSwapChain();
 	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels);
-	void CreateImageViews();
+	void CreateSwapChainImageViews();
 	void CreateDescriptorSetLayout();
 	void CreateGraphicsPipeline();
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);
@@ -144,8 +144,8 @@ private:
 	VkDescriptorSetLayout myDescriptorSetLayout = nullptr;
 	VkPipelineLayout myPipelineLayout = nullptr;
 	VkPipeline myGraphicsPipeline = nullptr;
-	VkCommandPool myCommandPool;
-	VkCommandPool myTransferCommandPool;
+	VkCommandPool myCommandPool = nullptr;
+	VkCommandPool myTransferCommandPool = nullptr;
 	VkDescriptorPool myDescriptorPool;
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	VkBuffer myVertexBuffer = nullptr;
