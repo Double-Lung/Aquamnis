@@ -1,12 +1,12 @@
 ### This is a project for me to learn about Vulkan API
 #### The renderer uses GLFW and GLM.
-
+![Preview](/preview-viking-room.png)
 #### TODOs:
 - [x] Create base program
 - [x] Enable best practices validation
 - [x] Create context struct for global variables
 - [x] resizable window
-- [ ] Fix viewport orientation
+- [x] Fix viewport orientation
 - [ ] Reorder initVulkan content 
 - [ ] Clean up device/instance extension checking
 - [ ] Cache format properties

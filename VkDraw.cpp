@@ -439,7 +439,7 @@ void VkDraw::CreateGraphicsPipeline()
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f; // Optional
 	rasterizer.depthBiasClamp = 0.0f; // Optional
@@ -1042,7 +1042,7 @@ void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
 
 	UniformBufferObject ubo{};
 	ubo.model = glm::mat4(1.f);//glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f));
-	ubo.view = glm::lookAt(glm::vec3(25.f, 15.f, 35.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	ubo.view = glm::lookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	ubo.projection = glm::perspective(0.7854f, myVkContext.swapChainExtent.width / (float)myVkContext.swapChainExtent.height, 0.1f, 100.f);
 
 	memcpy(myUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
