@@ -8,7 +8,7 @@
 - [x] resizable window
 - [x] Fix viewport orientation
 - [x] Reorder initVulkan content 
-- [ ] Clean up device/instance extension checking
+- [x] Clean up device/instance extension checking
 - [ ] Cache format properties
 - [ ] Best practices refactor
 - [ ] Implement queue ownership transfer

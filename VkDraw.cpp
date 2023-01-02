@@ -34,94 +34,41 @@ void VkDraw::Engage()
 	Cleanup();
 }
 
-std::vector<VkExtensionProperties> VkDraw::GetAvailableExtensions()
-{
-	uint32_t extensionCount = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-	std::vector<VkExtensionProperties> extensions(extensionCount);
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-	return extensions;
-}
-
-std::vector<const char*> VkDraw::GetRequiredExtensions()
-{
-	uint32_t glfwExtensionCount = 0;
-	const char** glfwExtensions;
-	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-
-#ifdef _DEBUG
-	extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
-	return extensions;
-}
-
-#ifdef _DEBUG
-void VkDraw::ShowExtensionSupportStatus()
-{
-	uint32_t glfwExtensionCount = 0;
-	const char** glfwExtensions;
-	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-	std::unordered_set<std::string> requiredExtensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-	std::vector<VkExtensionProperties> availableExtensions = GetAvailableExtensions();
-	requiredExtensions.insert(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-	
-	std::cout << "Extension Status:\n";
-	for (const auto& extension : availableExtensions) {
-		std::cout << '\t' << extension.extensionName;
-		if (requiredExtensions.find(extension.extensionName) != requiredExtensions.end()) {
-			std::cout << ": Yes" << '\n';
-		}
-		else {
-			std::cout << ": No" << '\n';
-		}
-	}
-}
-#endif
-
 bool VkDraw::CheckExtensionSupport()
 {
-	std::vector<VkExtensionProperties> availableExtensions = GetAvailableExtensions();
-	std::vector<const char*> requiredExtensionNames = GetRequiredExtensions();
-
-	for (const char* extensionName : requiredExtensionNames) {
-		bool extensionFound = false;
-
-		for (const auto& extensions : availableExtensions) {
-			if (strcmp(extensionName, extensions.extensionName) == 0) {
-				extensionFound = true;
-				break;
-			}
-		}
-		if (!extensionFound) {
-			return false;
-		}
+#ifdef _DEBUG
+	std::unordered_set<std::string> requiredExtensionSet(myVkContext.requiredInstanceExtensions.cbegin(), myVkContext.requiredInstanceExtensions.cend());
+	std::cout << "Extension Status:\n";
+	for (const auto& extension : myVkContext.availableInstanceExtensions)
+	{
+		std::cout << '\t' << extension.extensionName;
+		if (requiredExtensionSet.find(extension.extensionName) != requiredExtensionSet.cend())
+			std::cout << ": Yes" << '\n';
+		else
+			std::cout << ": No" << '\n';
 	}
+#endif
+
+	std::unordered_set<std::string> availableExtensionSet;
+	for (const auto& extension : myVkContext.availableInstanceExtensions)
+		availableExtensionSet.insert(extension.extensionName);
+
+	for (const char* extensionName : myVkContext.requiredInstanceExtensions) 
+		if (availableExtensionSet.find(extensionName) == availableExtensionSet.cend())
+			return false;
+
 	return true;
 }
 
-bool VkDraw::CheckValidationLayerSupport()
+bool VkDraw::CheckInstanceLayerSupport()
 {
-	uint32_t layerCount;
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+	std::unordered_set<std::string> availableLayerSet;
+	for (const auto& layerProperties : myVkContext.availableInstanceLayers)
+		availableLayerSet.insert(layerProperties.layerName);
 
-	std::vector<VkLayerProperties> availableLayers(layerCount);
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-	for (const char* layerName : myVkContext.validationLayers) {
-		bool layerFound = false;
-
-		for (const auto& layerProperties : availableLayers) {
-			if (strcmp(layerName, layerProperties.layerName) == 0) {
-				layerFound = true;
-				break;
-			}
-		}
-		if (!layerFound) {
+	for (const char* layerName : myVkContext.enabledInstanceLayers) 
+		if (availableLayerSet.find(layerName) == availableLayerSet.cend())
 			return false;
-		}
-	}
 	return true;
 }
 
@@ -179,29 +126,28 @@ void VkDraw::FramebufferResizeCallback(GLFWwindow* window, int, int)
 
 void VkDraw::CreateInstance()
 {
-#ifdef _DEBUG
-	ShowExtensionSupportStatus();
-#endif
-
-	if (!CheckExtensionSupport()) {
+	if (!CheckExtensionSupport())
 		throw std::runtime_error("extensions requested by GLFW, but not available!");
-	}
 
-#ifdef _DEBUG
-	if (!CheckValidationLayerSupport()) {
-		throw std::runtime_error("validation layers requested, but not available!");
-	}
-#endif
+	if (!CheckInstanceLayerSupport())
+		throw std::runtime_error("layers requested by application, but not available!");
 
-	{
-		uint32_t glfwExtensionCount = 0;
-		const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-		myVkContext.instanceExtensions.reserve(glfwExtensionCount);
-		myVkContext.instanceExtensions.insert(myVkContext.instanceExtensions.end(), glfwExtensions, glfwExtensions + glfwExtensionCount);
-#ifdef _DEBUG
-		myVkContext.instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
-	}
+	VkApplicationInfo appInfo{};
+	// extract to constants
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = ApplicationConstants::WINDOWNAME;
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.pEngineName = ApplicationConstants::WINDOWNAME;
+	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.apiVersion = VK_API_VERSION_1_3;
+
+	VkInstanceCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	createInfo.pApplicationInfo = &appInfo;
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(myVkContext.requiredInstanceExtensions.size());
+	createInfo.ppEnabledExtensionNames = myVkContext.requiredInstanceExtensions.data();
+	createInfo.enabledLayerCount = static_cast<uint32_t>(myVkContext.enabledInstanceLayers.size());
+	createInfo.ppEnabledLayerNames = myVkContext.enabledInstanceLayers.data();
 
 #ifdef _DEBUG
 	// best practice validation
@@ -216,30 +162,9 @@ void VkDraw::CreateInstance()
 	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
 	PopulateDebugMessengerCreateInfo(debugCreateInfo);
 	debugCreateInfo.pNext = &features;
-#endif
-
-	VkApplicationInfo appInfo{};
-	// extract to constants
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = ApplicationConstants::WINDOWNAME;
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = ApplicationConstants::WINDOWNAME;
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_3;
-
-	VkInstanceCreateInfo createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pApplicationInfo = &appInfo;
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(myVkContext.instanceExtensions.size());
-	createInfo.ppEnabledExtensionNames = myVkContext.instanceExtensions.data();
-#ifdef _DEBUG
-	createInfo.enabledLayerCount = static_cast<uint32_t>(myVkContext.validationLayers.size());
-	createInfo.ppEnabledLayerNames = myVkContext.validationLayers.data();
 	createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
-#else
-	createInfo.enabledLayerCount = 0;
-	createInfo.pNext = nullptr;
 #endif
+
 	if (vkCreateInstance(&createInfo, nullptr, &VkDrawContext::instance) != VK_SUCCESS)
 		throw std::runtime_error("failed to create Vulkan instance!");
 
@@ -258,6 +183,7 @@ void VkDraw::InitWindow()
 		nullptr, nullptr);
 	glfwSetWindowUserPointer(myWindow, this);
 	glfwSetFramebufferSizeCallback(myWindow, FramebufferResizeCallback);
+	myVkContext.GetRequiredInstanceExtensions();
 }
 
 void VkDraw::GetSwapChainImages()

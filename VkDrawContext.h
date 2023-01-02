@@ -9,6 +9,9 @@ public:
 	VkDrawContext();
 	~VkDrawContext() = default;
 
+	void GetAvailableInstanceExtensions();
+	void GetRequiredInstanceExtensions();
+	void GetAvailableInstanceLayers();
 	bool TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx);
 	bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
 	void ChoosePhysicalDevice();
@@ -29,11 +32,14 @@ public:
 	VkSurfaceFormatKHR surfaceFormat;
 	VkExtent2D swapChainExtent;
 	
-	const std::vector<const char*> validationLayers;
+
 	const std::vector<const char*> deviceExtensions;
-	std::vector<VkSurfaceFormatKHR> surfaceFormats; // optional for now
-	std::vector<VkPresentModeKHR> presentModes; // optional for now
-	std::vector<const char*> instanceExtensions;
+	const std::vector<const char*> enabledInstanceLayers;
+	std::vector<VkSurfaceFormatKHR> surfaceFormats;
+	std::vector<VkPresentModeKHR> presentModes;
+	std::vector<const char*> requiredInstanceExtensions;
+	std::vector<VkExtensionProperties> availableInstanceExtensions;
+	std::vector<VkLayerProperties> availableInstanceLayers;
 
 	static VkInstance instance;
 	static VkSurfaceKHR surface;

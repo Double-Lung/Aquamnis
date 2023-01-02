@@ -1,8 +1,9 @@
 #include "VkDrawContext.h"
+#include <GLFW/glfw3.h>
 #include <stdexcept>
 #include <unordered_set>
-#include "VkDrawConstants.h"
 #include <algorithm>
+#include "VkDrawConstants.h"
 
 VkInstance VkDrawContext::instance = VK_NULL_HANDLE;
 VkSurfaceKHR VkDrawContext::surface = VK_NULL_HANDLE;
@@ -16,7 +17,12 @@ VkDrawContext::VkDrawContext()
 	, memoryProperties{}
 	, surfaceFormat{}
 	, swapChainExtent{}
-	, validationLayers{ "VK_LAYER_KHRONOS_validation" }
+	, enabledInstanceLayers
+    {
+#if _DEBUG
+		"VK_LAYER_KHRONOS_validation" 
+#endif
+    }
 	, deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME }
 	, graphicsQueue(VK_NULL_HANDLE)
 	, presentQueue(VK_NULL_HANDLE)
@@ -29,6 +35,10 @@ VkDrawContext::VkDrawContext()
 	, presentFamilyIndex(0)
 	, transferFamilyIndex(0)
 {
+	GetAvailableInstanceExtensions();
+#if _DEBUG
+	GetAvailableInstanceLayers();
+#endif
 }
 
 bool VkDrawContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx)
@@ -74,6 +84,34 @@ bool VkDrawContext::CheckDeviceExtensionSupport(VkPhysicalDevice device)
 		requiredExtensions.erase(extension.extensionName);
 
 	return requiredExtensions.empty();
+}
+
+void VkDrawContext::GetAvailableInstanceExtensions()
+{
+	uint32_t extensionCount = 0;
+	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+	availableInstanceExtensions.resize(extensionCount);
+	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableInstanceExtensions.data());
+}
+
+void VkDrawContext::GetRequiredInstanceExtensions()
+{
+	uint32_t glfwExtensionCount = 0;
+	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+	requiredInstanceExtensions.reserve(glfwExtensionCount + 1);
+	requiredInstanceExtensions.insert(requiredInstanceExtensions.end(), glfwExtensions, glfwExtensions + glfwExtensionCount);
+#ifdef _DEBUG
+	requiredInstanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
+}
+
+void VkDrawContext::GetAvailableInstanceLayers()
+{
+	uint32_t layerCount;
+	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+	availableInstanceLayers.resize(layerCount);
+	vkEnumerateInstanceLayerProperties(&layerCount, availableInstanceLayers.data());
 }
 
 void VkDrawContext::ChoosePhysicalDevice()
@@ -160,12 +198,8 @@ void VkDrawContext::CreateLogicalDevice()
 	createInfo.pEnabledFeatures = &deviceFeatures;
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-	createInfo.enabledLayerCount = 0;
-
-#ifdef _DEBUG
-	createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-	createInfo.ppEnabledLayerNames = validationLayers.data();
-#endif
+	createInfo.enabledLayerCount = static_cast<uint32_t>(enabledInstanceLayers.size());
+	createInfo.ppEnabledLayerNames = enabledInstanceLayers.data();
 
 	if ( vkCreateDevice(VkDrawContext::physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS )
 		throw std::runtime_error("failed to create logical device!");

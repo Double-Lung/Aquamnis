@@ -68,10 +68,8 @@ private:
 		glm::mat4 projection;
 	};
 
-	std::vector<VkExtensionProperties> GetAvailableExtensions();
-	std::vector<const char*> GetRequiredExtensions();
 	bool CheckExtensionSupport();
-	bool CheckValidationLayerSupport();
+	bool CheckInstanceLayerSupport();
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 		VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -130,7 +128,6 @@ private:
 	void Cleanup();
 
 #ifdef _DEBUG
-	void ShowExtensionSupportStatus();
 	void SetupDebugMessenger();
 #endif
 
