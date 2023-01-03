@@ -6,17 +6,13 @@
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 
 #include "VkDrawContext.h"
+#include <array>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <array>
-#include <chrono>
-#include <optional>
 #include <string>
 #include <vector>
 
 class VkDrawContext;
-
 class VkDraw
 {
 public:
@@ -29,36 +25,8 @@ private:
 		glm::vec3 myColor;
 		glm::vec2 texCoord;
 
-		static VkVertexInputBindingDescription GetBindingDescription()
-		{
-			VkVertexInputBindingDescription bindingDescription{};
-			bindingDescription.binding = 0;
-			bindingDescription.stride = sizeof(Vertex);
-			bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-			return bindingDescription;
-		}
-
-		static std::array<VkVertexInputAttributeDescription, 3> GetAttributeDescriptions()
-		{
-			std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-			attributeDescriptions[0].binding = 0;
-			attributeDescriptions[0].location = 0;
-			attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-			attributeDescriptions[0].offset = offsetof(Vertex, myPosition);
-
-			attributeDescriptions[1].binding = 0;
-			attributeDescriptions[1].location = 1;
-			attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-			attributeDescriptions[1].offset = offsetof(Vertex, myColor);
-
-			attributeDescriptions[2].binding = 0;
-			attributeDescriptions[2].location = 2;
-			attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-			attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-			return attributeDescriptions;
-		}
+		static VkVertexInputBindingDescription GetBindingDescription();
+		static std::array<VkVertexInputAttributeDescription, 3> GetAttributeDescriptions();
 	};
 
 	struct UniformBufferObject
@@ -143,7 +111,7 @@ private:
 	VkPipeline myGraphicsPipeline = nullptr;
 	VkCommandPool myCommandPool = nullptr;
 	VkCommandPool myTransferCommandPool = nullptr;
-	VkDescriptorPool myDescriptorPool;
+	VkDescriptorPool myDescriptorPool = nullptr;
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	VkBuffer myVertexBuffer = nullptr;
 	VkDeviceMemory myVertexBufferMemory = nullptr;
@@ -157,9 +125,9 @@ private:
 	VkDeviceMemory myDepthImageMemory = nullptr;
 	VkImageView myDepthImageView = nullptr;
 
-	VkImage myColorImage;
-	VkDeviceMemory myColorImageMemory;
-	VkImageView myColorImageView;
+	VkImage myColorImage = nullptr;
+	VkDeviceMemory myColorImageMemory = nullptr;
+	VkImageView myColorImageView = nullptr;
 
 	uint32_t myMipLevels = 0;
 

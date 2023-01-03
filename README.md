@@ -3,13 +3,8 @@
 ![Preview](/preview-viking-room.png)
 #### TODOs:
 - [x] Create base program
-- [x] Enable best practices validation
-- [x] Create context struct for global variables
-- [x] resizable window
 - [x] Fix viewport orientation
-- [x] Reorder initVulkan content 
-- [x] Clean up device/instance extension checking
-- [ ] Cache format properties
+- [x] General code refactor
 - [ ] Best practices refactor
 - [ ] Implement queue ownership transfer
 - [ ] Improve model loading

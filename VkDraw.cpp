@@ -1,21 +1,24 @@
-#include "VkDraw.h"
-
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
-#include <iostream>
-#include <cstdlib>
-#include <unordered_set>
-#include <cstdint> // Necessary for UINT32_MAX
-#include <algorithm> // Necessary for std::clamp
-#include <fstream>
-#include <unordered_map>
-#include <stb_image.h>
-#include <tiny_obj_loader.h>
+
+#include "VkDraw.h"
 #include "ApplicationConstants.h"
-#include "VkDrawConstants.h"
 #ifdef _DEBUG
 #include "extensionProxy.h"
 #endif
+#include "VkDrawConstants.h"
+#include <algorithm>
+
+#include <chrono>
+#include <cstdint>
+#include <cstdlib>
+#include <fstream>
+#include <glm/gtc/matrix_transform.hpp>
+#include <iostream>
+#include <stb_image.h>
+#include <tiny_obj_loader.h>
+#include <unordered_map>
+#include <unordered_set>
 
 // TODO: 
 // All of the helper functions that submit commands so far have been set up to execute synchronously 
@@ -105,11 +108,9 @@ std::vector<char> VkDraw::ReadFile(const std::string& filename)
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
 	if (!file.is_open())
-	{
 		throw std::runtime_error("failed to open file!");
-	}
 
-	size_t fileSize = (size_t)file.tellg();
+	size_t fileSize = static_cast<size_t>(file.tellg());
 	std::vector<char> buffer(fileSize);
 	file.seekg(0);
 	file.read(buffer.data(), fileSize);
@@ -118,7 +119,7 @@ std::vector<char> VkDraw::ReadFile(const std::string& filename)
 	return buffer;
 }
 
-void VkDraw::FramebufferResizeCallback(GLFWwindow* window, int, int)
+void VkDraw::FramebufferResizeCallback(GLFWwindow* window, int /*width*/, int /*height*/)
 {
 	VkDraw* app = reinterpret_cast<VkDraw*>(glfwGetWindowUserPointer(window));
 	app->myIsFramebufferResized = true;
@@ -133,7 +134,6 @@ void VkDraw::CreateInstance()
 		throw std::runtime_error("layers requested by application, but not available!");
 
 	VkApplicationInfo appInfo{};
-	// extract to constants
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pApplicationName = ApplicationConstants::WINDOWNAME;
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -152,7 +152,7 @@ void VkDraw::CreateInstance()
 #ifdef _DEBUG
 	// best practice validation
 	std::vector<VkValidationFeatureEnableEXT> enables =
-	{ /*VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT*/ };
+	{ VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT };
 
 	VkValidationFeaturesEXT features = {};
 	features.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
@@ -177,12 +177,20 @@ void VkDraw::InitWindow()
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	myWindow = glfwCreateWindow(ApplicationConstants::WINDOWWIDTH, 
-		ApplicationConstants::WINDOWHEIGHT, 
+	myWindow = glfwCreateWindow(ApplicationConstants::MIN_WIDTH, 
+		ApplicationConstants::MIN_HEIGHT, 
 		ApplicationConstants::WINDOWNAME, 
 		nullptr, nullptr);
 	glfwSetWindowUserPointer(myWindow, this);
 	glfwSetFramebufferSizeCallback(myWindow, FramebufferResizeCallback);
+	glfwSetWindowSizeLimits
+	(
+		myWindow, 
+		ApplicationConstants::MIN_WIDTH, 
+		ApplicationConstants::MIN_HEIGHT, 
+		ApplicationConstants::MAX_WIDTH, 
+		ApplicationConstants::MAX_HEIGHT
+	);
 	myVkContext.GetRequiredInstanceExtensions();
 }
 
@@ -227,7 +235,8 @@ void VkDraw::RecreateSwapChain()
 {
 	int width = 0, height = 0;
 	glfwGetFramebufferSize(myWindow, &width, &height);
-	while (width == 0 || height == 0) {
+	while (width == 0 || height == 0) 
+	{
 		glfwGetFramebufferSize(myWindow, &width, &height);
 		glfwWaitEvents();
 	}
@@ -321,7 +330,7 @@ void VkDraw::CreateGraphicsPipeline()
 	fragShaderStageInfo.module = fragShaderModule;
 	fragShaderStageInfo.pName = "main";
 
-	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = { vertShaderStageInfo, fragShaderStageInfo };
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 
@@ -390,15 +399,16 @@ void VkDraw::CreateGraphicsPipeline()
 	colorBlending.blendConstants[2] = 0.0f; // Optional
 	colorBlending.blendConstants[3] = 0.0f; // Optional
 
-	VkDynamicState dynamicStates[] = {
+	std::array<VkDynamicState, 2> dynamicStates = 
+	{
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR
 	};
 
 	VkPipelineDynamicStateCreateInfo dynamicState{};
 	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount = 2;
-	dynamicState.pDynamicStates = dynamicStates;
+	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+	dynamicState.pDynamicStates = dynamicStates.data();
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -424,8 +434,8 @@ void VkDraw::CreateGraphicsPipeline()
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.stageCount = 2;
-	pipelineInfo.pStages = shaderStages;
+	pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+	pipelineInfo.pStages = shaderStages.data();
 	pipelineInfo.pVertexInputState = &vertexInputInfo;
 	pipelineInfo.pInputAssemblyState = &inputAssembly;
 	pipelineInfo.pViewportState = &viewportState;
@@ -441,9 +451,8 @@ void VkDraw::CreateGraphicsPipeline()
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
 	if (vkCreateGraphicsPipelines(VkDrawContext::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &myGraphicsPipeline) != VK_SUCCESS)
-	{
 		throw std::runtime_error("failed to create graphics pipeline!");
-	}
+
 	vkDestroyShaderModule(VkDrawContext::device, fragShaderModule, nullptr);
 	vkDestroyShaderModule(VkDrawContext::device, vertShaderModule, nullptr);
 }
@@ -457,9 +466,8 @@ VkShaderModule VkDraw::CreateShaderModule(const std::vector<char>& code)
 
 	VkShaderModule shaderModule;
 	if (vkCreateShaderModule(VkDrawContext::device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-	{
 		throw std::runtime_error("failed to create shader module!");
-	}
+
 	return shaderModule;
 }
 
@@ -469,7 +477,6 @@ void VkDraw::CreateFramebuffers()
 
 	for (size_t i = 0; i != mySwapChainImageViews.size(); ++i)
 	{
-		// array list initialization
 		std::array<VkImageView, 3> attachments = { myColorImageView, myDepthImageView ,mySwapChainImageViews[i] };
 
 		VkFramebufferCreateInfo framebufferInfo{};
@@ -597,7 +604,6 @@ void VkDraw::CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, V
 	if (vkCreateImage(VkDrawContext::device, &imageInfo, nullptr, &image) != VK_SUCCESS)
 		throw std::runtime_error("failed to create image!");
 
-	// TODO: cache?
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(VkDrawContext::device, image, &memRequirements);
 
@@ -659,12 +665,7 @@ void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, u
 	region.imageSubresource.layerCount = 1;
 
 	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = 
-	{
-		width,
-		height,
-		1
-	};
+	region.imageExtent = { width, height, 1 };
 
 	vkCmdCopyBufferToImage(
 		commandBuffer,
@@ -689,7 +690,6 @@ void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	if (vkCreateBuffer(VkDrawContext::device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
 		throw std::runtime_error("failed to create buffer!");
 
-	// TODO: cache?
 	VkMemoryRequirements memRequirements;
 	vkGetBufferMemoryRequirements(VkDrawContext::device, buffer, &memRequirements);
 
@@ -771,9 +771,7 @@ void VkDraw::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout
 		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	}
 	else
-	{
 		throw std::invalid_argument("unsupported layout transition!");
-	}
 
 	vkCmdPipelineBarrier(
 		commandBuffer,
@@ -791,7 +789,6 @@ void VkDraw::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout
 void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels)
 {
 	// Check if image format supports linear blitting
-	// TODO: cache format properties
 	VkFormatProperties formatProperties;
 	vkGetPhysicalDeviceFormatProperties(VkDrawContext::physicalDevice, imageFormat, &formatProperties);
 	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
@@ -1096,7 +1093,8 @@ void VkDraw::DrawFrame()
 		RecreateSwapChain();
 		return;
 	}
-	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
+
+	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
 		throw std::runtime_error("failed to acquire swap chain image!");
 
 	vkResetFences(VkDrawContext::device, 1, &myInFlightFences[myCurrentFrame]);
@@ -1109,17 +1107,17 @@ void VkDraw::DrawFrame()
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-	VkSemaphore waitSemaphores[] = { myImageAvailableSemaphores[myCurrentFrame] };
-	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = waitSemaphores;
-	submitInfo.pWaitDstStageMask = waitStages;
+	std::array<VkSemaphore, 1> waitSemaphores = { myImageAvailableSemaphores[myCurrentFrame] };
+	std::array<VkPipelineStageFlags, 1> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
+	submitInfo.pWaitSemaphores = waitSemaphores.data();
+	submitInfo.pWaitDstStageMask = waitStages.data();
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &myCommandBuffers[myCurrentFrame];
 
-	VkSemaphore signalSemaphores[] = { myRenderFinishedSemaphores[myCurrentFrame] };
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = signalSemaphores;
+	std::array<VkSemaphore, 1> signalSemaphores = { myRenderFinishedSemaphores[myCurrentFrame] };
+	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size());
+	submitInfo.pSignalSemaphores = signalSemaphores.data();
 
 	if (vkQueueSubmit(myVkContext.graphicsQueue, 1, &submitInfo, myInFlightFences[myCurrentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("failed to submit draw command buffer!");
@@ -1127,11 +1125,11 @@ void VkDraw::DrawFrame()
 	VkPresentInfoKHR presentInfo{};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = signalSemaphores;
+	presentInfo.pWaitSemaphores = signalSemaphores.data();
 
-	VkSwapchainKHR swapChains[] = { mySwapChain };
-	presentInfo.swapchainCount = 1;
-	presentInfo.pSwapchains = swapChains;
+	std::array<VkSwapchainKHR, 1> swapChains = { mySwapChain };
+	presentInfo.swapchainCount = static_cast<uint32_t>(swapChains.size());
+	presentInfo.pSwapchains = swapChains.data();
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr;
 	result = vkQueuePresentKHR(myVkContext.presentQueue, &presentInfo);
@@ -1154,9 +1152,8 @@ void VkDraw::LoadModel()
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, VkDrawConstants::MODEL_PATH)) {
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, VkDrawConstants::MODEL_PATH))
 		throw std::runtime_error(warn + err);
-	}
 
 	for (const tinyobj::shape_t& shape : shapes) 
 	{
@@ -1391,3 +1388,33 @@ void VkDraw::Cleanup()
 	glfwTerminate();
 }
 
+VkVertexInputBindingDescription VkDraw::Vertex::GetBindingDescription()
+{
+	VkVertexInputBindingDescription bindingDescription{};
+	bindingDescription.binding = 0;
+	bindingDescription.stride = sizeof(Vertex);
+	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	return bindingDescription;
+}
+
+std::array<VkVertexInputAttributeDescription, 3> VkDraw::Vertex::GetAttributeDescriptions()
+{
+	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+
+	attributeDescriptions[0].binding = 0;
+	attributeDescriptions[0].location = 0;
+	attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[0].offset = offsetof(Vertex, myPosition);
+
+	attributeDescriptions[1].binding = 0;
+	attributeDescriptions[1].location = 1;
+	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[1].offset = offsetof(Vertex, myColor);
+
+	attributeDescriptions[2].binding = 0;
+	attributeDescriptions[2].location = 2;
+	attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+	attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+
+	return attributeDescriptions;
+}

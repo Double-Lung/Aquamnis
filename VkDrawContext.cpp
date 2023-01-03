@@ -241,7 +241,6 @@ void VkDrawContext::GetSwapChainCreationInfo()
 
 void VkDrawContext::UpdateSwapChainExtent(uint32_t width, uint32_t height)
 {
-	// TODO: set GLFW min window size
 	swapChainExtent.width = width;
 	swapChainExtent.height = height;
 }
@@ -299,7 +298,6 @@ VkFormat VkDrawContext::FindSupportedFormat(const std::vector<VkFormat>& candida
 {
 	for (const VkFormat& format : candidates)
 	{
-		// TODO: cache format properties with a hash table
 		VkFormatProperties props;
 		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
 
