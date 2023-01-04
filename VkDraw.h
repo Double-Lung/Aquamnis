@@ -12,6 +12,15 @@
 #include <string>
 #include <vector>
 
+struct AM_SimpleMemoryBlock
+{
+	bool IsNotFull(uint64_t size) const;
+	void Allocate(uint64_t size) { offset += size; }
+
+	VkDeviceMemory memory = nullptr;
+	uint64_t offset = 0;
+};
+
 class VkDrawContext;
 class VkDraw
 {
@@ -58,7 +67,7 @@ private:
 	void CreateGraphicsPipeline();
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);
 	void CreateFramebuffers();
-	void CreateCommandPool();
+	void CreateCommandPools();
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImageView();
@@ -80,7 +89,7 @@ private:
 	VkCommandBuffer BeginSingleTimeCommands(VkCommandPool aCommandPool);
 	void EndSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool aCommandPool, VkQueue aVkQueue);
 
-	void CreateCommandBuffers();
+	void CreateReusableCommandBuffers();
 	void RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t imageIndex);
 	void CreateSyncObjects();
 	void DrawFrame();
@@ -109,10 +118,13 @@ private:
 	VkDescriptorSetLayout myDescriptorSetLayout = nullptr;
 	VkPipelineLayout myPipelineLayout = nullptr;
 	VkPipeline myGraphicsPipeline = nullptr;
-	VkCommandPool myCommandPool = nullptr;
+	std::vector<VkCommandPool> myCommandPools;
 	VkCommandPool myTransferCommandPool = nullptr;
 	VkDescriptorPool myDescriptorPool = nullptr;
 	std::vector<VkDescriptorSet> myDescriptorSets;
+
+	std::vector<AM_SimpleMemoryBlock> myMemoryBlocks;
+
 	VkBuffer myVertexBuffer = nullptr;
 	VkDeviceMemory myVertexBufferMemory = nullptr;
 	VkBuffer myIndexBuffer = nullptr;

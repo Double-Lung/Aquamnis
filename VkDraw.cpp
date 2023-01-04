@@ -150,7 +150,6 @@ void VkDraw::CreateInstance()
 	createInfo.ppEnabledLayerNames = myVkContext.enabledInstanceLayers.data();
 
 #ifdef _DEBUG
-	// best practice validation
 	std::vector<VkValidationFeatureEnableEXT> enables =
 	{ VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT };
 
@@ -493,15 +492,16 @@ void VkDraw::CreateFramebuffers()
 	}
 }
 
-void VkDraw::CreateCommandPool()
+void VkDraw::CreateCommandPools()
 {
 	VkCommandPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	poolInfo.queueFamilyIndex = myVkContext.graphicsFamilyIndex;
 
-	if (vkCreateCommandPool(VkDrawContext::device, &poolInfo, nullptr, &myCommandPool) != VK_SUCCESS)
-		throw std::runtime_error("failed to create command pool!");
+	myCommandPools.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	for (VkCommandPool& commandPool : myCommandPools)
+		if (vkCreateCommandPool(VkDrawContext::device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+			throw std::runtime_error("failed to create command pool!");
 
 	VkCommandPoolCreateInfo transferPoolInfo{};
 	transferPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -652,7 +652,7 @@ void VkDraw::CreateTextureImage()
 
 void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPool);
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame]);
 
 	VkBufferImageCopy region{};
 	region.bufferOffset = 0;
@@ -676,7 +676,7 @@ void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, u
 		&region
 	);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPool, myVkContext.graphicsQueue);
+	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame], myVkContext.graphicsQueue);
 }
 
 void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
@@ -726,7 +726,7 @@ void VkDraw::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 
 void VkDraw::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPool);
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame]);
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.oldLayout = oldLayout;
@@ -782,7 +782,7 @@ void VkDraw::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout
 		1, &barrier
 	);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPool, myVkContext.graphicsQueue);
+	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame], myVkContext.graphicsQueue);
 }
 
 
@@ -798,7 +798,7 @@ void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWid
 	// Usually they are pre-generated and stored in the texture file alongside the base level to improve loading speed. 
 	// Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
 
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPool);
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame]);
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -874,7 +874,7 @@ void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWid
 		0, nullptr,
 		1, &barrier);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPool, myVkContext.graphicsQueue);
+	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame], myVkContext.graphicsQueue);
 }
 
 void VkDraw::CreateColorResources()
@@ -990,18 +990,20 @@ void VkDraw::EndSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool 
 	vkFreeCommandBuffers(VkDrawContext::device, aCommandPool, 1, &commandBuffer);
 }
 
-void VkDraw::CreateCommandBuffers()
+void VkDraw::CreateReusableCommandBuffers()
 {
-	myCommandBuffers.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = myCommandPool;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = static_cast<uint32_t>(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	allocInfo.commandBufferCount = 1;
 
-	if (vkAllocateCommandBuffers(VkDrawContext::device, &allocInfo, myCommandBuffers.data()) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate command buffers!");
+	myCommandBuffers.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	for (int i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		allocInfo.commandPool = myCommandPools[i];
+		if (vkAllocateCommandBuffers(VkDrawContext::device, &allocInfo, &myCommandBuffers[i]) != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate command buffer!");
+	}
 }
 
 void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t imageIndex)
@@ -1101,7 +1103,7 @@ void VkDraw::DrawFrame()
 
 	UpdateUniformBuffer(myCurrentFrame);
 
-	vkResetCommandBuffer(myCommandBuffers[myCurrentFrame], 0);
+	vkResetCommandPool(VkDrawContext::device, myCommandPools[myCurrentFrame], VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 	RecordCommandBuffer(myCommandBuffers[myCurrentFrame], imageIndex);
 
 	VkSubmitInfo submitInfo{};
@@ -1231,7 +1233,7 @@ void VkDraw::InitVulkan()
 	CreateSwapChain();
 	CreateSwapChainImageViews();
 
-	CreateCommandPool();
+	CreateCommandPools();
 	CreateDescriptorPool();
 	CreateRenderPass();
 	CreateDescriptorSetLayout();
@@ -1249,7 +1251,7 @@ void VkDraw::InitVulkan()
 	CreateVertexBuffer();
 	CreateIndexBuffer();
 
-	CreateCommandBuffers();
+	CreateReusableCommandBuffers();
 	CreateFramebuffers();
 	CreateGraphicsPipeline();
 	CreateDescriptorSets();
@@ -1262,7 +1264,7 @@ void VkDraw::CreateRenderPass()
 	colorAttachment.format = myVkContext.surfaceFormat.format;
 	colorAttachment.samples = myVkContext.maxMSAASamples;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1374,7 +1376,9 @@ void VkDraw::Cleanup()
 		vkDestroyFence(VkDrawContext::device, myInFlightFences[i], nullptr);
 	}
 
-	vkDestroyCommandPool(VkDrawContext::device, myCommandPool, nullptr);
+	for (VkCommandPool& commandPool : myCommandPools)
+		vkDestroyCommandPool(VkDrawContext::device, commandPool, nullptr);
+
 	vkDestroyCommandPool(VkDrawContext::device, myTransferCommandPool, nullptr);
 	vkDestroyDevice(VkDrawContext::device, nullptr);
 
@@ -1417,4 +1421,9 @@ std::array<VkVertexInputAttributeDescription, 3> VkDraw::Vertex::GetAttributeDes
 	attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
 	return attributeDescriptions;
+}
+
+bool AM_SimpleMemoryBlock::IsNotFull(uint64_t size) const
+{
+	return offset + size <= VkDrawConstants::SINGLEALLOCSIZE;
 }

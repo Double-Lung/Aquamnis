@@ -5,6 +5,7 @@
 - [x] Create base program
 - [x] Fix viewport orientation
 - [x] General code refactor
+- [ ] Write a naive memory allocator
 - [ ] Best practices refactor
 - [ ] Implement queue ownership transfer
 - [ ] Improve model loading
