@@ -10,6 +10,9 @@
     <Filter Include="VkDraw">
       <UniqueIdentifier>{13711786-ff6f-4808-9b24-c3b40b65aaa6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Utilities">
+      <UniqueIdentifier>{8c991282-f537-490b-9514-7214c0729a9c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="extensionProxy.cpp">
@@ -21,7 +24,12 @@
     <ClCompile Include="VkDraw.cpp">
       <Filter>VkDraw</Filter>
     </ClCompile>
-    <ClCompile Include="VkDrawContext.cpp" />
+    <ClCompile Include="VkDrawContext.cpp">
+      <Filter>VkDraw</Filter>
+    </ClCompile>
+    <ClCompile Include="AM_NaiveMemoryAllocator.cpp">
+      <Filter>Utilities</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationConstants.h">
@@ -36,7 +44,12 @@
     <ClInclude Include="VkDrawConstants.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
-    <ClInclude Include="VkDrawContext.h" />
+    <ClInclude Include="VkDrawContext.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_NaiveMemoryAllocator.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader.frag">

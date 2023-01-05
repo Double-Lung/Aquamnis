@@ -12,14 +12,7 @@
 #include <string>
 #include <vector>
 
-struct AM_SimpleMemoryBlock
-{
-	bool IsNotFull(uint64_t size) const;
-	void Allocate(uint64_t size) { offset += size; }
 
-	VkDeviceMemory memory = nullptr;
-	uint64_t offset = 0;
-};
 
 class VkDrawContext;
 class VkDraw
@@ -122,8 +115,6 @@ private:
 	VkCommandPool myTransferCommandPool = nullptr;
 	VkDescriptorPool myDescriptorPool = nullptr;
 	std::vector<VkDescriptorSet> myDescriptorSets;
-
-	std::vector<AM_SimpleMemoryBlock> myMemoryBlocks;
 
 	VkBuffer myVertexBuffer = nullptr;
 	VkDeviceMemory myVertexBufferMemory = nullptr;

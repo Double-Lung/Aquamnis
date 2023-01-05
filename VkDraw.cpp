@@ -1423,7 +1423,3 @@ std::array<VkVertexInputAttributeDescription, 3> VkDraw::Vertex::GetAttributeDes
 	return attributeDescriptions;
 }
 
-bool AM_SimpleMemoryBlock::IsNotFull(uint64_t size) const
-{
-	return offset + size <= VkDrawConstants::SINGLEALLOCSIZE;
-}
