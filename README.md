@@ -1,5 +1,4 @@
-### This is a project for me to learn about Vulkan API
-#### The renderer uses GLFW and GLM.
+### Vulkan API Learning Project Using GLFW
 ![Preview](/preview-viking-room.png)
 #### TODOs:
 - [x] Create base program
@@ -10,7 +9,7 @@
 - [ ] Implement queue ownership transfer
 - [ ] Improve model loading
 - [ ] Unique vertex data
-- [ ] Implement memory allocator
+- [ ] Integrate GPU Open VMA
 - [ ] Pregenerated mipmap
 - [ ] Push constants
 - [ ] Instanced rendering
