@@ -9,6 +9,7 @@ public:
 	VkDrawContext();
 	~VkDrawContext() = default;
 
+	void Init();
 	void GetAvailableInstanceExtensions();
 	void GetRequiredInstanceExtensions();
 	void GetAvailableInstanceLayers();

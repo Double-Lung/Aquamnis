@@ -1223,11 +1223,9 @@ void VkDraw::InitVulkan()
 #ifdef _DEBUG
 	SetupDebugMessenger();
 #endif
-	myVkContext.ChoosePhysicalDevice();
-	myVkContext.CreateLogicalDevice();
-	myVkContext.GetSwapChainCreationInfo();
-	myVkContext.GetMaxMSAASampleCount();
-	myVkContext.GetDepthFormat();
+	
+	myVkContext.Init();
+	myMemoryAllocator.Init(myVkContext.memoryProperties.memoryTypeCount);
 
 	// swap chain
 	CreateSwapChain();

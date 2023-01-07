@@ -30,6 +30,9 @@
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="AM_SimpleMemoryBlock.cpp">
+      <Filter>Utilities</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationConstants.h">
@@ -48,6 +51,9 @@
       <Filter>VkDraw</Filter>
     </ClInclude>
     <ClInclude Include="AM_NaiveMemoryAllocator.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_SimpleMemoryBlock.h">
       <Filter>Utilities</Filter>
     </ClInclude>
   </ItemGroup>

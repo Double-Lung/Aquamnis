@@ -11,6 +11,7 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
+#include "AM_NaiveMemoryAllocator.h"
 
 
 
@@ -154,5 +155,6 @@ private:
 	std::vector<uint32_t> myIndices;
 
 	VkDrawContext myVkContext;
+	AM_NaiveMemoryAllocator myMemoryAllocator;
 };
 

@@ -86,6 +86,15 @@ bool VkDrawContext::CheckDeviceExtensionSupport(VkPhysicalDevice device)
 	return requiredExtensions.empty();
 }
 
+void VkDrawContext::Init()
+{
+	ChoosePhysicalDevice();
+	CreateLogicalDevice();
+	GetSwapChainCreationInfo();
+	GetMaxMSAASampleCount();
+	GetDepthFormat();
+}
+
 void VkDrawContext::GetAvailableInstanceExtensions()
 {
 	uint32_t extensionCount = 0;
