@@ -165,6 +165,7 @@
   <ItemGroup>
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp" />
     <ClCompile Include="AM_SimpleMemoryBlock.cpp" />
+    <ClCompile Include="AM_StagingBuffer.cpp" />
     <ClCompile Include="extensionProxy.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="VkDraw.cpp" />
@@ -173,6 +174,7 @@
   <ItemGroup>
     <ClInclude Include="AM_NaiveMemoryAllocator.h" />
     <ClInclude Include="AM_SimpleMemoryBlock.h" />
+    <ClInclude Include="AM_StagingBuffer.h" />
     <ClInclude Include="ApplicationConstants.h" />
     <ClInclude Include="extensionProxy.h" />
     <ClInclude Include="VkDraw.h" />

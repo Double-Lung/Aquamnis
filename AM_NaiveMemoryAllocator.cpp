@@ -17,8 +17,24 @@ void AM_NaiveMemoryAllocator::Init(uint32_t aMemoryTypeCount)
 
 AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::Allocate(const uint32_t aMemoryTypeIndex, const uint64_t aSize)
 {
-	auto& memoryBlock = GetMemoryBlock(aMemoryTypeIndex, aSize);
-	return SubAllocate(memoryBlock, aSize);
+	auto& memoryBlocks = myMemoryBlocksByMemoryType[aMemoryTypeIndex];
+	for (auto& block : memoryBlocks)
+	{
+		if (block.myExtent + aSize <= VkDrawConstants::SINGLEALLOCSIZE)
+			return block.myAllocations.emplace_back(block.myExtent, aSize);
+
+		if (auto* slot = TryGetFreeSlot(block, aSize))
+			return *slot;
+	}
+
+	auto& newMemoryBlock = CreateAndGetNewBlock(aMemoryTypeIndex);
+	return newMemoryBlock.myAllocations.emplace_back(newMemoryBlock.myExtent, aSize);
+}
+
+void AM_NaiveMemoryAllocator::Remove(AM_SimpleMemoryObject& aMemoryObject)
+{
+	aMemoryObject.myIsEmpty = true;
+	// need to destroy buffer/image here?
 }
 
 AM_SimpleMemoryBlock& AM_NaiveMemoryAllocator::CreateAndGetNewBlock(const uint32_t aMemoryTypeIndex)
@@ -37,21 +53,7 @@ AM_SimpleMemoryBlock& AM_NaiveMemoryAllocator::CreateAndGetNewBlock(const uint32
 	return block;
 }
 
-AM_SimpleMemoryBlock& AM_NaiveMemoryAllocator::GetMemoryBlock(const uint32_t aMemoryTypeIndex, const uint64_t aSize)
-{
-	auto& memoryBlocks = myMemoryBlocksByMemoryType[aMemoryTypeIndex];
-
-	// just grab the first suitable block
-	for (auto& block : memoryBlocks)
-	{
-		if (block.myExtent + aSize <= VkDrawConstants::SINGLEALLOCSIZE)
-			return block;
-	}
-
-	return CreateAndGetNewBlock(aMemoryTypeIndex);
-}
-
-AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::SubAllocate(AM_SimpleMemoryBlock& aMemoryBlock, const uint64_t aSize)
+AM_SimpleMemoryObject* AM_NaiveMemoryAllocator::TryGetFreeSlot(AM_SimpleMemoryBlock& aMemoryBlock, const uint64_t aSize)
 {
 	for (auto begin = aMemoryBlock.myAllocations.begin(); begin != aMemoryBlock.myAllocations.end(); ++begin)
 	{
@@ -60,15 +62,14 @@ AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::SubAllocate(AM_SimpleMemoryBlock
 
 		const uint64_t leftover = begin->mySize - aSize;
 		if (!leftover)
-			return *begin;
+			return &(*begin);
 
 		aMemoryBlock.myAllocations.emplace(begin, begin->myOffset, leftover);
 		begin->mySize = aSize;
 		begin->myOffset += leftover;
-		return *begin;
+		return &(*begin);
 	}
-
-	return aMemoryBlock.myAllocations.emplace_back(aMemoryBlock.myExtent, aSize);
+	return nullptr;
 }
 
 void AM_NaiveMemoryAllocator::FreeMemoryBlocks()

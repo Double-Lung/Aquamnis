@@ -33,6 +33,7 @@
     <ClCompile Include="AM_SimpleMemoryBlock.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="AM_StagingBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationConstants.h">
@@ -56,6 +57,7 @@
     <ClInclude Include="AM_SimpleMemoryBlock.h">
       <Filter>Utilities</Filter>
     </ClInclude>
+    <ClInclude Include="AM_StagingBuffer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader.frag">

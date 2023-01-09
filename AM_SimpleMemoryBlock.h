@@ -1,6 +1,7 @@
 #pragma once
 #include <list>
 #include <vulkan/vulkan.h>
+#include <assert.h>
 
 struct AM_SimpleMemoryObject
 {
@@ -34,7 +35,7 @@ public:
 	{
 	}
 
-	~AM_SimpleMemoryBlock() = default;
+	~AM_SimpleMemoryBlock() { assert(myMemory == nullptr && "VkDeviceMemory not freed!"); }
 	AM_SimpleMemoryBlock(const AM_SimpleMemoryBlock&) = delete;
 	void operator=(const AM_SimpleMemoryBlock&) = delete;
 
