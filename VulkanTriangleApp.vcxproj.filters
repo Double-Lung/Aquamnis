@@ -33,7 +33,15 @@
     <ClCompile Include="AM_SimpleMemoryBlock.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
-    <ClCompile Include="AM_StagingBuffer.cpp" />
+    <ClCompile Include="AM_SimpleBufferObject.cpp">
+      <Filter>VkDraw</Filter>
+    </ClCompile>
+    <ClCompile Include="AM_SimpleImageObject.cpp">
+      <Filter>VkDraw</Filter>
+    </ClCompile>
+    <ClCompile Include="AM_StagingBuffer.cpp">
+      <Filter>VkDraw</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationConstants.h">
@@ -57,7 +65,15 @@
     <ClInclude Include="AM_SimpleMemoryBlock.h">
       <Filter>Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="AM_StagingBuffer.h" />
+    <ClInclude Include="AM_SimpleBufferObject.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_SimpleImageObject.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_StagingBuffer.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader.frag">

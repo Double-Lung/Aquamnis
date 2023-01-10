@@ -547,7 +547,7 @@ void VkDraw::CreateDescriptorSets()
 	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = myUniformBuffers[i];
+		bufferInfo.buffer = myUniformBuffers[i].myBuffer;
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE
 		VkDescriptorImageInfo imageInfo{};
@@ -674,7 +674,7 @@ void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, u
 	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame], myVkContext.graphicsQueue);
 }
 
-void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleBufferObject& aBufferObject)
 {
 	VkBufferCreateInfo bufferInfo{};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -682,21 +682,13 @@ void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	bufferInfo.usage = usage;
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if (vkCreateBuffer(VkDrawContext::device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-		throw std::runtime_error("failed to create buffer!");
-
 	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(VkDrawContext::device, buffer, &memRequirements);
+	aBufferObject.Init(memRequirements, bufferInfo);
 
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
+	uint32_t memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
+	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements.size);
 
-	if (vkAllocateMemory(VkDrawContext::device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate buffer memory!");
-
-	vkBindBufferMemory(VkDrawContext::device, buffer, bufferMemory, 0);
+	aBufferObject.Bind(&memoryObject);
 }
 
 uint32_t VkDraw::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -888,9 +880,9 @@ void VkDraw::CreateVertexBuffer()
 	memcpy(data, myVertices.data(), static_cast<size_t>(bufferSize));
 	vkUnmapMemory(VkDrawContext::device, stagingBuffer.myMemory);
 
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myVertexBuffer, myVertexBufferMemory);
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myVertexBuffer);
 
-	CopyBuffer(stagingBuffer.myBuffer, myVertexBuffer, bufferSize);
+	CopyBuffer(stagingBuffer.myBuffer, myVertexBuffer.myBuffer, bufferSize);
 }
 
 void VkDraw::CreateIndexBuffer()
@@ -903,9 +895,9 @@ void VkDraw::CreateIndexBuffer()
 	memcpy(data, myIndices.data(), static_cast<size_t>(bufferSize));
 	vkUnmapMemory(VkDrawContext::device, stagingBuffer.myMemory);
 
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myIndexBuffer, myIndexBufferMemory);
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myIndexBuffer);
 
-	CopyBuffer(stagingBuffer.myBuffer, myIndexBuffer, bufferSize);
+	CopyBuffer(stagingBuffer.myBuffer, myIndexBuffer.myBuffer, bufferSize);
 }
 
 void VkDraw::CreateUniformBuffers()
@@ -913,14 +905,13 @@ void VkDraw::CreateUniformBuffers()
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
 	myUniformBuffers.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-	myUniformBuffersMemory.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-	myUniformBuffersMapped.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
 
 	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, myUniformBuffers[i], myUniformBuffersMemory[i]);
-		vkMapMemory(VkDrawContext::device, myUniformBuffersMemory[i], 0, bufferSize, 0, &myUniformBuffersMapped[i]);
+		CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, myUniformBuffers[i]);
 	}
+
+	vkMapMemory(VkDrawContext::device, myUniformBuffers[0].myMemoryObject->myMemory, myUniformBuffers[0].myMemoryObject->myOffset, bufferSize * VkDrawConstants::MAX_FRAMES_IN_FLIGHT, 0, &myUniformBuffersMapped2);
 }
 
 void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
@@ -1016,11 +1007,11 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline);
 
-	VkBuffer vertexBuffers[] = { myVertexBuffer };
-	VkDeviceSize offsets[] = { 0 };
+	VkBuffer vertexBuffers[] = { myVertexBuffer.myBuffer };
+	VkDeviceSize offsets[] = { myVertexBuffer.myMemoryObject->myOffset };
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-	vkCmdBindIndexBuffer(commandBuffer, myIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindIndexBuffer(commandBuffer, myIndexBuffer.myBuffer, myIndexBuffer.myMemoryObject->myOffset, VK_INDEX_TYPE_UINT32);
 
 	VkViewport viewport{};
 	viewport.x = 0;
@@ -1332,20 +1323,18 @@ void VkDraw::Cleanup()
 	vkDestroyImage(VkDrawContext::device, myTextureImage, nullptr);
 	vkFreeMemory(VkDrawContext::device, myTextureImageMemory, nullptr);
 
-	vkDestroyBuffer(VkDrawContext::device, myVertexBuffer, nullptr);
-	vkFreeMemory(VkDrawContext::device, myVertexBufferMemory, nullptr);
-
-	vkDestroyBuffer(VkDrawContext::device, myIndexBuffer, nullptr);
-	vkFreeMemory(VkDrawContext::device, myIndexBufferMemory, nullptr);
+	myVertexBuffer.Release();
+	myIndexBuffer.Release();
 
 	vkDestroyPipeline(VkDrawContext::device, myGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(VkDrawContext::device, myPipelineLayout, nullptr);
 
 	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		vkDestroyBuffer(VkDrawContext::device, myUniformBuffers[i], nullptr);
-		vkFreeMemory(VkDrawContext::device, myUniformBuffersMemory[i], nullptr);
+		myUniformBuffers[i].Release();
 	}
+
+	myMemoryAllocator.DeleteMemoryBlocks();
 	vkDestroyDescriptorPool(VkDrawContext::device, myDescriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(VkDrawContext::device, myDescriptorSetLayout, nullptr);
 	vkDestroyRenderPass(VkDrawContext::device, myRenderPass, nullptr);

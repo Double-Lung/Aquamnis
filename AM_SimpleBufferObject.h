@@ -1,0 +1,43 @@
+#pragma once
+#include "VkDrawContext.h"
+#include "AM_SimpleMemoryBlock.h"
+#include <stdexcept>
+
+struct AM_SimpleBufferObject
+{
+	AM_SimpleBufferObject()
+		: myMemoryObject(nullptr)
+		, myBuffer(nullptr)
+	{
+	}
+
+	~AM_SimpleBufferObject()
+	{
+		Release();
+	}
+
+	void Bind(AM_SimpleMemoryObject* aMemoryObject)
+	{
+		myMemoryObject = aMemoryObject;
+		myMemoryObject->myIsEmpty = false;
+		vkBindBufferMemory(VkDrawContext::device, myBuffer, myMemoryObject->myMemory, myMemoryObject->myOffset);
+	}
+
+	void Init(VkMemoryRequirements& outMemRequirements, const VkBufferCreateInfo& someInfo)
+	{
+		if (vkCreateBuffer(VkDrawContext::device, &someInfo, nullptr, &myBuffer) != VK_SUCCESS)
+			throw std::runtime_error("failed to create buffer!");
+		vkGetBufferMemoryRequirements(VkDrawContext::device, myBuffer, &outMemRequirements);
+	}
+
+	void Release()
+	{
+		vkDestroyBuffer(VkDrawContext::device, myBuffer, nullptr);
+		myMemoryObject->myIsEmpty = true;
+		myMemoryObject = nullptr;
+	}
+
+	AM_SimpleMemoryObject* myMemoryObject;
+	VkBuffer myBuffer;
+};
+

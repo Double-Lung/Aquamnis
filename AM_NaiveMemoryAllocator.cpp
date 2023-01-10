@@ -3,11 +3,6 @@
 #include "VkDrawContext.h"
 #include <stdexcept>
 
-AM_NaiveMemoryAllocator::~AM_NaiveMemoryAllocator()
-{
-	FreeMemoryBlocks();
-}
-
 void AM_NaiveMemoryAllocator::Init(uint32_t aMemoryTypeCount)
 {
 	myMemoryBlocksByMemoryType.resize(aMemoryTypeCount);
@@ -21,20 +16,14 @@ AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::Allocate(const uint32_t aMemoryT
 	for (auto& block : memoryBlocks)
 	{
 		if (block.myExtent + aSize <= VkDrawConstants::SINGLEALLOCSIZE)
-			return block.myAllocations.emplace_back(block.myExtent, aSize);
+			return block.myAllocations.emplace_back(block.myExtent, aSize, block.myMemory);
 
 		if (auto* slot = TryGetFreeSlot(block, aSize))
 			return *slot;
 	}
 
 	auto& newMemoryBlock = CreateAndGetNewBlock(aMemoryTypeIndex);
-	return newMemoryBlock.myAllocations.emplace_back(newMemoryBlock.myExtent, aSize);
-}
-
-void AM_NaiveMemoryAllocator::Remove(AM_SimpleMemoryObject& aMemoryObject)
-{
-	aMemoryObject.myIsEmpty = true;
-	// need to destroy buffer/image here?
+	return newMemoryBlock.myAllocations.emplace_back(newMemoryBlock.myExtent, aSize, newMemoryBlock.myMemory);
 }
 
 AM_SimpleMemoryBlock& AM_NaiveMemoryAllocator::CreateAndGetNewBlock(const uint32_t aMemoryTypeIndex)
@@ -64,7 +53,7 @@ AM_SimpleMemoryObject* AM_NaiveMemoryAllocator::TryGetFreeSlot(AM_SimpleMemoryBl
 		if (!leftover)
 			return &(*begin);
 
-		aMemoryBlock.myAllocations.emplace(begin, begin->myOffset, leftover);
+		aMemoryBlock.myAllocations.emplace(begin, begin->myOffset, leftover, aMemoryBlock.myMemory);
 		begin->mySize = aSize;
 		begin->myOffset += leftover;
 		return &(*begin);
@@ -72,7 +61,7 @@ AM_SimpleMemoryObject* AM_NaiveMemoryAllocator::TryGetFreeSlot(AM_SimpleMemoryBl
 	return nullptr;
 }
 
-void AM_NaiveMemoryAllocator::FreeMemoryBlocks()
+void AM_NaiveMemoryAllocator::DeleteMemoryBlocks()
 {
 	for (auto& blocks : myMemoryBlocksByMemoryType)
 	{
@@ -80,5 +69,7 @@ void AM_NaiveMemoryAllocator::FreeMemoryBlocks()
 		{
 			vkFreeMemory(VkDrawContext::device, block.myMemory, nullptr);
 		}
+
 	}
+	myMemoryBlocksByMemoryType.clear();
 }

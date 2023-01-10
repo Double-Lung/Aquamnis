@@ -164,6 +164,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp" />
+    <ClCompile Include="AM_SimpleBufferObject.cpp" />
+    <ClCompile Include="AM_SimpleImageObject.cpp" />
     <ClCompile Include="AM_SimpleMemoryBlock.cpp" />
     <ClCompile Include="AM_StagingBuffer.cpp" />
     <ClCompile Include="extensionProxy.cpp" />
@@ -173,6 +175,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AM_NaiveMemoryAllocator.h" />
+    <ClInclude Include="AM_SimpleBufferObject.h" />
+    <ClInclude Include="AM_SimpleImageObject.h" />
     <ClInclude Include="AM_SimpleMemoryBlock.h" />
     <ClInclude Include="AM_StagingBuffer.h" />
     <ClInclude Include="ApplicationConstants.h" />

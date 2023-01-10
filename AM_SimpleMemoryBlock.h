@@ -8,13 +8,15 @@ struct AM_SimpleMemoryObject
 	AM_SimpleMemoryObject()
 		: myOffset(0)
 		, mySize(0)
+		, myMemory(nullptr)
 		, myIsEmpty(true)
 	{
 	}
 
-	AM_SimpleMemoryObject(const uint64_t anOffset, const uint64_t aSize)
+	AM_SimpleMemoryObject(const uint64_t anOffset, const uint64_t aSize, const VkDeviceMemory aMemory)
 		: myOffset(anOffset)
 		, mySize(aSize)
+		, myMemory(aMemory)
 		, myIsEmpty(true)
 	{
 	}
@@ -23,6 +25,7 @@ struct AM_SimpleMemoryObject
 
 	uint64_t myOffset;
 	uint64_t mySize;
+	VkDeviceMemory myMemory;
 	bool myIsEmpty;
 };
 
