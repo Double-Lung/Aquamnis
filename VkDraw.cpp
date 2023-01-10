@@ -547,8 +547,8 @@ void VkDraw::CreateDescriptorSets()
 	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = myUniformBuffers[i].myBuffer;
-		bufferInfo.offset = 0;
+		bufferInfo.buffer = mySuperUniformBuffer.myBuffer;
+		bufferInfo.offset = i * 0x100;
 		bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -902,16 +902,10 @@ void VkDraw::CreateIndexBuffer()
 
 void VkDraw::CreateUniformBuffers()
 {
-	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+	static constexpr uint64_t bufferSize = 0x100 * VkDrawConstants::MAX_FRAMES_IN_FLIGHT;
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mySuperUniformBuffer);
 
-	myUniformBuffers.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-
-	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
-	{
-		CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, myUniformBuffers[i]);
-	}
-
-	vkMapMemory(VkDrawContext::device, myUniformBuffers[0].myMemoryObject->myMemory, myUniformBuffers[0].myMemoryObject->myOffset, bufferSize * VkDrawConstants::MAX_FRAMES_IN_FLIGHT, 0, &myUniformBuffersMapped2);
+	vkMapMemory(VkDrawContext::device, mySuperUniformBuffer.myMemoryObject->myMemory, mySuperUniformBuffer.myMemoryObject->myOffset, mySuperUniformBuffer.myMemoryObject->mySize, 0, &myUniformBuffersMapped);
 }
 
 void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
@@ -926,7 +920,8 @@ void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
 	ubo.view = glm::lookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	ubo.projection = glm::perspective(0.7854f, myVkContext.swapChainExtent.width / (float)myVkContext.swapChainExtent.height, 0.1f, 100.f);
 
-	memcpy(myUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+	char* destination = (char*) myUniformBuffersMapped + currentImage * 0x100;
+	memcpy((void*)destination, &ubo, sizeof(ubo));
 }
 
 VkCommandBuffer VkDraw::BeginSingleTimeCommands(VkCommandPool aCommandPool)
@@ -1329,10 +1324,7 @@ void VkDraw::Cleanup()
 	vkDestroyPipeline(VkDrawContext::device, myGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(VkDrawContext::device, myPipelineLayout, nullptr);
 
-	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
-	{
-		myUniformBuffers[i].Release();
-	}
+	mySuperUniformBuffer.Release();
 
 	myMemoryAllocator.DeleteMemoryBlocks();
 	vkDestroyDescriptorPool(VkDrawContext::device, myDescriptorPool, nullptr);

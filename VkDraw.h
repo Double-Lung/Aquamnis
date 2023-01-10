@@ -36,6 +36,7 @@ private:
 		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 projection;
+		
 	};
 
 	bool CheckExtensionSupport();
@@ -131,8 +132,7 @@ private:
 
 	uint32_t myMipLevels = 0;
 
-	std::vector<void*> myUniformBuffersMapped;
-	void* myUniformBuffersMapped2;
+	void* myUniformBuffersMapped;
 
 	std::vector<VkSemaphore> myImageAvailableSemaphores;
 	std::vector<VkSemaphore> myRenderFinishedSemaphores;
@@ -149,7 +149,7 @@ private:
 	std::vector<Vertex> myVertices;
 	std::vector<uint32_t> myIndices;
 
-	std::vector<AM_SimpleBufferObject> myUniformBuffers;
+	AM_SimpleBufferObject mySuperUniformBuffer;
 	AM_SimpleBufferObject myVertexBuffer;
 	AM_SimpleBufferObject myIndexBuffer;
 
