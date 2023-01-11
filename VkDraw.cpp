@@ -214,11 +214,9 @@ void VkDraw::CreateSwapChain()
 void VkDraw::CleanupSwapChain()
 {
 	vkDestroyImageView(VkDrawContext::device, myColorImageView, nullptr);
-	vkDestroyImage(VkDrawContext::device, myColorImage, nullptr);
-	vkFreeMemory(VkDrawContext::device, myColorImageMemory, nullptr);
+	myColorImage.Release();
 	vkDestroyImageView(VkDrawContext::device, myDepthImageView, nullptr);
-	vkDestroyImage(VkDrawContext::device, myDepthImage, nullptr);
-	vkFreeMemory(VkDrawContext::device, myDepthImageMemory, nullptr);
+	myDepthImage.Release();
 
 	for (size_t i = 0; i < mySwapChainFramebuffers.size(); i++) {
 		vkDestroyFramebuffer(VkDrawContext::device, mySwapChainFramebuffers[i], nullptr);
@@ -581,10 +579,10 @@ void VkDraw::CreateDescriptorSets()
 
 void VkDraw::CreateTextureImageView()
 {
-	myTextureImageView = CreateImageView(myTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
+	myTextureImageView = CreateImageView(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
 }
 
-void VkDraw::CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
+void VkDraw::CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleImageObject& anImageObject)
 {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -602,21 +600,13 @@ void VkDraw::CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, V
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.flags = 0; // Optional
 
-	if (vkCreateImage(VkDrawContext::device, &imageInfo, nullptr, &image) != VK_SUCCESS)
-		throw std::runtime_error("failed to create image!");
-
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(VkDrawContext::device, image, &memRequirements);
+	anImageObject.Init(memRequirements, imageInfo);
 
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
+	uint32_t memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
+	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements.size);
 
-	if (vkAllocateMemory(VkDrawContext::device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate image memory!");
-
-	vkBindImageMemory(VkDrawContext::device, image, imageMemory, 0);
+	anImageObject.Bind(&memoryObject);
 }
 
 void VkDraw::CreateTextureImage()
@@ -637,12 +627,12 @@ void VkDraw::CreateTextureImage()
 
 	stbi_image_free(pixels);
 
-	CreateImage((uint32_t)texWidth, (uint32_t)texHeight, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myTextureImage, myTextureImageMemory);
+	CreateImage((uint32_t)texWidth, (uint32_t)texHeight, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myTextureImage);
 
-	TransitionImageLayout(myTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels);
-	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels);
+	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage.myImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 	//transitionImageLayout(myTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
-	GenerateMipmaps(myTextureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
+	GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 }
 
 void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
@@ -689,31 +679,6 @@ void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements.size);
 
 	aBufferObject.Bind(&memoryObject);
-}
-
-void VkDraw::CreateBufferOld(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
-{
-	VkBufferCreateInfo bufferInfo{};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = size;
-	bufferInfo.usage = usage;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	if (vkCreateBuffer(VkDrawContext::device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-		throw std::runtime_error("failed to create buffer!");
-
-	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(VkDrawContext::device, buffer, &memRequirements);
-
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
-
-	if (vkAllocateMemory(VkDrawContext::device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate buffer memory!");
-
-	vkBindBufferMemory(VkDrawContext::device, buffer, bufferMemory, 0);
 }
 
 uint32_t VkDraw::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -891,8 +856,8 @@ void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWid
 
 void VkDraw::CreateColorResources()
 {
-	CreateImage(myVkContext.swapChainExtent.width, myVkContext.swapChainExtent.height, 1, myVkContext.maxMSAASamples, myVkContext.surfaceFormat.format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myColorImage, myColorImageMemory);
-	myColorImageView = CreateImageView(myColorImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	CreateImage(myVkContext.swapChainExtent.width, myVkContext.swapChainExtent.height, 1, myVkContext.maxMSAASamples, myVkContext.surfaceFormat.format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myColorImage);
+	myColorImageView = CreateImageView(myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
 void VkDraw::CreateVertexBuffer()
@@ -1200,9 +1165,9 @@ void VkDraw::CreateTextureSampler()
 
 void VkDraw::CreateDepthResources()
 {
-	CreateImage(myVkContext.swapChainExtent.width, myVkContext.swapChainExtent.height, 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myDepthImage, myDepthImageMemory);
-	myDepthImageView = CreateImageView(myDepthImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
-	TransitionImageLayout(myDepthImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
+	CreateImage(myVkContext.swapChainExtent.width, myVkContext.swapChainExtent.height, 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myDepthImage);
+	myDepthImageView = CreateImageView(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	TransitionImageLayout(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
 }
 
 bool VkDraw::HasStencilComponent(VkFormat format)
@@ -1339,8 +1304,7 @@ void VkDraw::Cleanup()
 
 	vkDestroySampler(VkDrawContext::device, myTextureSampler, nullptr);
 	vkDestroyImageView(VkDrawContext::device, myTextureImageView, nullptr);
-	vkDestroyImage(VkDrawContext::device, myTextureImage, nullptr);
-	vkFreeMemory(VkDrawContext::device, myTextureImageMemory, nullptr);
+	myColorImage.Release();
 
 	myVertexBuffer.Release();
 	myIndexBuffer.Release();

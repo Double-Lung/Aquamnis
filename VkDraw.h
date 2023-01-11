@@ -13,6 +13,7 @@
 #include <vector>
 #include "AM_NaiveMemoryAllocator.h"
 #include "AM_SimpleBufferObject.h"
+#include "AM_SimpleImageObject.h"
 
 class VkDrawContext;
 class VkDraw
@@ -65,12 +66,11 @@ private:
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImageView();
-	void CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+	void CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleImageObject& anImageObject);
+
 	void CreateTextureImage();
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleBufferObject& aBufferObject);
-
-	void CreateBufferOld(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 
 	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -120,17 +120,10 @@ private:
 	VkDescriptorPool myDescriptorPool = nullptr;
 	std::vector<VkDescriptorSet> myDescriptorSets;
 
-	VkImage myTextureImage = nullptr;
-	VkDeviceMemory myTextureImageMemory = nullptr;
 	VkImageView myTextureImageView = nullptr;
-	VkSampler myTextureSampler = nullptr;
-	VkImage myDepthImage = nullptr;
-	VkDeviceMemory myDepthImageMemory = nullptr;
 	VkImageView myDepthImageView = nullptr;
-
-	VkImage myColorImage = nullptr;
-	VkDeviceMemory myColorImageMemory = nullptr;
 	VkImageView myColorImageView = nullptr;
+	VkSampler myTextureSampler = nullptr;
 
 	uint32_t myMipLevels = 0;
 
@@ -155,6 +148,10 @@ private:
 	AM_SimpleBufferObject myVertexBuffer;
 	AM_SimpleBufferObject myIndexBuffer;
 
+	AM_SimpleImageObject myTextureImage;
+	AM_SimpleImageObject myColorImage;
+	AM_SimpleImageObject myDepthImage;
+	
 	VkDrawContext myVkContext;
 	AM_NaiveMemoryAllocator myMemoryAllocator;
 };

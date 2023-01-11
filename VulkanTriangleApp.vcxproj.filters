@@ -30,15 +30,6 @@
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
-    <ClCompile Include="AM_SimpleMemoryBlock.cpp">
-      <Filter>Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="AM_SimpleBufferObject.cpp">
-      <Filter>VkDraw</Filter>
-    </ClCompile>
-    <ClCompile Include="AM_SimpleImageObject.cpp">
-      <Filter>VkDraw</Filter>
-    </ClCompile>
     <ClCompile Include="AM_StagingBuffer.cpp">
       <Filter>VkDraw</Filter>
     </ClCompile>
