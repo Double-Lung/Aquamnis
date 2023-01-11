@@ -16,14 +16,19 @@ AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::Allocate(const uint32_t aMemoryT
 	for (auto& block : memoryBlocks)
 	{
 		if (block.myExtent + aSize <= VkDrawConstants::SINGLEALLOCSIZE)
-			return block.myAllocations.emplace_back(block.myExtent, aSize, block.myMemory);
+		{
+			auto& slot = block.myAllocations.emplace_back(block.myExtent, aSize, block.myMemory);
+			block.myExtent += aSize;
+			return slot;
+		}
 
 		if (auto* slot = TryGetFreeSlot(block, aSize))
 			return *slot;
 	}
 
 	auto& newMemoryBlock = CreateAndGetNewBlock(aMemoryTypeIndex);
-	return newMemoryBlock.myAllocations.emplace_back(newMemoryBlock.myExtent, aSize, newMemoryBlock.myMemory);
+	newMemoryBlock.myExtent = aSize;
+	return newMemoryBlock.myAllocations.emplace_back(0, aSize, newMemoryBlock.myMemory);
 }
 
 AM_SimpleMemoryBlock& AM_NaiveMemoryAllocator::CreateAndGetNewBlock(const uint32_t aMemoryTypeIndex)

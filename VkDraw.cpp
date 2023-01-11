@@ -547,7 +547,7 @@ void VkDraw::CreateDescriptorSets()
 	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = mySuperUniformBuffer.myBuffer;
+		bufferInfo.buffer = myUniformBuffers.myBuffer;
 		bufferInfo.offset = i * 0x100;
 		bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE
 		VkDescriptorImageInfo imageInfo{};
@@ -689,6 +689,31 @@ void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements.size);
 
 	aBufferObject.Bind(&memoryObject);
+}
+
+void VkDraw::CreateBufferOld(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+{
+	VkBufferCreateInfo bufferInfo{};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = size;
+	bufferInfo.usage = usage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(VkDrawContext::device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
+		throw std::runtime_error("failed to create buffer!");
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(VkDrawContext::device, buffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
+
+	if (vkAllocateMemory(VkDrawContext::device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
+		throw std::runtime_error("failed to allocate buffer memory!");
+
+	vkBindBufferMemory(VkDrawContext::device, buffer, bufferMemory, 0);
 }
 
 uint32_t VkDraw::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -876,12 +901,11 @@ void VkDraw::CreateVertexBuffer()
 	AM_StagingBuffer stagingBuffer(bufferSize, myVkContext);
 
 	void* data;
-	vkMapMemory(VkDrawContext::device, stagingBuffer.myMemory, 0, bufferSize, 0, &data);
+	vkMapMemory(VkDrawContext::device, stagingBuffer.myMemory, 0, stagingBuffer.myMemSize, 0, &data);
 	memcpy(data, myVertices.data(), static_cast<size_t>(bufferSize));
 	vkUnmapMemory(VkDrawContext::device, stagingBuffer.myMemory);
-
+	
 	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myVertexBuffer);
-
 	CopyBuffer(stagingBuffer.myBuffer, myVertexBuffer.myBuffer, bufferSize);
 }
 
@@ -891,7 +915,7 @@ void VkDraw::CreateIndexBuffer()
 	AM_StagingBuffer stagingBuffer(bufferSize, myVkContext);
 
 	void* data;
-	vkMapMemory(VkDrawContext::device, stagingBuffer.myMemory, 0, bufferSize, 0, &data);
+	vkMapMemory(VkDrawContext::device, stagingBuffer.myMemory, 0, stagingBuffer.myMemSize, 0, &data);
 	memcpy(data, myIndices.data(), static_cast<size_t>(bufferSize));
 	vkUnmapMemory(VkDrawContext::device, stagingBuffer.myMemory);
 
@@ -903,9 +927,9 @@ void VkDraw::CreateIndexBuffer()
 void VkDraw::CreateUniformBuffers()
 {
 	static constexpr uint64_t bufferSize = 0x100 * VkDrawConstants::MAX_FRAMES_IN_FLIGHT;
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mySuperUniformBuffer);
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, myUniformBuffers);
 
-	vkMapMemory(VkDrawContext::device, mySuperUniformBuffer.myMemoryObject->myMemory, mySuperUniformBuffer.myMemoryObject->myOffset, mySuperUniformBuffer.myMemoryObject->mySize, 0, &myUniformBuffersMapped);
+	vkMapMemory(VkDrawContext::device, myUniformBuffers.myMemoryObject->myMemory, myUniformBuffers.myMemoryObject->myOffset, myUniformBuffers.myMemoryObject->mySize, 0, &myUniformBuffersMapped);
 }
 
 void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
@@ -916,7 +940,7 @@ void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 	UniformBufferObject ubo{};
-	ubo.model = glm::mat4(1.f);//glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f));
+	ubo.model = glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f)); //glm::mat4(1.f);//
 	ubo.view = glm::lookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	ubo.projection = glm::perspective(0.7854f, myVkContext.swapChainExtent.width / (float)myVkContext.swapChainExtent.height, 0.1f, 100.f);
 
@@ -1002,11 +1026,11 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline);
 
-	VkBuffer vertexBuffers[] = { myVertexBuffer.myBuffer };
-	VkDeviceSize offsets[] = { myVertexBuffer.myMemoryObject->myOffset };
+ 	VkBuffer vertexBuffers[] = { myVertexBuffer.myBuffer };
+ 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-	vkCmdBindIndexBuffer(commandBuffer, myIndexBuffer.myBuffer, myIndexBuffer.myMemoryObject->myOffset, VK_INDEX_TYPE_UINT32);
+	vkCmdBindIndexBuffer(commandBuffer, myIndexBuffer.myBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 	VkViewport viewport{};
 	viewport.x = 0;
@@ -1324,7 +1348,7 @@ void VkDraw::Cleanup()
 	vkDestroyPipeline(VkDrawContext::device, myGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(VkDrawContext::device, myPipelineLayout, nullptr);
 
-	mySuperUniformBuffer.Release();
+	myUniformBuffers.Release();
 
 	myMemoryAllocator.DeleteMemoryBlocks();
 	vkDestroyDescriptorPool(VkDrawContext::device, myDescriptorPool, nullptr);

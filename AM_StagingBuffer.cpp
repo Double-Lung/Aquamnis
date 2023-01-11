@@ -2,7 +2,8 @@
 #include <stdexcept>
 
 AM_StagingBuffer::AM_StagingBuffer(const VkDeviceSize aBufferSize, const VkDrawContext& aContext)
-	: myBuffer(nullptr)
+	: myMemSize(0)
+	, myBuffer(nullptr)
 	, myMemory(nullptr)
 	, myContext(aContext)
 {
@@ -17,10 +18,11 @@ AM_StagingBuffer::AM_StagingBuffer(const VkDeviceSize aBufferSize, const VkDrawC
 
 	VkMemoryRequirements memRequirements;
 	vkGetBufferMemoryRequirements(VkDrawContext::device, myBuffer, &memRequirements);
+	myMemSize = memRequirements.size;
 
 	VkMemoryAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.allocationSize = myMemSize;
 	// TODO: cache
 	allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -34,19 +36,6 @@ AM_StagingBuffer::~AM_StagingBuffer()
 {
 	vkDestroyBuffer(VkDrawContext::device, myBuffer, nullptr);
 	vkFreeMemory(VkDrawContext::device, myMemory, nullptr);
-}
-
-void AM_StagingBuffer::Allocate(const VkDeviceSize anAllocSize, const uint32_t aMemoryTypeIndex)
-{
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = anAllocSize;
-	allocInfo.memoryTypeIndex = aMemoryTypeIndex;
-
-	if (vkAllocateMemory(VkDrawContext::device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate buffer memory!");
-
-	vkBindBufferMemory(VkDrawContext::device, myBuffer, myMemory, 0);
 }
 
 uint32_t AM_StagingBuffer::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)

@@ -4,10 +4,13 @@
 #include "AM_SimpleMemoryBlock.h"
 
 // TODO: optimize for fast alloc with a free slot heap
+// TODO: optimize with single buffer
 // TODO: deconstruction
+// TODO: fix memory leak
 // TODO: consolidate empty slots
 // TODO: temp alloc block for staging buffers
 // TODO: concurrency
+
 
 class AM_NaiveMemoryAllocator
 {

@@ -70,6 +70,8 @@ private:
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleBufferObject& aBufferObject);
 
+	void CreateBufferOld(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+
 	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels);
@@ -149,7 +151,7 @@ private:
 	std::vector<Vertex> myVertices;
 	std::vector<uint32_t> myIndices;
 
-	AM_SimpleBufferObject mySuperUniformBuffer;
+	AM_SimpleBufferObject myUniformBuffers;
 	AM_SimpleBufferObject myVertexBuffer;
 	AM_SimpleBufferObject myIndexBuffer;
 
