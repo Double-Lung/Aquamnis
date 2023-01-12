@@ -3,15 +3,15 @@
 #include "AM_SimpleMemoryBlock.h"
 #include <stdexcept>
 
-struct AM_SimpleBufferObject
+struct AM_VkBuffer
 {
-	AM_SimpleBufferObject()
+	AM_VkBuffer()
 		: myMemoryObject(nullptr)
 		, myBuffer(nullptr)
 	{
 	}
 
-	~AM_SimpleBufferObject()
+	~AM_VkBuffer()
 	{
 		Release();
 	}
@@ -33,6 +33,7 @@ struct AM_SimpleBufferObject
 	void Release()
 	{
 		vkDestroyBuffer(VkDrawContext::device, myBuffer, nullptr);
+		myBuffer = nullptr;
 		myMemoryObject->myIsEmpty = true;
 		myMemoryObject = nullptr;
 	}

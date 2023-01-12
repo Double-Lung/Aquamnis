@@ -56,13 +56,19 @@
     <ClInclude Include="AM_SimpleMemoryBlock.h">
       <Filter>Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="AM_SimpleBufferObject.h">
+    <ClInclude Include="AM_VkBuffer.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
-    <ClInclude Include="AM_SimpleImageObject.h">
+    <ClInclude Include="AM_VkImage.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
     <ClInclude Include="AM_StagingBuffer.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_VkPrimitives.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_VkSwapChain.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
   </ItemGroup>

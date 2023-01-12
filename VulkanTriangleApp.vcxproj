@@ -172,10 +172,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AM_NaiveMemoryAllocator.h" />
-    <ClInclude Include="AM_SimpleBufferObject.h" />
-    <ClInclude Include="AM_SimpleImageObject.h" />
+    <ClInclude Include="AM_VkBuffer.h" />
+    <ClInclude Include="AM_VkImage.h" />
     <ClInclude Include="AM_SimpleMemoryBlock.h" />
     <ClInclude Include="AM_StagingBuffer.h" />
+    <ClInclude Include="AM_VkPrimitives.h" />
+    <ClInclude Include="AM_VkSwapChain.h" />
     <ClInclude Include="ApplicationConstants.h" />
     <ClInclude Include="extensionProxy.h" />
     <ClInclude Include="VkDraw.h" />

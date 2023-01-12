@@ -17,10 +17,7 @@ public:
 	bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
 	void ChoosePhysicalDevice();
 	void CreateLogicalDevice();
-	
-	void GetSwapChainCreationInfo();
-	void UpdateSwapChainExtent(uint32_t width, uint32_t height);
-	void CreateSwapChain(VkSwapchainKHR& swapChain);
+	void InitSwapChainCreationInfo();
 
 	void GetMaxMSAASampleCount();
 	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, const VkImageTiling& tiling, const VkFormatFeatureFlags& features) const;
@@ -31,8 +28,6 @@ public:
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	VkPhysicalDeviceMemoryProperties memoryProperties;
 	VkSurfaceFormatKHR surfaceFormat;
-	VkExtent2D swapChainExtent;
-	
 
 	const std::vector<const char*> deviceExtensions;
 	const std::vector<const char*> enabledInstanceLayers;
@@ -54,7 +49,7 @@ public:
 	VkPresentModeKHR presentMode;
 	VkFormat depthFormat;
 	VkSampleCountFlagBits maxMSAASamples;
-	uint32_t sawpChainImageCount;
+	uint32_t swapChainImageCount;
 	uint32_t graphicsFamilyIndex;
 	uint32_t presentFamilyIndex;
 	uint32_t transferFamilyIndex;

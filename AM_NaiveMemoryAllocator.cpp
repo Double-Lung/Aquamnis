@@ -73,8 +73,8 @@ void AM_NaiveMemoryAllocator::DeleteMemoryBlocks()
 		for (auto& block : blocks)
 		{
 			vkFreeMemory(VkDrawContext::device, block.myMemory, nullptr);
+			block.myMemory = nullptr;
 		}
-
 	}
 	myMemoryBlocksByMemoryType.clear();
 }

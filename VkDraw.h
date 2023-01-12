@@ -12,8 +12,10 @@
 #include <string>
 #include <vector>
 #include "AM_NaiveMemoryAllocator.h"
-#include "AM_SimpleBufferObject.h"
-#include "AM_SimpleImageObject.h"
+#include "AM_VkBuffer.h"
+#include "AM_VkImage.h"
+#include "AM_VkPrimitives.h"
+#include "AM_VkSwapChain.h"
 
 class VkDrawContext;
 class VkDraw
@@ -21,6 +23,8 @@ class VkDraw
 public:
 	// Create window and Vulkan instance
 	void Engage();
+	VkDraw() = default;
+	~VkDraw();
 	
 private:
 	struct Vertex {
@@ -51,12 +55,11 @@ private:
 	void CreateInstance();
 	void InitWindow();
 
-	void GetSwapChainImages();
 	void CreateSwapChain();
 
 	void CleanupSwapChain();
 	void RecreateSwapChain();
-	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels);
+	void CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels);
 	void CreateSwapChainImageViews();
 	void CreateDescriptorSetLayout();
 	void CreateGraphicsPipeline();
@@ -66,11 +69,11 @@ private:
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImageView();
-	void CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleImageObject& anImageObject);
+	void CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkImage& anImageObject);
 
 	void CreateTextureImage();
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleBufferObject& aBufferObject);
+	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkBuffer& aBufferObject);
 
 	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -110,32 +113,30 @@ private:
 
 	GLFWwindow* myWindow = nullptr;
 	VkDebugUtilsMessengerEXT myDebugMessenger = nullptr;
-	VkSwapchainKHR mySwapChain = nullptr;
-	VkRenderPass myRenderPass = nullptr;
-	VkDescriptorSetLayout myDescriptorSetLayout = nullptr;
-	VkPipelineLayout myPipelineLayout = nullptr;
-	VkPipeline myGraphicsPipeline = nullptr;
-	std::vector<VkCommandPool> myCommandPools;
-	VkCommandPool myTransferCommandPool = nullptr;
-	VkDescriptorPool myDescriptorPool = nullptr;
+	AM_VkSwapChain mySwapChain;
+	AM_VkRenderPass myRenderPass;
+	AM_VkDescriptorSetLayout myDescriptorSetLayout;
+	AM_VkPipelineLayout myPipelineLayout;
+	AM_VkPipeline myGraphicsPipeline;
+	std::vector<AM_VkCommandPool> myCommandPools;
+	AM_VkCommandPool myTransferCommandPool;
+	AM_VkDescriptorPool myDescriptorPool;
 	std::vector<VkDescriptorSet> myDescriptorSets;
 
-	VkImageView myTextureImageView = nullptr;
-	VkImageView myDepthImageView = nullptr;
-	VkImageView myColorImageView = nullptr;
-	VkSampler myTextureSampler = nullptr;
+	AM_VkImageView myTextureImageView;
+	AM_VkImageView myDepthImageView;
+	AM_VkImageView myColorImageView;
+	AM_VkSampler myTextureSampler;
 
 	uint32_t myMipLevels = 0;
 
 	void* myUniformBuffersMapped;
 
-	std::vector<VkSemaphore> myImageAvailableSemaphores;
-	std::vector<VkSemaphore> myRenderFinishedSemaphores;
-	std::vector<VkFence> myInFlightFences;
+	std::vector<AM_VkSemaphore> myImageAvailableSemaphores;
+	std::vector<AM_VkSemaphore> myRenderFinishedSemaphores;
+	std::vector<AM_VkFence> myInFlightFences;
 
-	std::vector<VkImage> mySwapChainImages;
-	std::vector<VkImageView> mySwapChainImageViews;
-	std::vector<VkFramebuffer> mySwapChainFramebuffers;
+	std::vector<AM_VkFramebuffer> mySwapChainFramebuffers;
 	std::vector<VkCommandBuffer> myCommandBuffers;
 
 	uint32_t myCurrentFrame = 0;
@@ -144,15 +145,14 @@ private:
 	std::vector<Vertex> myVertices;
 	std::vector<uint32_t> myIndices;
 
-	AM_SimpleBufferObject myUniformBuffers;
-	AM_SimpleBufferObject myVertexBuffer;
-	AM_SimpleBufferObject myIndexBuffer;
-
-	AM_SimpleImageObject myTextureImage;
-	AM_SimpleImageObject myColorImage;
-	AM_SimpleImageObject myDepthImage;
-	
-	VkDrawContext myVkContext;
 	AM_NaiveMemoryAllocator myMemoryAllocator;
+	VkDrawContext myVkContext;
+	AM_VkBuffer myUniformBuffers;
+	AM_VkBuffer myVertexBuffer;
+	AM_VkBuffer myIndexBuffer;
+	
+	AM_VkImage myTextureImage;
+	AM_VkImage myColorImage;
+	AM_VkImage myDepthImage;
 };
 

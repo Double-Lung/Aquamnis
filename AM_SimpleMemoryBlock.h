@@ -38,7 +38,10 @@ public:
 	{
 	}
 
-	~AM_SimpleMemoryBlock() { assert(myMemory == nullptr && "VkDeviceMemory not freed!"); }
+	~AM_SimpleMemoryBlock()
+	{ 
+		assert(myMemory == nullptr && "VkDeviceMemory not freed!"); 
+	}
 	AM_SimpleMemoryBlock(const AM_SimpleMemoryBlock&) = delete;
 	void operator=(const AM_SimpleMemoryBlock&) = delete;
 

@@ -35,6 +35,10 @@ void VkDraw::Engage()
 	InitWindow();
 	InitVulkan();
 	MainLoop();
+}
+
+VkDraw::~VkDraw()
+{
 	Cleanup();
 }
 
@@ -194,39 +198,42 @@ void VkDraw::InitWindow()
 	myVkContext.GetRequiredInstanceExtensions();
 }
 
-void VkDraw::GetSwapChainImages()
-{
-	uint32_t imageCount;
-	vkGetSwapchainImagesKHR(VkDrawContext::device, mySwapChain, &imageCount, nullptr);
-	mySwapChainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(VkDrawContext::device, mySwapChain, &imageCount, mySwapChainImages.data());
-}
-
 void VkDraw::CreateSwapChain()
 {
 	int width, height;
 	glfwGetFramebufferSize(myWindow, &width, &height);
-	myVkContext.UpdateSwapChainExtent(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-	myVkContext.CreateSwapChain(mySwapChain);
-	GetSwapChainImages();
+	mySwapChain.SetExtent(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+	VkSwapchainCreateInfoKHR createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	createInfo.surface = myVkContext.surface;
+	createInfo.minImageCount = myVkContext.swapChainImageCount;
+	createInfo.imageFormat = myVkContext.surfaceFormat.format;
+	createInfo.imageColorSpace = myVkContext.surfaceFormat.colorSpace;
+	createInfo.imageExtent = mySwapChain.GetExtent();
+	createInfo.imageArrayLayers = 1;
+	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+	std::vector<uint32_t> queueFamilyIndices = { myVkContext.graphicsFamilyIndex, myVkContext.transferFamilyIndex };
+	createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+	createInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilyIndices.size());
+	createInfo.pQueueFamilyIndices = queueFamilyIndices.data();
+
+	createInfo.preTransform = myVkContext.surfaceCapabilities.currentTransform;
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	createInfo.presentMode = myVkContext.presentMode;
+	createInfo.clipped = VK_TRUE;
+	createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	mySwapChain.Create(createInfo);
 }
 
 void VkDraw::CleanupSwapChain()
 {
-	vkDestroyImageView(VkDrawContext::device, myColorImageView, nullptr);
-	myColorImage.Release();
-	vkDestroyImageView(VkDrawContext::device, myDepthImageView, nullptr);
-	myDepthImage.Release();
-
-	for (size_t i = 0; i < mySwapChainFramebuffers.size(); i++) {
-		vkDestroyFramebuffer(VkDrawContext::device, mySwapChainFramebuffers[i], nullptr);
-	}
-
-	for (size_t i = 0; i < mySwapChainImageViews.size(); i++) {
-		vkDestroyImageView(VkDrawContext::device, mySwapChainImageViews[i], nullptr);
-	}
-
-	vkDestroySwapchainKHR(VkDrawContext::device, mySwapChain, nullptr);
+	myColorImageView.DestroyView();
+	myDepthImageView.DestroyView();
+	mySwapChainFramebuffers.clear();
+	mySwapChain.Destroy();
 }
 
 void VkDraw::RecreateSwapChain()
@@ -242,6 +249,8 @@ void VkDraw::RecreateSwapChain()
 	vkDeviceWaitIdle(VkDrawContext::device);
 
 	CleanupSwapChain();
+	myColorImage.Release();
+	myDepthImage.Release();
 
 	CreateSwapChain();
 	CreateSwapChainImageViews();
@@ -250,7 +259,7 @@ void VkDraw::RecreateSwapChain()
 	CreateFramebuffers();
 }
 
-VkImageView VkDraw::CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
+void VkDraw::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -263,19 +272,22 @@ VkImageView VkDraw::CreateImageView(VkImage image, VkFormat format, VkImageAspec
 	viewInfo.subresourceRange.baseArrayLayer = 0;
 	viewInfo.subresourceRange.layerCount = 1;
 
-	VkImageView imageView;
-	if (vkCreateImageView(VkDrawContext::device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
-		throw std::runtime_error("failed to create texture image view!");
-
-	return imageView;
+	outImageView.CreateView(viewInfo);
 }
 
 void VkDraw::CreateSwapChainImageViews()
 {
-	mySwapChainImageViews.resize(mySwapChainImages.size());
+	VkImageViewCreateInfo viewInfo{};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = myVkContext.surfaceFormat.format;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
 
-	for (uint32_t i = 0; i < mySwapChainImages.size(); i++)
-		mySwapChainImageViews[i] = CreateImageView(mySwapChainImages[i], myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	mySwapChain.CreateImageViews(viewInfo);
 }
 
 void VkDraw::CreateDescriptorSetLayout()
@@ -300,8 +312,7 @@ void VkDraw::CreateDescriptorSetLayout()
 	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 	layoutInfo.pBindings = bindings.data();
 
-	if (vkCreateDescriptorSetLayout(VkDrawContext::device, &layoutInfo, nullptr, &myDescriptorSetLayout) != VK_SUCCESS)
-		throw std::runtime_error("failed to create descriptor set layout!");
+	myDescriptorSetLayout.CreateLayout(layoutInfo);
 }
 
 void VkDraw::CreateGraphicsPipeline()
@@ -411,12 +422,11 @@ void VkDraw::CreateGraphicsPipeline()
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional
-	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout; // Optional
+	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.myLayout; // Optional
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-	if (vkCreatePipelineLayout(VkDrawContext::device, &pipelineLayoutInfo, nullptr, &myPipelineLayout) != VK_SUCCESS)
-		throw std::runtime_error("failed to create pipeline layout!");
+	myPipelineLayout.CreateLayout(pipelineLayoutInfo);
 
 	VkPipelineDepthStencilStateCreateInfo depthStencil{};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -442,14 +452,13 @@ void VkDraw::CreateGraphicsPipeline()
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = myPipelineLayout;
-	pipelineInfo.renderPass = myRenderPass;
+	pipelineInfo.layout = myPipelineLayout.myLayout;
+	pipelineInfo.renderPass = myRenderPass.myPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
-	if (vkCreateGraphicsPipelines(VkDrawContext::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &myGraphicsPipeline) != VK_SUCCESS)
-		throw std::runtime_error("failed to create graphics pipeline!");
+	myGraphicsPipeline.CreatePipeline(pipelineInfo);
 
 	vkDestroyShaderModule(VkDrawContext::device, fragShaderModule, nullptr);
 	vkDestroyShaderModule(VkDrawContext::device, vertShaderModule, nullptr);
@@ -471,23 +480,23 @@ VkShaderModule VkDraw::CreateShaderModule(const std::vector<char>& code)
 
 void VkDraw::CreateFramebuffers()
 {
-	mySwapChainFramebuffers.resize(mySwapChainImageViews.size());
+	const auto& swapChainImageViews = mySwapChain.GetImageViews();
+	mySwapChainFramebuffers.resize(swapChainImageViews.size());
 
-	for (size_t i = 0; i != mySwapChainImageViews.size(); ++i)
+	for (size_t i = 0; i != swapChainImageViews.size(); ++i)
 	{
-		std::array<VkImageView, 3> attachments = { myColorImageView, myDepthImageView ,mySwapChainImageViews[i] };
+		std::array<VkImageView, 3> attachments = { myColorImageView.myView, myDepthImageView.myView, swapChainImageViews[i].myView };
 
 		VkFramebufferCreateInfo framebufferInfo{};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = myRenderPass;
+		framebufferInfo.renderPass = myRenderPass.myPass;
 		framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
 		framebufferInfo.pAttachments = attachments.data();
-		framebufferInfo.width = myVkContext.swapChainExtent.width;
-		framebufferInfo.height = myVkContext.swapChainExtent.height;
+		framebufferInfo.width = mySwapChain.GetWidth();
+		framebufferInfo.height = mySwapChain.GetHeight();
 		framebufferInfo.layers = 1;
 
-		if (vkCreateFramebuffer(VkDrawContext::device, &framebufferInfo, nullptr, &mySwapChainFramebuffers[i]) != VK_SUCCESS)
-			throw std::runtime_error("failed to create framebuffer!");
+		mySwapChainFramebuffers[i].CreateFrameBuffer(framebufferInfo);
 	}
 }
 
@@ -498,17 +507,15 @@ void VkDraw::CreateCommandPools()
 	poolInfo.queueFamilyIndex = myVkContext.graphicsFamilyIndex;
 
 	myCommandPools.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-	for (VkCommandPool& commandPool : myCommandPools)
-		if (vkCreateCommandPool(VkDrawContext::device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-			throw std::runtime_error("failed to create command pool!");
+	for (auto& commandPool : myCommandPools)
+		commandPool.CreatePool(poolInfo);
 
 	VkCommandPoolCreateInfo transferPoolInfo{};
 	transferPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	transferPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 	transferPoolInfo.queueFamilyIndex = myVkContext.transferFamilyIndex;
 
-	if (vkCreateCommandPool(VkDrawContext::device, &transferPoolInfo, nullptr, &myTransferCommandPool) != VK_SUCCESS)
-		throw std::runtime_error("failed to create transfer command pool!");
+	myTransferCommandPool.CreatePool(transferPoolInfo);
 }
 
 void VkDraw::CreateDescriptorPool()
@@ -525,16 +532,15 @@ void VkDraw::CreateDescriptorPool()
 	poolInfo.pPoolSizes = poolSizes.data();
 	poolInfo.maxSets = static_cast<uint32_t>(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
 
-	if (vkCreateDescriptorPool(VkDrawContext::device, &poolInfo, nullptr, &myDescriptorPool) != VK_SUCCESS)
-		throw std::runtime_error("failed to create descriptor pool!");
+	myDescriptorPool.CreateDescriptorPool(poolInfo);
 }
 
 void VkDraw::CreateDescriptorSets()
 {
-	std::vector<VkDescriptorSetLayout> layouts(VkDrawConstants::MAX_FRAMES_IN_FLIGHT, myDescriptorSetLayout);
+	std::vector<VkDescriptorSetLayout> layouts(VkDrawConstants::MAX_FRAMES_IN_FLIGHT, myDescriptorSetLayout.myLayout);
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = myDescriptorPool;
+	allocInfo.descriptorPool = myDescriptorPool.myPool;
 	allocInfo.descriptorSetCount = static_cast<uint32_t>(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
 	allocInfo.pSetLayouts = layouts.data();
 
@@ -550,8 +556,8 @@ void VkDraw::CreateDescriptorSets()
 		bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = myTextureImageView;
-		imageInfo.sampler = myTextureSampler;
+		imageInfo.imageView = myTextureImageView.myView;
+		imageInfo.sampler = myTextureSampler.mySampler;
 		
 
 		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
@@ -579,16 +585,16 @@ void VkDraw::CreateDescriptorSets()
 
 void VkDraw::CreateTextureImageView()
 {
-	myTextureImageView = CreateImageView(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
+	CreateImageView(myTextureImageView, myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
 }
 
-void VkDraw::CreateImage(uint32_t width, uint32_t height, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleImageObject& anImageObject)
+void VkDraw::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkImage& anImageObject)
 {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = width;
-	imageInfo.extent.height = height;
+	imageInfo.extent.width = anExtent.width;
+	imageInfo.extent.height = anExtent.height;
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = aMipLevels;
 	imageInfo.arrayLayers = 1;
@@ -627,7 +633,7 @@ void VkDraw::CreateTextureImage()
 
 	stbi_image_free(pixels);
 
-	CreateImage((uint32_t)texWidth, (uint32_t)texHeight, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myTextureImage);
+	CreateImage({ (uint32_t)texWidth, (uint32_t)texHeight }, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myTextureImage);
 
 	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels);
 	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage.myImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
@@ -637,7 +643,7 @@ void VkDraw::CreateTextureImage()
 
 void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame]);
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
 
 	VkBufferImageCopy region{};
 	region.bufferOffset = 0;
@@ -661,10 +667,10 @@ void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, u
 		&region
 	);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame], myVkContext.graphicsQueue);
+	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
 }
 
-void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_SimpleBufferObject& aBufferObject)
+void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkBuffer& aBufferObject)
 {
 	VkBufferCreateInfo bufferInfo{};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -692,18 +698,18 @@ uint32_t VkDraw::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
 
 void VkDraw::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool);
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
 
 	VkBufferCopy copyRegion{};
 	copyRegion.size = size;
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-	EndSingleTimeCommands(commandBuffer, myTransferCommandPool, myVkContext.transferQueue);
+	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
 }
 
 void VkDraw::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame]);
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.oldLayout = oldLayout;
@@ -759,7 +765,7 @@ void VkDraw::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout
 		1, &barrier
 	);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame], myVkContext.graphicsQueue);
+	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
 }
 
 
@@ -775,7 +781,7 @@ void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWid
 	// Usually they are pre-generated and stored in the texture file alongside the base level to improve loading speed. 
 	// Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
 
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame]);
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -851,13 +857,13 @@ void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWid
 		0, nullptr,
 		1, &barrier);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame], myVkContext.graphicsQueue);
+	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
 }
 
 void VkDraw::CreateColorResources()
 {
-	CreateImage(myVkContext.swapChainExtent.width, myVkContext.swapChainExtent.height, 1, myVkContext.maxMSAASamples, myVkContext.surfaceFormat.format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myColorImage);
-	myColorImageView = CreateImageView(myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.surfaceFormat.format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myColorImage);
+	CreateImageView(myColorImageView, myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
 void VkDraw::CreateVertexBuffer()
@@ -907,7 +913,7 @@ void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
 	UniformBufferObject ubo{};
 	ubo.model = glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f)); //glm::mat4(1.f);//
 	ubo.view = glm::lookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
-	ubo.projection = glm::perspective(0.7854f, myVkContext.swapChainExtent.width / (float)myVkContext.swapChainExtent.height, 0.1f, 100.f);
+	ubo.projection = glm::perspective(0.7854f, mySwapChain.GetWidth() / (float)mySwapChain.GetHeight(), 0.1f, 100.f);
 
 	char* destination = (char*) myUniformBuffersMapped + currentImage * 0x100;
 	memcpy((void*)destination, &ubo, sizeof(ubo));
@@ -958,7 +964,7 @@ void VkDraw::CreateReusableCommandBuffers()
 	myCommandBuffers.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
 	for (int i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		allocInfo.commandPool = myCommandPools[i];
+		allocInfo.commandPool = myCommandPools[i].myPool;
 		if (vkAllocateCommandBuffers(VkDrawContext::device, &allocInfo, &myCommandBuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate command buffer!");
 	}
@@ -976,11 +982,11 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = myRenderPass;
-	renderPassInfo.framebuffer = mySwapChainFramebuffers[imageIndex];
+	renderPassInfo.renderPass = myRenderPass.myPass;
+	renderPassInfo.framebuffer = mySwapChainFramebuffers[imageIndex].myFramebuffer;
 
 	renderPassInfo.renderArea.offset = { 0, 0 };
-	renderPassInfo.renderArea.extent = myVkContext.swapChainExtent;
+	renderPassInfo.renderArea.extent = mySwapChain.GetExtent();
 
 	std::array<VkClearValue, 2> clearValues{};
 	clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
@@ -989,7 +995,7 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 	renderPassInfo.pClearValues = clearValues.data();
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
 
  	VkBuffer vertexBuffers[] = { myVertexBuffer.myBuffer };
  	VkDeviceSize offsets[] = { 0 };
@@ -999,19 +1005,19 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 
 	VkViewport viewport{};
 	viewport.x = 0;
-	viewport.y = static_cast<float>(myVkContext.swapChainExtent.height);
-	viewport.width = static_cast<float>(myVkContext.swapChainExtent.width);
-	viewport.height = -static_cast<float>(myVkContext.swapChainExtent.height);
+	viewport.y = static_cast<float>(mySwapChain.GetHeight());
+	viewport.width = static_cast<float>(mySwapChain.GetWidth());
+	viewport.height = -static_cast<float>(mySwapChain.GetHeight());
 	viewport.minDepth = 0.f;
 	viewport.maxDepth = 1.f;
 	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
-	scissor.extent = myVkContext.swapChainExtent;
+	scissor.extent = mySwapChain.GetExtent();
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout, 0, 1, &myDescriptorSets[myCurrentFrame], 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &myDescriptorSets[myCurrentFrame], 0, nullptr);
 	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(myIndices.size()), 1, 0, 0, 0);
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -1024,29 +1030,14 @@ void VkDraw::CreateSyncObjects()
 	myInFlightFences.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
 	myImageAvailableSemaphores.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
 	myRenderFinishedSemaphores.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-
-	VkSemaphoreCreateInfo semaphoreInfo{};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	VkFenceCreateInfo fenceInfo{};
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-	for (size_t i = 0; i != VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
-	{
-		if (vkCreateSemaphore(VkDrawContext::device, &semaphoreInfo, nullptr, &myImageAvailableSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(VkDrawContext::device, &semaphoreInfo, nullptr, &myRenderFinishedSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(VkDrawContext::device, &fenceInfo, nullptr, &myInFlightFences[i]) != VK_SUCCESS)
-			throw std::runtime_error("failed to create semaphores!");
-	}
 }
 
 void VkDraw::DrawFrame()
 {
-	vkWaitForFences(VkDrawContext::device, 1, &myInFlightFences[myCurrentFrame], VK_TRUE, UINT64_MAX);
+	vkWaitForFences(VkDrawContext::device, 1, &myInFlightFences[myCurrentFrame].myFence, VK_TRUE, UINT64_MAX);
 	
 	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(VkDrawContext::device, mySwapChain, UINT64_MAX, myImageAvailableSemaphores[myCurrentFrame], VK_NULL_HANDLE, &imageIndex);
+	VkResult result = vkAcquireNextImageKHR(VkDrawContext::device, mySwapChain.GetSwapChain(), UINT64_MAX, myImageAvailableSemaphores[myCurrentFrame].mySemaphore, VK_NULL_HANDLE, &imageIndex);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) 
 	{
@@ -1057,17 +1048,17 @@ void VkDraw::DrawFrame()
 	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
 		throw std::runtime_error("failed to acquire swap chain image!");
 
-	vkResetFences(VkDrawContext::device, 1, &myInFlightFences[myCurrentFrame]);
+	vkResetFences(VkDrawContext::device, 1, &myInFlightFences[myCurrentFrame].myFence);
 
 	UpdateUniformBuffer(myCurrentFrame);
 
-	vkResetCommandPool(VkDrawContext::device, myCommandPools[myCurrentFrame], VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+	vkResetCommandPool(VkDrawContext::device, myCommandPools[myCurrentFrame].myPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 	RecordCommandBuffer(myCommandBuffers[myCurrentFrame], imageIndex);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-	std::array<VkSemaphore, 1> waitSemaphores = { myImageAvailableSemaphores[myCurrentFrame] };
+	std::array<VkSemaphore, 1> waitSemaphores = { myImageAvailableSemaphores[myCurrentFrame].mySemaphore };
 	std::array<VkPipelineStageFlags, 1> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
 	submitInfo.pWaitSemaphores = waitSemaphores.data();
@@ -1075,11 +1066,11 @@ void VkDraw::DrawFrame()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &myCommandBuffers[myCurrentFrame];
 
-	std::array<VkSemaphore, 1> signalSemaphores = { myRenderFinishedSemaphores[myCurrentFrame] };
+	std::array<VkSemaphore, 1> signalSemaphores = { myRenderFinishedSemaphores[myCurrentFrame].mySemaphore };
 	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size());
 	submitInfo.pSignalSemaphores = signalSemaphores.data();
 
-	if (vkQueueSubmit(myVkContext.graphicsQueue, 1, &submitInfo, myInFlightFences[myCurrentFrame]) != VK_SUCCESS)
+	if (vkQueueSubmit(myVkContext.graphicsQueue, 1, &submitInfo, myInFlightFences[myCurrentFrame].myFence) != VK_SUCCESS)
 		throw std::runtime_error("failed to submit draw command buffer!");
 	
 	VkPresentInfoKHR presentInfo{};
@@ -1087,7 +1078,7 @@ void VkDraw::DrawFrame()
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pWaitSemaphores = signalSemaphores.data();
 
-	std::array<VkSwapchainKHR, 1> swapChains = { mySwapChain };
+	std::array<VkSwapchainKHR, 1> swapChains = { mySwapChain.GetSwapChain() };
 	presentInfo.swapchainCount = static_cast<uint32_t>(swapChains.size());
 	presentInfo.pSwapchains = swapChains.data();
 	presentInfo.pImageIndices = &imageIndex;
@@ -1159,14 +1150,13 @@ void VkDraw::CreateTextureSampler()
 	samplerInfo.minLod = 0.f;
 	samplerInfo.maxLod = static_cast<float>(myMipLevels); // or VK_LOD_CLAMP_NONE
 
-	if (vkCreateSampler(VkDrawContext::device, &samplerInfo, nullptr, &myTextureSampler) != VK_SUCCESS)
-		throw std::runtime_error("failed to create texture sampler!");
+	myTextureSampler.CreateSampler(samplerInfo);
 }
 
 void VkDraw::CreateDepthResources()
 {
-	CreateImage(myVkContext.swapChainExtent.width, myVkContext.swapChainExtent.height, 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myDepthImage);
-	myDepthImageView = CreateImageView(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myDepthImage);
+	CreateImageView(myDepthImageView, myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 	TransitionImageLayout(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
 }
 
@@ -1283,8 +1273,7 @@ void VkDraw::CreateRenderPass()
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
-	if (vkCreateRenderPass(VkDrawContext::device, &renderPassInfo, nullptr, &myRenderPass) != VK_SUCCESS)
-		throw std::runtime_error("failed to create render pass!");
+	myRenderPass.CreateRenderPass(renderPassInfo);
 }
 
 void VkDraw::MainLoop()
@@ -1300,36 +1289,34 @@ void VkDraw::MainLoop()
 
 void VkDraw::Cleanup()
 {
-	CleanupSwapChain();
+	//mySwapChainFramebuffers.clear();
+	
+	//vkDestroySampler(VkDrawContext::device, myTextureSampler.mySampler, nullptr);
+	//vkDestroyImageView(VkDrawContext::device, myTextureImageView, nullptr);
+	//myTextureImage.Release();
+	//myVertexBuffer.Release();
+	//myIndexBuffer.Release();
 
-	vkDestroySampler(VkDrawContext::device, myTextureSampler, nullptr);
-	vkDestroyImageView(VkDrawContext::device, myTextureImageView, nullptr);
-	myColorImage.Release();
+	//vkDestroyPipeline(VkDrawContext::device, myGraphicsPipeline, nullptr);
+	//vkDestroyPipelineLayout(VkDrawContext::device, myPipelineLayout, nullptr);
 
-	myVertexBuffer.Release();
-	myIndexBuffer.Release();
+	//myUniformBuffers.Release();
 
-	vkDestroyPipeline(VkDrawContext::device, myGraphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(VkDrawContext::device, myPipelineLayout, nullptr);
+	//myDepthImage.Release();
+	//myColorImage.Release();
 
-	myUniformBuffers.Release();
+	//vkDestroyDescriptorSetLayout(VkDrawContext::device, myDescriptorSetLayout, nullptr);
 
-	myMemoryAllocator.DeleteMemoryBlocks();
-	vkDestroyDescriptorPool(VkDrawContext::device, myDescriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(VkDrawContext::device, myDescriptorSetLayout, nullptr);
-	vkDestroyRenderPass(VkDrawContext::device, myRenderPass, nullptr);
+	//vkDestroyRenderPass(VkDrawContext::device, myRenderPass, nullptr);
 
-	for (size_t i = 0; i != VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
-	{
-		vkDestroySemaphore(VkDrawContext::device, myImageAvailableSemaphores[i], nullptr);
-		vkDestroySemaphore(VkDrawContext::device, myRenderFinishedSemaphores[i], nullptr);
-		vkDestroyFence(VkDrawContext::device, myInFlightFences[i], nullptr);
-	}
+	//vkDestroyDescriptorPool(VkDrawContext::device, myDescriptorPool, nullptr);
+	
+	//myCommandPools.clear();
 
-	for (VkCommandPool& commandPool : myCommandPools)
-		vkDestroyCommandPool(VkDrawContext::device, commandPool, nullptr);
+	//vkDestroyCommandPool(VkDrawContext::device, myTransferCommandPool, nullptr);
 
-	vkDestroyCommandPool(VkDrawContext::device, myTransferCommandPool, nullptr);
+	//vkDestroySwapchainKHR(VkDrawContext::device, mySwapChain, nullptr);
+	//myMemoryAllocator.DeleteMemoryBlocks();
 	vkDestroyDevice(VkDrawContext::device, nullptr);
 
 #ifdef _DEBUG

@@ -3,15 +3,15 @@
 #include "VkDrawContext.h"
 #include <stdexcept>
 
-struct AM_SimpleImageObject
+struct AM_VkImage
 {
-	AM_SimpleImageObject()
+	AM_VkImage()
 		: myMemoryObject(nullptr)
 		, myImage(nullptr)
 	{
 	}
 
-	~AM_SimpleImageObject()
+	~AM_VkImage()
 	{
 		Release();
 	}
@@ -33,6 +33,7 @@ struct AM_SimpleImageObject
 	void Release()
 	{
 		vkDestroyImage(VkDrawContext::device, myImage, nullptr);
+		myImage = nullptr;
 		myMemoryObject->myIsEmpty = true;
 		myMemoryObject = nullptr;
 	}

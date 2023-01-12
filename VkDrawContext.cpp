@@ -16,7 +16,6 @@ VkDrawContext::VkDrawContext()
 	, surfaceCapabilities{}
 	, memoryProperties{}
 	, surfaceFormat{}
-	, swapChainExtent{}
 	, enabledInstanceLayers
     {
 #if _DEBUG
@@ -30,7 +29,7 @@ VkDrawContext::VkDrawContext()
 	, presentMode(VK_PRESENT_MODE_MAX_ENUM_KHR)
 	, depthFormat(VK_FORMAT_MAX_ENUM)
 	, maxMSAASamples(VK_SAMPLE_COUNT_1_BIT)
-	, sawpChainImageCount(0)
+	, swapChainImageCount(0)
 	, graphicsFamilyIndex(0)
 	, presentFamilyIndex(0)
 	, transferFamilyIndex(0)
@@ -90,7 +89,7 @@ void VkDrawContext::Init()
 {
 	ChoosePhysicalDevice();
 	CreateLogicalDevice();
-	GetSwapChainCreationInfo();
+	InitSwapChainCreationInfo();
 	GetMaxMSAASampleCount();
 	GetDepthFormat();
 }
@@ -218,7 +217,7 @@ void VkDrawContext::CreateLogicalDevice()
 	vkGetDeviceQueue(device, transferFamilyIndex, 0, &transferQueue);
 }
 
-void VkDrawContext::GetSwapChainCreationInfo()
+void VkDrawContext::InitSwapChainCreationInfo()
 {
 	surfaceFormat = surfaceFormats[0];
 	for (const VkSurfaceFormatKHR& availableFormat : surfaceFormats)
@@ -245,40 +244,7 @@ void VkDrawContext::GetSwapChainCreationInfo()
 			continue;
 		presentMode = availablePresentMode;
 	}
-	sawpChainImageCount = std::clamp(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.minImageCount, surfaceCapabilities.maxImageCount);   
-}
-
-void VkDrawContext::UpdateSwapChainExtent(uint32_t width, uint32_t height)
-{
-	swapChainExtent.width = width;
-	swapChainExtent.height = height;
-}
-
-void VkDrawContext::CreateSwapChain(VkSwapchainKHR& swapChain)
-{
-	VkSwapchainCreateInfoKHR createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	createInfo.surface = surface;
-	createInfo.minImageCount = sawpChainImageCount;
-	createInfo.imageFormat = surfaceFormat.format;
-	createInfo.imageColorSpace = surfaceFormat.colorSpace;
-	createInfo.imageExtent = swapChainExtent;
-	createInfo.imageArrayLayers = 1;
-	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-	std::vector<uint32_t> queueFamilyIndices = { graphicsFamilyIndex, transferFamilyIndex };
-	createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-	createInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilyIndices.size());
-	createInfo.pQueueFamilyIndices = queueFamilyIndices.data();
-	
-	createInfo.preTransform = surfaceCapabilities.currentTransform;
-	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	createInfo.presentMode = presentMode;
-	createInfo.clipped = VK_TRUE;
-	createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-	if ( vkCreateSwapchainKHR(VkDrawContext::device, &createInfo, nullptr, &swapChain) != VK_SUCCESS )
-		throw std::runtime_error("failed to create swap chain!");
+	swapChainImageCount = std::clamp(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.minImageCount, surfaceCapabilities.maxImageCount);   
 }
 
 void VkDrawContext::GetMaxMSAASampleCount()
