@@ -178,6 +178,7 @@
     <ClInclude Include="AM_StagingBuffer.h" />
     <ClInclude Include="AM_VkPrimitives.h" />
     <ClInclude Include="AM_VkSwapChain.h" />
+    <ClInclude Include="AM_Window.h" />
     <ClInclude Include="ApplicationConstants.h" />
     <ClInclude Include="extensionProxy.h" />
     <ClInclude Include="VkDraw.h" />

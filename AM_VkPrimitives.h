@@ -1,7 +1,5 @@
 #pragma once
-#include <vulkan/vulkan.h>
 #include "VkDrawContext.h"
-#include <stdexcept>
 
 struct AM_VkSemaphore
 {
@@ -262,4 +260,3 @@ struct AM_VkCommandPool
 
 	VkCommandPool myPool;
 };
-

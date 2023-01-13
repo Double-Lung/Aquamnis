@@ -1,25 +1,15 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
-
 #include "VkDraw.h"
-#include "ApplicationConstants.h"
 #include "AM_StagingBuffer.h"
-#ifdef _DEBUG
-#include "extensionProxy.h"
-#endif
-#include "VkDrawConstants.h"
-#include <algorithm>
-
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <glm/gtc/matrix_transform.hpp>
-#include <iostream>
 #include <stb_image.h>
 #include <tiny_obj_loader.h>
 #include <unordered_map>
-#include <unordered_set>
 
 // TODO: 
 // All of the helper functions that submit commands so far have been set up to execute synchronously 
@@ -32,14 +22,16 @@
 
 void VkDraw::Engage()
 {
-	InitWindow();
 	InitVulkan();
 	MainLoop();
 }
 
-VkDraw::~VkDraw()
+VkDraw::VkDraw() 
+	: myUniformBuffersMapped(nullptr)
+	, myMipLevels(0)
+	, myCurrentFrame(0)
+	, myIsFramebufferResized(false)
 {
-	Cleanup();
 }
 
 bool VkDraw::CheckExtensionSupport()
@@ -79,34 +71,6 @@ bool VkDraw::CheckInstanceLayerSupport()
 			return false;
 	return true;
 }
-
-VKAPI_ATTR VkBool32 VKAPI_CALL VkDraw::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
-{
-	std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-
-	return VK_FALSE;
-}
-
-void VkDraw::PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
-{
-	createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	createInfo.pfnUserCallback = DebugCallback;
-}
-
-#ifdef _DEBUG
-void VkDraw::SetupDebugMessenger()
-{
-	VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-	PopulateDebugMessengerCreateInfo(createInfo);
-
-	if (CreateDebugUtilsMessengerEXT(VkDrawContext::instance, &createInfo, nullptr, &myDebugMessenger) != VK_SUCCESS) {
-		throw std::runtime_error("failed to set up debug messenger!");
-	}
-}
-#endif
 
 std::vector<char> VkDraw::ReadFile(const std::string& filename)
 {
@@ -164,7 +128,7 @@ void VkDraw::CreateInstance()
 	features.pEnabledValidationFeatures = enables.data();
 
 	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-	PopulateDebugMessengerCreateInfo(debugCreateInfo);
+	myVkContext.PopulateDebugMessengerCreateInfo(debugCreateInfo);
 	debugCreateInfo.pNext = &features;
 	createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
 #endif
@@ -172,36 +136,14 @@ void VkDraw::CreateInstance()
 	if (vkCreateInstance(&createInfo, nullptr, &VkDrawContext::instance) != VK_SUCCESS)
 		throw std::runtime_error("failed to create Vulkan instance!");
 
-	if (glfwCreateWindowSurface(VkDrawContext::instance, myWindow, nullptr, &VkDrawContext::surface) != VK_SUCCESS)
+	if (glfwCreateWindowSurface(VkDrawContext::instance, myWindowInstance.GetWindow(), nullptr, &VkDrawContext::surface) != VK_SUCCESS)
 		throw std::runtime_error("failed to create window surface!");
-}
-
-void VkDraw::InitWindow()
-{
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	myWindow = glfwCreateWindow(ApplicationConstants::MIN_WIDTH, 
-		ApplicationConstants::MIN_HEIGHT, 
-		ApplicationConstants::WINDOWNAME, 
-		nullptr, nullptr);
-	glfwSetWindowUserPointer(myWindow, this);
-	glfwSetFramebufferSizeCallback(myWindow, FramebufferResizeCallback);
-	glfwSetWindowSizeLimits
-	(
-		myWindow, 
-		ApplicationConstants::MIN_WIDTH, 
-		ApplicationConstants::MIN_HEIGHT, 
-		ApplicationConstants::MAX_WIDTH, 
-		ApplicationConstants::MAX_HEIGHT
-	);
-	myVkContext.GetRequiredInstanceExtensions();
 }
 
 void VkDraw::CreateSwapChain()
 {
 	int width, height;
-	glfwGetFramebufferSize(myWindow, &width, &height);
+	myWindowInstance.GetFramebufferSize(width, height);
 	mySwapChain.SetExtent(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 
 	VkSwapchainCreateInfoKHR createInfo{};
@@ -226,34 +168,38 @@ void VkDraw::CreateSwapChain()
 	createInfo.oldSwapchain = VK_NULL_HANDLE;
 
 	mySwapChain.Create(createInfo);
+
+	VkImageViewCreateInfo viewInfo{};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = myVkContext.surfaceFormat.format;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+
+	mySwapChain.CreateImageViews(viewInfo);
 }
 
 void VkDraw::CleanupSwapChain()
 {
 	myColorImageView.DestroyView();
+	myColorImage.Release();
 	myDepthImageView.DestroyView();
-	mySwapChainFramebuffers.clear();
+	myDepthImage.Release();
+	myFramebuffers.clear();
 	mySwapChain.Destroy();
 }
 
 void VkDraw::RecreateSwapChain()
 {
 	int width = 0, height = 0;
-	glfwGetFramebufferSize(myWindow, &width, &height);
-	while (width == 0 || height == 0) 
-	{
-		glfwGetFramebufferSize(myWindow, &width, &height);
-		glfwWaitEvents();
-	}
-
+	myWindowInstance.WaitForFramebufferSize(width, height);
 	vkDeviceWaitIdle(VkDrawContext::device);
 
 	CleanupSwapChain();
-	myColorImage.Release();
-	myDepthImage.Release();
-
 	CreateSwapChain();
-	CreateSwapChainImageViews();
 	CreateColorResources();
 	CreateDepthResources();
 	CreateFramebuffers();
@@ -273,21 +219,6 @@ void VkDraw::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkForm
 	viewInfo.subresourceRange.layerCount = 1;
 
 	outImageView.CreateView(viewInfo);
-}
-
-void VkDraw::CreateSwapChainImageViews()
-{
-	VkImageViewCreateInfo viewInfo{};
-	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewInfo.format = myVkContext.surfaceFormat.format;
-	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	viewInfo.subresourceRange.baseMipLevel = 0;
-	viewInfo.subresourceRange.levelCount = 1;
-	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = 1;
-
-	mySwapChain.CreateImageViews(viewInfo);
 }
 
 void VkDraw::CreateDescriptorSetLayout()
@@ -481,7 +412,7 @@ VkShaderModule VkDraw::CreateShaderModule(const std::vector<char>& code)
 void VkDraw::CreateFramebuffers()
 {
 	const auto& swapChainImageViews = mySwapChain.GetImageViews();
-	mySwapChainFramebuffers.resize(swapChainImageViews.size());
+	myFramebuffers.resize(swapChainImageViews.size());
 
 	for (size_t i = 0; i != swapChainImageViews.size(); ++i)
 	{
@@ -496,7 +427,7 @@ void VkDraw::CreateFramebuffers()
 		framebufferInfo.height = mySwapChain.GetHeight();
 		framebufferInfo.layers = 1;
 
-		mySwapChainFramebuffers[i].CreateFrameBuffer(framebufferInfo);
+		myFramebuffers[i].CreateFrameBuffer(framebufferInfo);
 	}
 }
 
@@ -610,7 +541,7 @@ void VkDraw::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSamp
 	anImageObject.Init(memRequirements, imageInfo);
 
 	uint32_t memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
-	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements.size);
+	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements);
 
 	anImageObject.Bind(&memoryObject);
 }
@@ -682,7 +613,7 @@ void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	aBufferObject.Init(memRequirements, bufferInfo);
 
 	uint32_t memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
-	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements.size);
+	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements);
 
 	aBufferObject.Bind(&memoryObject);
 }
@@ -983,7 +914,7 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassInfo.renderPass = myRenderPass.myPass;
-	renderPassInfo.framebuffer = mySwapChainFramebuffers[imageIndex].myFramebuffer;
+	renderPassInfo.framebuffer = myFramebuffers[imageIndex].myFramebuffer;
 
 	renderPassInfo.renderArea.offset = { 0, 0 };
 	renderPassInfo.renderArea.extent = mySwapChain.GetExtent();
@@ -1167,18 +1098,11 @@ bool VkDraw::HasStencilComponent(VkFormat format)
 
 void VkDraw::InitVulkan()
 {
+	myWindowInstance.Init(FramebufferResizeCallback);
 	CreateInstance();
-#ifdef _DEBUG
-	SetupDebugMessenger();
-#endif
-	
 	myVkContext.Init();
 	myMemoryAllocator.Init(myVkContext.memoryProperties.memoryTypeCount);
-
-	// swap chain
 	CreateSwapChain();
-	CreateSwapChainImageViews();
-
 	CreateCommandPools();
 	CreateDescriptorPool();
 	CreateRenderPass();
@@ -1278,55 +1202,13 @@ void VkDraw::CreateRenderPass()
 
 void VkDraw::MainLoop()
 {
-	while (!glfwWindowShouldClose(myWindow)) 
+	while (!myWindowInstance.ShouldCloseWindow())
 	{
 		glfwPollEvents();
 		DrawFrame();
 	}
 
 	vkDeviceWaitIdle(VkDrawContext::device);
-}
-
-void VkDraw::Cleanup()
-{
-	//mySwapChainFramebuffers.clear();
-	
-	//vkDestroySampler(VkDrawContext::device, myTextureSampler.mySampler, nullptr);
-	//vkDestroyImageView(VkDrawContext::device, myTextureImageView, nullptr);
-	//myTextureImage.Release();
-	//myVertexBuffer.Release();
-	//myIndexBuffer.Release();
-
-	//vkDestroyPipeline(VkDrawContext::device, myGraphicsPipeline, nullptr);
-	//vkDestroyPipelineLayout(VkDrawContext::device, myPipelineLayout, nullptr);
-
-	//myUniformBuffers.Release();
-
-	//myDepthImage.Release();
-	//myColorImage.Release();
-
-	//vkDestroyDescriptorSetLayout(VkDrawContext::device, myDescriptorSetLayout, nullptr);
-
-	//vkDestroyRenderPass(VkDrawContext::device, myRenderPass, nullptr);
-
-	//vkDestroyDescriptorPool(VkDrawContext::device, myDescriptorPool, nullptr);
-	
-	//myCommandPools.clear();
-
-	//vkDestroyCommandPool(VkDrawContext::device, myTransferCommandPool, nullptr);
-
-	//vkDestroySwapchainKHR(VkDrawContext::device, mySwapChain, nullptr);
-	//myMemoryAllocator.DeleteMemoryBlocks();
-	vkDestroyDevice(VkDrawContext::device, nullptr);
-
-#ifdef _DEBUG
-	DestroyDebugUtilsMessengerEXT(VkDrawContext::instance, myDebugMessenger, nullptr);
-#endif
-
-	vkDestroySurfaceKHR(VkDrawContext::instance, VkDrawContext::surface, nullptr);
-	vkDestroyInstance(VkDrawContext::instance, nullptr);
-	glfwDestroyWindow(myWindow);
-	glfwTerminate();
 }
 
 VkVertexInputBindingDescription VkDraw::Vertex::GetBindingDescription()

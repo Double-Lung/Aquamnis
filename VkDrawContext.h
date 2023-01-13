@@ -1,13 +1,24 @@
 #pragma once
-#include <vulkan/vulkan.h>
-#include <optional>
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#include <algorithm>
+#ifdef _DEBUG
+#include "extensionProxy.h"
+#endif
+#include <GLFW/glfw3.h>
+#include <iostream>
+#include <stdexcept>
+#include <unordered_set>
 #include <vector>
+#include "VkDrawConstants.h"
+#include <vulkan/vulkan.h>
 
 class VkDrawContext
 {
 public:
 	VkDrawContext();
-	~VkDrawContext() = default;
+	~VkDrawContext();
 
 	void Init();
 	void GetAvailableInstanceExtensions();
@@ -22,6 +33,16 @@ public:
 	void GetMaxMSAASampleCount();
 	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, const VkImageTiling& tiling, const VkFormatFeatureFlags& features) const;
 	void GetDepthFormat();
+
+#ifdef _DEBUG
+	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
+		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+		VkDebugUtilsMessageTypeFlagsEXT messageType,
+		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+		void* pUserData);
+	void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+	void SetupDebugMessenger();
+#endif
 
 	VkPhysicalDeviceProperties deviceProperties;
 	VkPhysicalDeviceFeatures deviceFeatures;
@@ -41,6 +62,10 @@ public:
 	static VkSurfaceKHR surface;
 	static VkPhysicalDevice physicalDevice;
 	static VkDevice device;
+
+#if _DEBUG
+	VkDebugUtilsMessengerEXT myDebugMessenger;
+#endif
 
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;

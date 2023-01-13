@@ -1,5 +1,4 @@
 #pragma once
-
 #include "VkDrawContext.h"
 
 struct AM_StagingBuffer

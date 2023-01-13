@@ -1,7 +1,7 @@
 #pragma once
+#include <assert.h>
 #include <list>
 #include <vulkan/vulkan.h>
-#include <assert.h>
 
 struct AM_SimpleMemoryObject
 {

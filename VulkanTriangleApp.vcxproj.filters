@@ -53,9 +53,6 @@
     <ClInclude Include="AM_NaiveMemoryAllocator.h">
       <Filter>Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="AM_SimpleMemoryBlock.h">
-      <Filter>Utilities</Filter>
-    </ClInclude>
     <ClInclude Include="AM_VkBuffer.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
@@ -69,6 +66,12 @@
       <Filter>VkDraw</Filter>
     </ClInclude>
     <ClInclude Include="AM_VkSwapChain.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_Window.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_SimpleMemoryBlock.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,7 +1,6 @@
 #pragma once
 #include "AM_SimpleMemoryBlock.h"
 #include "VkDrawContext.h"
-#include <stdexcept>
 
 struct AM_VkImage
 {

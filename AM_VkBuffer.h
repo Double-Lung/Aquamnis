@@ -1,7 +1,6 @@
 #pragma once
-#include "VkDrawContext.h"
 #include "AM_SimpleMemoryBlock.h"
-#include <stdexcept>
+#include "VkDrawContext.h"
 
 struct AM_VkBuffer
 {

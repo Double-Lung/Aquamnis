@@ -1,5 +1,4 @@
 #include "AM_StagingBuffer.h"
-#include <stdexcept>
 
 AM_StagingBuffer::AM_StagingBuffer(const VkDeviceSize aBufferSize, const VkDrawContext& aContext)
 	: myMemSize(0)

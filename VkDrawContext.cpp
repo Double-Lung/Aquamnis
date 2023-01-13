@@ -1,9 +1,4 @@
 #include "VkDrawContext.h"
-#include <GLFW/glfw3.h>
-#include <stdexcept>
-#include <unordered_set>
-#include <algorithm>
-#include "VkDrawConstants.h"
 
 VkInstance VkDrawContext::instance = VK_NULL_HANDLE;
 VkSurfaceKHR VkDrawContext::surface = VK_NULL_HANDLE;
@@ -23,6 +18,9 @@ VkDrawContext::VkDrawContext()
 #endif
     }
 	, deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME }
+#if _DEBUG
+	, myDebugMessenger(VK_NULL_HANDLE)
+#endif
 	, graphicsQueue(VK_NULL_HANDLE)
 	, presentQueue(VK_NULL_HANDLE)
 	, transferQueue(VK_NULL_HANDLE)
@@ -35,9 +33,20 @@ VkDrawContext::VkDrawContext()
 	, transferFamilyIndex(0)
 {
 	GetAvailableInstanceExtensions();
+	GetRequiredInstanceExtensions();
 #if _DEBUG
 	GetAvailableInstanceLayers();
 #endif
+}
+
+VkDrawContext::~VkDrawContext()
+{
+	vkDestroyDevice(VkDrawContext::device, nullptr);
+	vkDestroySurfaceKHR(VkDrawContext::instance, VkDrawContext::surface, nullptr);
+#ifdef _DEBUG
+	DestroyDebugUtilsMessengerEXT(VkDrawContext::instance, myDebugMessenger, nullptr);
+#endif
+	vkDestroyInstance(VkDrawContext::instance, nullptr);
 }
 
 bool VkDrawContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx)
@@ -87,6 +96,9 @@ bool VkDrawContext::CheckDeviceExtensionSupport(VkPhysicalDevice device)
 
 void VkDrawContext::Init()
 {
+#if _DEBUG
+	SetupDebugMessenger();
+#endif
 	ChoosePhysicalDevice();
 	CreateLogicalDevice();
 	InitSwapChainCreationInfo();
@@ -298,3 +310,29 @@ void VkDrawContext::GetDepthFormat()
 		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 	);
 }
+
+#ifdef _DEBUG
+VKAPI_ATTR VkBool32 VKAPI_CALL VkDrawContext::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
+{
+	std::cerr << "\nvalidation layer: " << pCallbackData->pMessage << std::endl;
+	return VK_FALSE;
+}
+
+void VkDrawContext::PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
+{
+	createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	createInfo.pfnUserCallback = DebugCallback;
+}
+
+void VkDrawContext::SetupDebugMessenger()
+{
+	VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+	PopulateDebugMessengerCreateInfo(createInfo);
+
+	if (CreateDebugUtilsMessengerEXT(VkDrawContext::instance, &createInfo, nullptr, &myDebugMessenger) != VK_SUCCESS)
+		throw std::runtime_error("failed to set up debug messenger!");
+}
+#endif //_DEBUG

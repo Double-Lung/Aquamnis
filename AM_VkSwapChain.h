@@ -1,8 +1,6 @@
 #pragma once
-#include <vulkan/vulkan.h>
+#include "AM_VkPrimitives.h"
 #include "VkDrawContext.h"
-
-struct AM_VkImageView;
 
 class AM_VkSwapChain
 {
