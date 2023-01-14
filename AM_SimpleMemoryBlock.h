@@ -32,41 +32,74 @@ struct AM_SimpleMemoryObject
 class AM_SimpleMemoryBlock
 {
 public:
+	enum ResourceType
+	{
+		NOTSET,
+		BUFFER,
+		IMAGE
+	};
+
 	AM_SimpleMemoryBlock()
-		: myMemory(nullptr)
+		: myExtent(0)
+		, myType(NOTSET)
+		, myMemory(VK_NULL_HANDLE)
 		, myMappedMemory(nullptr)
-		, myExtent(0)
+		, myIsMapped(false)
 	{
 	}
 
-	~AM_SimpleMemoryBlock()
-	{ 
-		assert(myMemory == nullptr && "VkDeviceMemory not freed!"); 
+	AM_SimpleMemoryBlock(const ResourceType aType)
+		: myExtent(0)
+		, myType(aType)
+		, myMemory(VK_NULL_HANDLE)
+		, myMappedMemory(nullptr)
+		, myIsMapped(false)
+	{
 	}
-	AM_SimpleMemoryBlock(const AM_SimpleMemoryBlock&) = delete;
-	void operator=(const AM_SimpleMemoryBlock&) = delete;
+
+	AM_SimpleMemoryBlock(const uint64_t anExtent, ResourceType aType, const VkDeviceMemory aMemory)
+		: myExtent(anExtent)
+		, myType(aType)
+		, myMemory(aMemory)
+		, myMappedMemory(nullptr)
+		, myIsMapped(false)
+	{
+	}
 
 	AM_SimpleMemoryBlock(AM_SimpleMemoryBlock&& aMemoryBlock) noexcept
-		: myMemory(nullptr)
-		, myExtent(0)
+		: myExtent(0)
+		, myType(NOTSET)
+		, myMemory(VK_NULL_HANDLE)
+		, myMappedMemory(nullptr)
+		, myIsMapped(false)
 	{
 		*this = std::move(aMemoryBlock);
 	}
 
+	virtual ~AM_SimpleMemoryBlock() { assert(!myMemory); }
+	
 	std::list<AM_SimpleMemoryObject> myAllocations;
+	uint64_t myExtent;
+	ResourceType myType;
 	VkDeviceMemory myMemory;
 	void* myMappedMemory;
-	uint64_t myExtent;
+	bool myIsMapped;
 
-private:
+protected:
 	AM_SimpleMemoryBlock& operator=(AM_SimpleMemoryBlock&& aMemoryBlock) noexcept
 	{
 		if (myMemory || this == &aMemoryBlock)
 			return *this;
 
+		myExtent = std::exchange(aMemoryBlock.myExtent, 0);
+		myType = std::exchange(aMemoryBlock.myType, NOTSET);
 		myMemory = std::exchange(aMemoryBlock.myMemory, nullptr);
 		myMappedMemory = std::exchange(aMemoryBlock.myMappedMemory, nullptr);
-		myExtent = std::exchange(aMemoryBlock.myExtent, 0);
+		myIsMapped = std::exchange(aMemoryBlock.myIsMapped, false);
 		return *this;
 	}
+
+private:
+	AM_SimpleMemoryBlock(const AM_SimpleMemoryBlock&) = delete;
+	void operator=(const AM_SimpleMemoryBlock&) = delete;
 };

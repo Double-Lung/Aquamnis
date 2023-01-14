@@ -1,7 +1,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "VkDraw.h"
-#include "AM_StagingBuffer.h"
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -541,7 +540,7 @@ void VkDraw::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSamp
 	VkMemoryRequirements memRequirements;
 	anImageObject.Init(memRequirements, imageInfo);
 
-	uint32_t memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
+	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, properties);
 	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements);
 
 	anImageObject.Bind(&memoryObject);
@@ -611,7 +610,7 @@ void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	VkMemoryRequirements memRequirements;
 	aBufferObject.Init(memRequirements, bufferInfo, aBufferType);
 
-	uint32_t memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
+	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, properties);
 
 	AM_SimpleMemoryObject* memoryObject = nullptr;
 	switch (aBufferType)
@@ -631,10 +630,12 @@ void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	aBufferObject.Bind(memoryObject);
 }
 
-uint32_t VkDraw::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+uint32_t VkDraw::FindMemoryTypeIndex(const uint32_t memoryTypeBits, const VkMemoryPropertyFlags properties) const
 {
-	for (uint32_t i = 0; i < myVkContext.memoryProperties.memoryTypeCount; ++i)
-		if ((typeFilter & (1 << i)) && (myVkContext.memoryProperties.memoryTypes[i].propertyFlags ^ properties) == 0)
+	const VkPhysicalDeviceMemoryProperties& physicalMemoryProperties = myVkContext.memoryProperties;
+	const VkMemoryType* memoryTypes = physicalMemoryProperties.memoryTypes;
+	for (uint32_t i = 0; i < physicalMemoryProperties.memoryTypeCount; ++i)
+		if ((memoryTypeBits & (1 << i)) && (memoryTypes[i].propertyFlags == properties))
 			return i;
 
 	throw std::runtime_error("failed to find suitable memory type!");

@@ -164,18 +164,21 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp" />
-    <ClCompile Include="AM_StagingBuffer.cpp" />
     <ClCompile Include="extensionProxy.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="VkDraw.cpp" />
     <ClCompile Include="VkDrawContext.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AM_AllocationObject.h" />
+    <ClInclude Include="AM_Buffer.h" />
+    <ClInclude Include="AM_BufferMemoryBlock.h" />
+    <ClInclude Include="AM_Image.h" />
+    <ClInclude Include="AM_ImageMemoryBlock.h" />
     <ClInclude Include="AM_NaiveMemoryAllocator.h" />
     <ClInclude Include="AM_VkBuffer.h" />
     <ClInclude Include="AM_VkImage.h" />
     <ClInclude Include="AM_SimpleMemoryBlock.h" />
-    <ClInclude Include="AM_StagingBuffer.h" />
     <ClInclude Include="AM_VkPrimitives.h" />
     <ClInclude Include="AM_VkSwapChain.h" />
     <ClInclude Include="AM_Window.h" />

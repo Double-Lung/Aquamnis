@@ -30,9 +30,6 @@
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
-    <ClCompile Include="AM_StagingBuffer.cpp">
-      <Filter>VkDraw</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationConstants.h">
@@ -59,9 +56,6 @@
     <ClInclude Include="AM_VkImage.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
-    <ClInclude Include="AM_StagingBuffer.h">
-      <Filter>VkDraw</Filter>
-    </ClInclude>
     <ClInclude Include="AM_VkPrimitives.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
@@ -72,6 +66,21 @@
       <Filter>VkDraw</Filter>
     </ClInclude>
     <ClInclude Include="AM_SimpleMemoryBlock.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_AllocationObject.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_Image.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_Buffer.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_BufferMemoryBlock.h">
+      <Filter>VkDraw</Filter>
+    </ClInclude>
+    <ClInclude Include="AM_ImageMemoryBlock.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
   </ItemGroup>
