@@ -34,6 +34,7 @@ class AM_SimpleMemoryBlock
 public:
 	AM_SimpleMemoryBlock()
 		: myMemory(nullptr)
+		, myMappedMemory(nullptr)
 		, myExtent(0)
 	{
 	}
@@ -54,6 +55,7 @@ public:
 
 	std::list<AM_SimpleMemoryObject> myAllocations;
 	VkDeviceMemory myMemory;
+	void* myMappedMemory;
 	uint64_t myExtent;
 
 private:
@@ -63,6 +65,7 @@ private:
 			return *this;
 
 		myMemory = std::exchange(aMemoryBlock.myMemory, nullptr);
+		myMappedMemory = std::exchange(aMemoryBlock.myMappedMemory, nullptr);
 		myExtent = std::exchange(aMemoryBlock.myExtent, 0);
 		return *this;
 	}

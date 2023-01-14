@@ -53,7 +53,7 @@ private:
 
 	void CreateTextureImage();
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkBuffer& aBufferObject);
+	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkBuffer& aBufferObject, const AM_BufferTypeBits aBufferType);
 
 	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -118,9 +118,10 @@ private:
 	AM_VkPipeline myGraphicsPipeline;
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	
-	void* myUniformBuffersMapped = nullptr; // unmap?
-	uint32_t myMipLevels = 0;
-	uint32_t myCurrentFrame = 0;
-	bool myIsFramebufferResized = false;
+	void* myUniformBuffersMapped;
+	void* myStagingBuffersMapped;
+	uint32_t myMipLevels;
+	uint32_t myCurrentFrame;
+	bool myIsFramebufferResized;
 };
 

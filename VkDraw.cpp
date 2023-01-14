@@ -28,6 +28,7 @@ void VkDraw::Engage()
 
 VkDraw::VkDraw() 
 	: myUniformBuffersMapped(nullptr)
+	, myStagingBuffersMapped(nullptr)
 	, myMipLevels(0)
 	, myCurrentFrame(0)
 	, myIsFramebufferResized(false)
@@ -555,12 +556,10 @@ void VkDraw::CreateTextureImage()
 
 	myMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 	VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4;
-	AM_StagingBuffer stagingBuffer(imageSize, myVkContext);
 
-	void* data;
-	vkMapMemory(VkDrawContext::device, stagingBuffer.myMemory, 0, imageSize, 0, &data);
-	memcpy(data, pixels, static_cast<size_t>(imageSize));
-	vkUnmapMemory(VkDrawContext::device, stagingBuffer.myMemory);
+	AM_VkBuffer stagingBuffer;
+	CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, AM_BufferTypeBits::STAGING);
+	stagingBuffer.CopyToMappedMemory(myStagingBuffersMapped,(void*)pixels, static_cast<size_t>(imageSize));
 
 	stbi_image_free(pixels);
 
@@ -601,7 +600,7 @@ void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, u
 	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
 }
 
-void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkBuffer& aBufferObject)
+void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkBuffer& aBufferObject, const AM_BufferTypeBits aBufferType)
 {
 	VkBufferCreateInfo bufferInfo{};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -610,12 +609,26 @@ void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	VkMemoryRequirements memRequirements;
-	aBufferObject.Init(memRequirements, bufferInfo);
+	aBufferObject.Init(memRequirements, bufferInfo, aBufferType);
 
 	uint32_t memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
-	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements);
 
-	aBufferObject.Bind(&memoryObject);
+	AM_SimpleMemoryObject* memoryObject = nullptr;
+	switch (aBufferType)
+	{
+	case AM_BufferTypeBits::DEVICEONLY:
+		memoryObject = &myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements);
+		break;
+	case AM_BufferTypeBits::UNIFORM:
+		memoryObject = &myMemoryAllocator.AllocateUniformBufferMemory(&myUniformBuffersMapped, memoryTypeIndex, memRequirements);
+		break;
+	case AM_BufferTypeBits::STAGING:
+		memoryObject = &myMemoryAllocator.AllocateStagingBufferMemory(&myStagingBuffersMapped, memoryTypeIndex, memRequirements);
+		break;
+	default:
+		throw std::runtime_error("wrong buffer type!");
+	}
+	aBufferObject.Bind(memoryObject);
 }
 
 uint32_t VkDraw::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -800,38 +813,29 @@ void VkDraw::CreateColorResources()
 void VkDraw::CreateVertexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(myVertices[0]) * myVertices.size();
-	AM_StagingBuffer stagingBuffer(bufferSize, myVkContext);
-
-	void* data;
-	vkMapMemory(VkDrawContext::device, stagingBuffer.myMemory, 0, stagingBuffer.myMemSize, 0, &data);
-	memcpy(data, myVertices.data(), static_cast<size_t>(bufferSize));
-	vkUnmapMemory(VkDrawContext::device, stagingBuffer.myMemory);
 	
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myVertexBuffer);
+	AM_VkBuffer stagingBuffer;
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, AM_BufferTypeBits::STAGING);
+	stagingBuffer.CopyToMappedMemory(myStagingBuffersMapped, (void*)myVertices.data(), static_cast<size_t>(bufferSize));
+
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myVertexBuffer, AM_BufferTypeBits::DEVICEONLY);
 	CopyBuffer(stagingBuffer.myBuffer, myVertexBuffer.myBuffer, bufferSize);
 }
 
 void VkDraw::CreateIndexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(myIndices[0]) * myIndices.size();
-	AM_StagingBuffer stagingBuffer(bufferSize, myVkContext);
-
-	void* data;
-	vkMapMemory(VkDrawContext::device, stagingBuffer.myMemory, 0, stagingBuffer.myMemSize, 0, &data);
-	memcpy(data, myIndices.data(), static_cast<size_t>(bufferSize));
-	vkUnmapMemory(VkDrawContext::device, stagingBuffer.myMemory);
-
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myIndexBuffer);
-
+	AM_VkBuffer stagingBuffer;
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, AM_BufferTypeBits::STAGING);
+	stagingBuffer.CopyToMappedMemory(myStagingBuffersMapped, (void*)myIndices.data(), static_cast<size_t>(bufferSize));
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myIndexBuffer, AM_BufferTypeBits::DEVICEONLY);
 	CopyBuffer(stagingBuffer.myBuffer, myIndexBuffer.myBuffer, bufferSize);
 }
 
 void VkDraw::CreateUniformBuffers()
 {
 	static constexpr uint64_t bufferSize = 0x100 * VkDrawConstants::MAX_FRAMES_IN_FLIGHT;
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, myUniformBuffers);
-
-	vkMapMemory(VkDrawContext::device, myUniformBuffers.myMemoryObject->myMemory, myUniformBuffers.myMemoryObject->myOffset, myUniformBuffers.myMemoryObject->mySize, 0, &myUniformBuffersMapped);
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, myUniformBuffers, AM_BufferTypeBits::UNIFORM);
 }
 
 void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
