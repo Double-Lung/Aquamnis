@@ -4,8 +4,9 @@
 - [x] Create base program
 - [x] Fix viewport orientation
 - [x] General code refactor
-- [ ] Write a naive memory allocator
-- [ ] Best practices refactor
+- [x] Write a naive memory allocator
+- [x] Best practices refactor
+- [ ] Improve naive memory allocator
 - [ ] Implement queue ownership transfer
 - [ ] Improve model loading
 - [ ] Unique vertex data
