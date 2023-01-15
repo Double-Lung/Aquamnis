@@ -77,7 +77,7 @@ public:
 	}
 
 	virtual ~AM_SimpleMemoryBlock() { assert(!myMemory); }
-	
+
 	std::list<AM_SimpleMemoryObject> myAllocations;
 	uint64_t myExtent;
 	ResourceType myType;
@@ -85,12 +85,14 @@ public:
 	void* myMappedMemory;
 	bool myIsMapped;
 
-protected:
+private:
+	AM_SimpleMemoryBlock(const AM_SimpleMemoryBlock&) = delete;
+	void operator=(const AM_SimpleMemoryBlock&) = delete;
+
 	AM_SimpleMemoryBlock& operator=(AM_SimpleMemoryBlock&& aMemoryBlock) noexcept
 	{
-		if (myMemory || this == &aMemoryBlock)
+		if (this == &aMemoryBlock)
 			return *this;
-
 		myExtent = std::exchange(aMemoryBlock.myExtent, 0);
 		myType = std::exchange(aMemoryBlock.myType, NOTSET);
 		myMemory = std::exchange(aMemoryBlock.myMemory, nullptr);
@@ -98,8 +100,4 @@ protected:
 		myIsMapped = std::exchange(aMemoryBlock.myIsMapped, false);
 		return *this;
 	}
-
-private:
-	AM_SimpleMemoryBlock(const AM_SimpleMemoryBlock&) = delete;
-	void operator=(const AM_SimpleMemoryBlock&) = delete;
 };

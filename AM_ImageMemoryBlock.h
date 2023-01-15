@@ -5,8 +5,19 @@
 
 class AM_ImageMemoryBlock : public AM_SimpleMemoryBlock
 {
-	AM_ImageMemoryBlock() = default;
-	~AM_ImageMemoryBlock() = default;
+public:
+	AM_ImageMemoryBlock()
+		: AM_SimpleMemoryBlock(AM_SimpleMemoryBlock::IMAGE)
+	{
+	}
+
+	~AM_ImageMemoryBlock()
+	{
+		myAllocationList.clear();
+		myImage.Release();
+		if (myMemory)
+			vkFreeMemory(VkDrawContext::device, myMemory, nullptr);
+	}
 
 private:
 	std::list<AM_Image> myAllocationList;

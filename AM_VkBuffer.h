@@ -20,9 +20,27 @@ struct AM_VkBuffer
 	{
 	}
 
+	AM_VkBuffer(AM_VkBuffer&& aBuffer) noexcept
+		: myMemoryObject(nullptr)
+		, myBuffer(nullptr)
+		, myType(static_cast<uint8_t>(AM_BufferTypeBits::UNSET))
+	{
+		*this = std::move(aBuffer);
+	}
+
 	~AM_VkBuffer()
 	{
 		Release();
+	}
+
+	AM_VkBuffer& operator=(AM_VkBuffer&& aBuffer) noexcept
+	{
+		if (this == &aBuffer)
+			return *this;
+		myMemoryObject = std::exchange(aBuffer.myMemoryObject, nullptr);
+		myBuffer = std::exchange(aBuffer.myBuffer, nullptr);
+		myType = std::exchange(aBuffer.myType, 0U);
+		return *this;
 	}
 
 	void Bind(AM_SimpleMemoryObject* aMemoryObject)
@@ -38,6 +56,28 @@ struct AM_VkBuffer
 			throw std::runtime_error("failed to create buffer!");
 		vkGetBufferMemoryRequirements(VkDrawContext::device, myBuffer, &outMemRequirements);
 		myType = static_cast<uint8_t>(aBufferType);
+	}
+
+	void Init(const VkBufferCreateInfo& someInfo)
+	{
+		if (vkCreateBuffer(VkDrawContext::device, &someInfo, nullptr, &myBuffer) != VK_SUCCESS)
+			throw std::runtime_error("failed to create buffer!");
+	}
+
+	void Init()
+	{
+		VkBufferCreateInfo bufferInfo{};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.size = VkDrawConstants::SINGLEALLOCSIZE;
+		bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+			| VK_BUFFER_USAGE_TRANSFER_DST_BIT
+			| VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+			| VK_BUFFER_USAGE_INDEX_BUFFER_BIT
+			| VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		if (vkCreateBuffer(VkDrawContext::device, &bufferInfo, nullptr, &myBuffer) != VK_SUCCESS)
+			throw std::runtime_error("failed to create buffer!");
 	}
 
 	void Release()
@@ -57,5 +97,9 @@ struct AM_VkBuffer
 	AM_SimpleMemoryObject* myMemoryObject;
 	VkBuffer myBuffer;
 	uint8_t myType;
+
+private:
+	AM_VkBuffer(const AM_VkBuffer& aBuffer) = delete;
+	AM_VkBuffer& operator=(const AM_VkBuffer& aBuffer) = delete;
 };
 

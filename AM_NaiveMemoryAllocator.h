@@ -1,6 +1,9 @@
 #pragma once
 #include "AM_SimpleMemoryBlock.h"
+#include <unordered_map>
 #include "VkDrawContext.h"
+#include "AM_BufferMemoryBlock.h"
+#include "AM_ImageMemoryBlock.h"
 
 // TODO: 
 // 1. optimize with single buffer for each memory type
@@ -41,5 +44,8 @@ private:
 	std::vector<std::vector<AM_SimpleMemoryBlock>> myMemoryBlocksByMemoryType;
 	AM_SimpleMemoryBlock myUniformBufferMemoryBlock;
 	AM_SimpleMemoryBlock myStagingBufferMemoryBlock;
+
+	std::unordered_map<uint32_t, std::vector<AM_BufferMemoryBlock>> myBufferMemoryPool;
+	std::unordered_map<uint32_t, std::vector<AM_ImageMemoryBlock>> myImageMemoryPool;
 };
 
