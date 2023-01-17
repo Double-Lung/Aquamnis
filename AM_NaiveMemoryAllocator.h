@@ -33,6 +33,9 @@ public:
 		return AllocateMappedBufferMemory(outMappedMemory, myStagingBufferMemoryBlock, aMemoryTypeIndex, aMemoryRequirements);
 	}
 
+	AM_Buffer& AllocateBufferMemory(const uint32_t aMemoryTypeIndex, const uint64_t aSize);
+	AM_Image& AllocateImageMemory(const uint32_t aMemoryTypeIndex, const uint64_t aSize){}
+
 	void FreeVkDeviceMemory();
 
 private:

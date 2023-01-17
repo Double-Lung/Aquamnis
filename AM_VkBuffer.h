@@ -78,12 +78,18 @@ struct AM_VkBuffer
 
 		if (vkCreateBuffer(VkDrawContext::device, &bufferInfo, nullptr, &myBuffer) != VK_SUCCESS)
 			throw std::runtime_error("failed to create buffer!");
+
+		VkMemoryRequirements dummy;
+		vkGetBufferMemoryRequirements(VkDrawContext::device, myBuffer, &dummy);
 	}
 
 	void Release()
 	{
-		vkDestroyBuffer(VkDrawContext::device, myBuffer, nullptr);
-		myBuffer = nullptr;
+		if (myBuffer)
+		{
+			vkDestroyBuffer(VkDrawContext::device, myBuffer, nullptr);
+			myBuffer = nullptr;
+		}
 		myMemoryObject->myIsEmpty = true;
 		myMemoryObject = nullptr;
 	}

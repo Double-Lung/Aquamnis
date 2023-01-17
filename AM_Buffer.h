@@ -32,6 +32,7 @@ public:
 		myMemory = std::exchange(aBuffer.myMemory, nullptr);
 		myType = std::exchange(aBuffer.myType, AM_AllocationObject::NOTSET);
 		myBuffer = std::exchange(aBuffer.myBuffer, nullptr);
+		myIsEmpty = std::exchange(aBuffer.myIsEmpty, true);
 		return *this;
 	}
 
@@ -46,9 +47,10 @@ public:
 		AM_AllocationObject::Reset();
 		myBuffer = VK_NULL_HANDLE;
 	}
+
+	VkBuffer myBuffer;
 private:
 	AM_Buffer(const AM_Buffer& aBuffer) = delete;
 	AM_Buffer& operator=(const AM_Buffer& aBuffer) = delete;
-	VkBuffer myBuffer;
 };
 

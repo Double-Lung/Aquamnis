@@ -819,8 +819,30 @@ void VkDraw::CreateVertexBuffer()
 	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, AM_BufferTypeBits::STAGING);
 	stagingBuffer.CopyToMappedMemory(myStagingBuffersMapped, (void*)myVertices.data(), static_cast<size_t>(bufferSize));
 
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myVertexBuffer, AM_BufferTypeBits::DEVICEONLY);
-	CopyBuffer(stagingBuffer.myBuffer, myVertexBuffer.myBuffer, bufferSize);
+	//CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myVertexBuffer, AM_BufferTypeBits::DEVICEONLY);
+	//CopyBuffer(stagingBuffer.myBuffer, myVertexBuffer.myBuffer, bufferSize);
+
+
+
+	// find a way to avoid checking memory requirement by creating dummy buffer
+	VkBufferCreateInfo bufferInfo{};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = 128;
+	bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	VkBuffer dummyBuffer; // wtf???
+	vkCreateBuffer(VkDrawContext::device, &bufferInfo, nullptr, &dummyBuffer);
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(VkDrawContext::device, dummyBuffer, &memRequirements);
+	vkDestroyBuffer(VkDrawContext::device, dummyBuffer, nullptr);
+	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	myVirtualVertexBuffer = &myMemoryAllocator.AllocateBufferMemory(memoryTypeIndex, bufferSize);
+
+	// need more elegant copy function
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
+	VkBufferCopy copyRegion{ 0, myVirtualVertexBuffer->GetOffset(), bufferSize };
+	vkCmdCopyBuffer(commandBuffer, stagingBuffer.myBuffer, myVirtualVertexBuffer->myBuffer, 1, &copyRegion);
+	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
 }
 
 void VkDraw::CreateIndexBuffer()
@@ -933,9 +955,11 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
 
- 	VkBuffer vertexBuffers[] = { myVertexBuffer.myBuffer };
- 	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+ 	VkBuffer vertexBuffers[] = { myVirtualVertexBuffer->myBuffer };
+ 	VkDeviceSize offsets[] = { myVirtualVertexBuffer->GetOffset() };
+	VkDeviceSize sizes[] = { myVirtualVertexBuffer->GetSize() };
+	//vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindVertexBuffers2(commandBuffer, 0, 1, vertexBuffers, offsets, sizes, nullptr);
 
 	vkCmdBindIndexBuffer(commandBuffer, myIndexBuffer.myBuffer, 0, VK_INDEX_TYPE_UINT32);
 

@@ -5,7 +5,17 @@ void AM_NaiveMemoryAllocator::Init(uint32_t aMemoryTypeCount)
 {
 	myMemoryBlocksByMemoryType.resize(aMemoryTypeCount);
 	for (auto& memoryBlocks : myMemoryBlocksByMemoryType)
-		memoryBlocks.reserve(64);
+		memoryBlocks.reserve(32);
+
+	/////////////////////////////////////
+	for (uint32_t i = 0; i < aMemoryTypeCount; ++i)
+	{
+		auto& bufferMemPool = myBufferMemoryPool[i];
+		bufferMemPool.reserve(32);
+
+		auto& imageMemPool = myImageMemoryPool[i];
+		imageMemPool.reserve(32);
+	}
 }
 
 AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::Allocate(const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements)
@@ -101,6 +111,50 @@ AM_SimpleMemoryObject* AM_NaiveMemoryAllocator::TryGetFreeSlot(AM_SimpleMemoryBl
 		return &(*slot);
 	}
 	return nullptr;
+}
+
+AM_Buffer& AM_NaiveMemoryAllocator::AllocateBufferMemory(const uint32_t aMemoryTypeIndex, const uint64_t aSize)
+{
+	auto& bufferMemPool = myBufferMemoryPool[aMemoryTypeIndex];
+
+	// fast alloc
+	for (auto& block : bufferMemPool)
+	{
+		if (block.myIsMapped)
+			continue;
+
+		if (block.myExtent + aSize > VkDrawConstants::SINGLEALLOCSIZE)
+			continue;
+
+		auto& buffer = block.myAllocationList.emplace_back(block.myBuffer.myBuffer, block.myExtent, aSize, block.myMemory);
+		block.myExtent += aSize;
+		return buffer;
+	}
+	// slower alloc
+	for (auto& block : bufferMemPool)
+	{
+		if (block.myIsMapped)
+			continue;
+
+		for (auto bufferPtr = block.myAllocationList.begin(); bufferPtr != block.myAllocationList.end(); ++bufferPtr)
+		{
+			if (!(bufferPtr->IsEmpty() && bufferPtr->GetSize() >= aSize))
+				continue;
+
+			const uint64_t leftover = bufferPtr->GetSize() - aSize;
+			if (!leftover)
+				return *bufferPtr;
+
+			block.myAllocationList.emplace(bufferPtr, block.myBuffer.myBuffer, bufferPtr->GetOffset(), leftover, block.myMemory);
+			bufferPtr->SetOffset(bufferPtr->GetOffset() + leftover);
+			bufferPtr->SetSize(aSize);
+			return *bufferPtr;
+		}
+	}
+
+	auto& newBlock = bufferMemPool.emplace_back();
+	newBlock.Init(aMemoryTypeIndex);
+	return newBlock.myAllocationList.emplace_back(newBlock.myBuffer.myBuffer, newBlock.myExtent, aSize, newBlock.myMemory);
 }
 
 void AM_NaiveMemoryAllocator::FreeVkDeviceMemory()

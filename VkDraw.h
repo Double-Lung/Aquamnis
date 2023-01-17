@@ -112,6 +112,10 @@ private:
 	std::vector<uint32_t> myIndices;
 	AM_VkBuffer myVertexBuffer;
 	AM_VkBuffer myIndexBuffer;
+
+	AM_Buffer* myVirtualVertexBuffer = nullptr;
+	AM_Buffer* myVirtualIndexBuffer = nullptr;
+
 	std::vector<VkCommandBuffer> myCommandBuffers;
 	std::vector<AM_VkFramebuffer> myFramebuffers;
 	AM_VkPipelineLayout myPipelineLayout;

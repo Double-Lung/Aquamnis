@@ -41,7 +41,12 @@ public:
 		allocInfo.memoryTypeIndex = aMemoryTypeIndex;
 		if (vkAllocateMemory(VkDrawContext::device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate memory of type ??? !");
+
+		vkBindBufferMemory(VkDrawContext::device, myBuffer.myBuffer, myMemory, 0);
 	}
+
+	std::list<AM_Buffer> myAllocationList;
+	AM_VkBuffer myBuffer;
 
 private:
 	AM_BufferMemoryBlock(const AM_BufferMemoryBlock& aMemoryBlock) = delete;
@@ -59,7 +64,4 @@ private:
 		myBuffer = std::move(aMemoryBlock.myBuffer);
 		return *this;
 	}
-
-	std::list<AM_Buffer> myAllocationList;
-	AM_VkBuffer myBuffer;
 };

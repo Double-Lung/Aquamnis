@@ -16,6 +16,7 @@ public:
 		, mySize(0)
 		, myMemory(VK_NULL_HANDLE)
 		, myType(NOTSET)
+		, myIsEmpty(true)
 	{
 	}
 
@@ -24,6 +25,7 @@ public:
 		, mySize(0)
 		, myMemory(VK_NULL_HANDLE)
 		, myType(aType)
+		, myIsEmpty(true)
 	{
 	}
 
@@ -32,6 +34,7 @@ public:
 		, mySize(aSize)
 		, myMemory(aMemory)
 		, myType(aType)
+		, myIsEmpty(true)
 	{
 	}
 
@@ -40,6 +43,11 @@ public:
 	uint64_t GetOffset() const { return myOffset; }
 	uint64_t GetSize() const { return mySize; }
 	VkDeviceMemory GetMemory() const { return myMemory; }
+	bool IsEmpty() { return myIsEmpty; }
+
+	void SetOffset(const uint64_t anOffset) { myOffset = anOffset; }
+	void SetSize(const uint64_t aSize) { mySize = aSize; }
+	void SetIsEmpty(bool aState) { myIsEmpty = aState; }
 
 protected:
 	void Bind(const uint64_t anOffset, const uint64_t aSize, const VkDeviceMemory aMemory)
@@ -54,11 +62,13 @@ protected:
 		myOffset = 0;
 		mySize = 0;
 		myMemory = VK_NULL_HANDLE;
+		myIsEmpty = true;
 	}
 
 	uint64_t myOffset;
 	uint64_t mySize;
 	VkDeviceMemory myMemory;
 	ObjectType myType;
+	bool myIsEmpty;
 };
 
