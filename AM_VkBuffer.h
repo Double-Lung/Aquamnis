@@ -20,6 +20,15 @@ struct AM_VkBuffer
 	{
 	}
 
+	AM_VkBuffer(const VkBufferCreateInfo& someInfo)
+		: myMemoryObject(nullptr)
+		, myBuffer(nullptr)
+		, myType(static_cast<uint8_t>(AM_BufferTypeBits::UNSET))
+	{
+		if (vkCreateBuffer(VkDrawContext::device, &someInfo, nullptr, &myBuffer) != VK_SUCCESS)
+			throw std::runtime_error("failed to create buffer!");
+	}
+
 	AM_VkBuffer(AM_VkBuffer&& aBuffer) noexcept
 		: myMemoryObject(nullptr)
 		, myBuffer(nullptr)
@@ -90,8 +99,11 @@ struct AM_VkBuffer
 			vkDestroyBuffer(VkDrawContext::device, myBuffer, nullptr);
 			myBuffer = nullptr;
 		}
-		myMemoryObject->myIsEmpty = true;
-		myMemoryObject = nullptr;
+		if (myMemoryObject)
+		{
+			myMemoryObject->myIsEmpty = true;
+			myMemoryObject = nullptr;
+		}
 	}
 
 	void CopyToMappedMemory(void* aDestination, void* aSource, const size_t aSize)

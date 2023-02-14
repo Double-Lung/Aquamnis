@@ -1,14 +1,16 @@
 #include "AM_NaiveMemoryAllocator.h"
 #include <assert.h>
 
-void AM_NaiveMemoryAllocator::Init(uint32_t aMemoryTypeCount)
+void AM_NaiveMemoryAllocator::Init(const VkPhysicalDeviceMemoryProperties& aPhysicalMemoryProperties)
 {
-	myMemoryBlocksByMemoryType.resize(aMemoryTypeCount);
+	myPhysicalMemoryProperties = aPhysicalMemoryProperties;
+	myMemoryBlocksByMemoryType.resize(myPhysicalMemoryProperties.memoryTypeCount);
 	for (auto& memoryBlocks : myMemoryBlocksByMemoryType)
 		memoryBlocks.reserve(32);
 
-	/////////////////////////////////////
-	for (uint32_t i = 0; i < aMemoryTypeCount; ++i)
+	//////////////////////////////////////////////
+
+	for (uint32_t i = 0; i < myPhysicalMemoryProperties.memoryTypeCount; ++i)
 	{
 		auto& bufferMemPool = myBufferMemoryPool[i];
 		bufferMemPool.reserve(32);
@@ -113,48 +115,98 @@ AM_SimpleMemoryObject* AM_NaiveMemoryAllocator::TryGetFreeSlot(AM_SimpleMemoryBl
 	return nullptr;
 }
 
-AM_Buffer& AM_NaiveMemoryAllocator::AllocateBufferMemory(const uint32_t aMemoryTypeIndex, const uint64_t aSize)
+uint32_t AM_NaiveMemoryAllocator::FindMemoryTypeIndex(const uint32_t memoryTypeBits, VkMemoryPropertyFlags const properties) const
 {
-	auto& bufferMemPool = myBufferMemoryPool[aMemoryTypeIndex];
+	const VkMemoryType* memoryTypes = myPhysicalMemoryProperties.memoryTypes;
+	for (uint32_t i = 0; i < myPhysicalMemoryProperties.memoryTypeCount; ++i)
+		if ((memoryTypeBits & (1 << i)) && (memoryTypes[i].propertyFlags == properties))
+			return i;
 
-	// fast alloc
-	for (auto& block : bufferMemPool)
+	throw std::runtime_error("failed to find suitable memory type!");
+}
+
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateBuffer(const uint64_t aSize, VkBufferUsageFlags aUsage)
+{
+	auto it = myBufferUsageToMemTypeIndex.find(aUsage);
+	if (it != myBufferUsageToMemTypeIndex.cend())
 	{
-		if (block.myIsMapped)
-			continue;
+		AM_Buffer* buffer = nullptr;
+		uint32_t memoryTypeIndex = it->second;
+		if (buffer = AllocateBufferFast(aSize, memoryTypeIndex))
+			return buffer;
+		if (buffer = AllocateBufferSlow(aSize, memoryTypeIndex))
+			return buffer;
+	}
 
+	return AllocateBufferWithNewBlock(aSize, aUsage);
+}
+
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBuffer(const uint64_t aSize, VkBufferUsageFlags aUsage)
+{
+	return nullptr;
+}
+
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage)
+{
+	VkBufferCreateInfo bufferInfo{};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = aSize;
+	bufferInfo.usage = aUsage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	AM_VkBuffer vkBuffer(bufferInfo);
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(VkDrawContext::device, vkBuffer.myBuffer, &memRequirements);
+	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	myBufferUsageToMemTypeIndex[aUsage] = memoryTypeIndex;
+
+	std::vector<AM_BufferMemoryBlock>& bufferMemPool = myBufferMemoryPool[memoryTypeIndex];
+	AM_BufferMemoryBlock& newBlock = bufferMemPool.emplace_back();
+	newBlock.SetBuffer(vkBuffer);
+	newBlock.BindBufferMemory(memoryTypeIndex);
+
+	return newBlock.Allocate(aSize);
+}
+
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferFast(const uint64_t aSize, const uint32_t aMemoryTypeIndex)
+{
+	std::vector<AM_BufferMemoryBlock>& bufferMemPool = myBufferMemoryPool[aMemoryTypeIndex];
+
+	for (AM_BufferMemoryBlock& block : bufferMemPool)
+	{
 		if (block.myExtent + aSize > VkDrawConstants::SINGLEALLOCSIZE)
 			continue;
 
-		auto& buffer = block.myAllocationList.emplace_back(block.myBuffer.myBuffer, block.myExtent, aSize, block.myMemory);
-		block.myExtent += aSize;
-		return buffer;
+		return block.Allocate(aSize);
 	}
-	// slower alloc
-	for (auto& block : bufferMemPool)
+	return nullptr;
+}
+
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferSlow(const uint64_t aSize, const uint32_t aMemoryTypeIndex)
+{
+	std::vector<AM_BufferMemoryBlock>& bufferMemPool = myBufferMemoryPool[aMemoryTypeIndex];
+
+	for (AM_BufferMemoryBlock& block : bufferMemPool)
 	{
-		if (block.myIsMapped)
+		if (!block.HasFreeSlot())
 			continue;
 
-		for (auto bufferPtr = block.myAllocationList.begin(); bufferPtr != block.myAllocationList.end(); ++bufferPtr)
+		for (auto it = block.myAllocationList.begin(); it != block.myAllocationList.end(); ++it)
 		{
-			if (!(bufferPtr->IsEmpty() && bufferPtr->GetSize() >= aSize))
+			if (!(it->IsEmpty() && it->GetSize() >= aSize))
 				continue;
 
-			const uint64_t leftover = bufferPtr->GetSize() - aSize;
-			if (!leftover)
-				return *bufferPtr;
+			const uint64_t leftover = it->GetSize() - aSize;
+			if (leftover == 0)
+				return &(*it);
 
-			block.myAllocationList.emplace(bufferPtr, block.myBuffer.myBuffer, bufferPtr->GetOffset(), leftover, block.myMemory);
-			bufferPtr->SetOffset(bufferPtr->GetOffset() + leftover);
-			bufferPtr->SetSize(aSize);
-			return *bufferPtr;
+			block.myAllocationList.emplace(it, block.myBuffer.myBuffer, it->GetOffset(), leftover, block.myMemory);
+			it->SetOffset(it->GetOffset() + leftover);
+			it->SetSize(aSize);
+			return &(*it);
 		}
 	}
-
-	auto& newBlock = bufferMemPool.emplace_back();
-	newBlock.Init(aMemoryTypeIndex);
-	return newBlock.myAllocationList.emplace_back(newBlock.myBuffer.myBuffer, newBlock.myExtent, aSize, newBlock.myMemory);
+	return nullptr;
 }
 
 void AM_NaiveMemoryAllocator::FreeVkDeviceMemory()
