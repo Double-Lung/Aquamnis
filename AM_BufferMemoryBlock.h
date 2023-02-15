@@ -8,19 +8,17 @@ class AM_BufferMemoryBlock : public AM_SimpleMemoryBlock
 public:
 	AM_BufferMemoryBlock()
 		: AM_SimpleMemoryBlock(AM_SimpleMemoryBlock::BUFFER)
-		, myFreeSlotCount(0) // move to parent?
 	{
 	}
 
 	AM_BufferMemoryBlock(const uint64_t anExtent, ResourceType aType, const VkDeviceMemory aMemory, AM_VkBuffer&& aBuffer)
 		: AM_SimpleMemoryBlock(anExtent, aType, aMemory)
 		, myBuffer(std::move(aBuffer))
-		, myFreeSlotCount(0)
 	{
 	}
 
 	AM_BufferMemoryBlock(AM_BufferMemoryBlock&& aMemoryBlock) noexcept
-		: AM_SimpleMemoryBlock(AM_SimpleMemoryBlock::BUFFER)
+		: AM_SimpleMemoryBlock(std::move(aMemoryBlock))
 	{
 		*this = std::move(aMemoryBlock);
 	}
@@ -33,10 +31,11 @@ public:
 			vkFreeMemory(VkDrawContext::device, myMemory, nullptr);
 	}
 
-	void SetBuffer(AM_VkBuffer& aVkBuffer) { myBuffer = std::move(aVkBuffer); }
-
-	void BindBufferMemory(const uint32_t aMemoryTypeIndex)
+	void Init(AM_VkBuffer& aVkBuffer, const uint32_t aMemoryTypeIndex, const uint64_t anAlignment)
 	{
+		myBuffer = std::move(aVkBuffer);
+		myAlignment = anAlignment;
+
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = VkDrawConstants::SINGLEALLOCSIZE;
@@ -49,16 +48,14 @@ public:
 
 	AM_Buffer* Allocate(const uint64_t aSize)
 	{
-		AM_Buffer& buffer = myAllocationList.emplace_back(myBuffer.myBuffer, myExtent, aSize, myMemory);
+		AM_Buffer& buffer = myAllocationList.emplace_back(myBuffer.myBuffer, myExtent, aSize);
+		buffer.SetIsEmpty(false);
 		myExtent += aSize;
 		return &buffer;
 	}
 
-	bool HasFreeSlot() { return myFreeSlotCount > 0; }
-
 	std::list<AM_Buffer> myAllocationList;
 	AM_VkBuffer myBuffer;
-	uint32_t myFreeSlotCount;
 
 private:
 	AM_BufferMemoryBlock(const AM_BufferMemoryBlock& aMemoryBlock) = delete;
@@ -67,14 +64,9 @@ private:
 	{
 		if (this == &aMemoryBlock)
 			return *this;
-		myExtent = std::exchange(aMemoryBlock.myExtent, 0);
-		myType = std::exchange(aMemoryBlock.myType, NOTSET);
-		myMemory = std::exchange(aMemoryBlock.myMemory, nullptr);
-		myMappedMemory = std::exchange(aMemoryBlock.myMappedMemory, nullptr);
-		myIsMapped = std::exchange(aMemoryBlock.myIsMapped, false);
+
 		myAllocationList = std::move(aMemoryBlock.myAllocationList);
 		myBuffer = std::move(aMemoryBlock.myBuffer);
-		myFreeSlotCount = std::exchange(aMemoryBlock.myFreeSlotCount, 0);
 		return *this;
 	}
 };

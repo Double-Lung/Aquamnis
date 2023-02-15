@@ -185,6 +185,15 @@ void VkDrawContext::ChoosePhysicalDevice()
 
 		vkGetPhysicalDeviceMemoryProperties(availableDevice, &memoryProperties);
 
+#ifdef _DEBUG
+		std::cout << "Memory Info\n";
+		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i)
+		{
+			const VkMemoryType& type = memoryProperties.memoryTypes[i];
+			std::cout << "index: " << i << ", property: " << type.propertyFlags << ", heap index: " << type.heapIndex << "\n";
+		}
+#endif //_DEBUG
+
 		deviceProperties = std::move(props);
 		deviceFeatures = std::move(feats);
 		transferFamilyIndex = static_cast<uint32_t>(transferQueueIdx);

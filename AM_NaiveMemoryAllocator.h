@@ -33,18 +33,24 @@ public:
 		return AllocateMappedBufferMemory(outMappedMemory, myStagingBufferMemoryBlock, aMemoryTypeIndex, aMemoryRequirements);
 	}
 
-	[[nodiscard]] AM_Buffer* AllocateBuffer(const uint64_t aSize, VkBufferUsageFlags aUsage);
-	[[nodiscard]] AM_Buffer* AllocateMappedBuffer(const uint64_t aSize, VkBufferUsageFlags aUsage);
-
-	[[nodiscard]] AM_Buffer* AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage);
-	[[nodiscard]] AM_Buffer* AllocateBufferFast(const uint64_t aSize, const uint32_t aMemoryTypeIndex);
-	[[nodiscard]] AM_Buffer* AllocateBufferSlow(const uint64_t aSize, const uint32_t aMemoryTypeIndex);
-
+	[[nodiscard]] AM_Buffer* AllocateBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty);
 	AM_Image& AllocateImageMemory(const uint32_t aMemoryTypeIndex, const uint64_t aSize){}
 
 	void FreeVkDeviceMemory();
 
 private:
+	struct MemoryRequirements
+	{
+		uint64_t myAlignment = 0;
+		uint32_t myMemoryTypeIndex = 0;
+	};
+
+	struct MemoryPropertyCache
+	{
+		VkFlags myMemoryProperty = 0;
+		std::unordered_map<VkFlags, MemoryRequirements> myMemReqByBufferUsage;
+	};
+
 	void AllocateMemory(VkDeviceMemory& outMemoryPtr, const uint32_t aMemoryTypeIndex);
 	[[nodiscard]] AM_SimpleMemoryObject& AllocateMappedBufferMemory(void** outMappedMemory, AM_SimpleMemoryBlock& aMemoryBlock, const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements);
 	[[nodiscard]] AM_SimpleMemoryObject* SubAllocation(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements);
@@ -52,17 +58,19 @@ private:
 	[[nodiscard]] AM_SimpleMemoryObject* TryGetFreeSlot(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements);
 
 
-	uint32_t FindMemoryTypeIndex(const uint32_t memoryTypeBits, VkMemoryPropertyFlags const properties) const;
+	[[nodiscard]] AM_Buffer* AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache);
+	[[nodiscard]] AM_Buffer* AllocateBufferFast(const uint64_t aSize, const MemoryRequirements& aRequirement);
+	[[nodiscard]] AM_Buffer* AllocateBufferSlow(const uint64_t aSize, const MemoryRequirements& aRequirement);
 
+	uint32_t FindMemoryTypeIndex(const uint32_t someMemoryTypeBits, const VkMemoryPropertyFlags someProperties) const;
 
 	std::vector<std::vector<AM_SimpleMemoryBlock>> myMemoryBlocksByMemoryType;
 	AM_SimpleMemoryBlock myUniformBufferMemoryBlock;
 	AM_SimpleMemoryBlock myStagingBufferMemoryBlock;
 
-	std::unordered_map<uint32_t, std::vector<AM_BufferMemoryBlock>> myBufferMemoryPool;
-	std::unordered_map<uint32_t, std::vector<AM_ImageMemoryBlock>> myImageMemoryPool;
-	std::unordered_map<VkFlags, uint32_t> myBufferUsageToMemTypeIndex;
-	std::unordered_map<VkFlags, uint32_t> myImageUsageToMemTypeIndex;
+	std::vector<std::vector<AM_BufferMemoryBlock>> myBufferMemoryPool;
+	std::vector<std::vector<AM_ImageMemoryBlock>> myImageMemoryPool;
+	std::vector<MemoryPropertyCache> myMemPropCache;
 	VkPhysicalDeviceMemoryProperties myPhysicalMemoryProperties;
 };
 

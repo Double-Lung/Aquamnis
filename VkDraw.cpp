@@ -823,9 +823,10 @@ void VkDraw::CreateVertexBuffer()
 	AM_VkBuffer stagingBuffer;
 	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, AM_BufferTypeBits::STAGING);
 	stagingBuffer.CopyToMappedMemory(myStagingBuffersMapped, (void*)myVertices.data(), static_cast<size_t>(bufferSize));
-	myVirtualVertexBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+	myVirtualVertexBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	// need more elegant copy function
+	myVirtualVertexBuffer->SetIsEmpty(false);
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
 	VkBufferCopy copyRegion{ 0, myVirtualVertexBuffer->GetOffset(), bufferSize };
 	vkCmdCopyBuffer(commandBuffer, stagingBuffer.myBuffer, myVirtualVertexBuffer->myBuffer, 1, &copyRegion);

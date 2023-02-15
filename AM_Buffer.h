@@ -10,13 +10,14 @@ public:
 	{
 	}
 
-	AM_Buffer(const VkBuffer aBuffer, const uint64_t anOffset, const uint64_t aSize, const VkDeviceMemory aMemory)
-		: AM_AllocationObject(AM_AllocationObject::BUFFER, anOffset, aSize, aMemory)
+	AM_Buffer(const VkBuffer aBuffer, const uint64_t anOffset, const uint64_t aSize)
+		: AM_AllocationObject(AM_AllocationObject::BUFFER, anOffset, aSize)
 		, myBuffer(aBuffer)
 	{
 	}
 
 	AM_Buffer(AM_Buffer&& aBuffer) noexcept
+		: AM_AllocationObject(std::move(aBuffer))
 	{
 		*this = std::move(aBuffer);
 	}
@@ -27,19 +28,9 @@ public:
 	{
 		if (this == &aBuffer)
 			return *this;
-		myOffset = std::exchange(aBuffer.myOffset, 0);
-		mySize = std::exchange(aBuffer.mySize, 0);
-		myMemory = std::exchange(aBuffer.myMemory, nullptr);
-		myType = std::exchange(aBuffer.myType, AM_AllocationObject::NOTSET);
-		myBuffer = std::exchange(aBuffer.myBuffer, nullptr);
-		myIsEmpty = std::exchange(aBuffer.myIsEmpty, true);
-		return *this;
-	}
 
-	void Bind(const uint64_t anOffset, const uint64_t aSize, const VkBuffer aBuffer, const VkDeviceMemory aMemory)
-	{
-		AM_AllocationObject::Bind(anOffset, aSize, aMemory);
-		myBuffer = aBuffer;
+		myBuffer = std::exchange(aBuffer.myBuffer, nullptr);
+		return *this;
 	}
 
 	void Reset()
