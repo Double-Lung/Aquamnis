@@ -14,6 +14,7 @@ public:
 	AM_AllocationObject()
 		: myOffset(0)
 		, mySize(0)
+		, myMappedMemory(nullptr)
 		, myType(NOTSET)
 		, myIsEmpty(true)
 	{
@@ -22,6 +23,7 @@ public:
 	AM_AllocationObject(const ObjectType aType)
 		: myOffset(0)
 		, mySize(0)
+		, myMappedMemory(nullptr)
 		, myType(aType)
 		, myIsEmpty(true)
 	{
@@ -30,6 +32,7 @@ public:
 	AM_AllocationObject(const ObjectType aType, const uint64_t anOffset, const uint64_t aSize)
 		: myOffset(anOffset)
 		, mySize(aSize)
+		, myMappedMemory(nullptr)
 		, myType(aType)
 		, myIsEmpty(true)
 	{
@@ -38,6 +41,7 @@ public:
 	AM_AllocationObject(AM_AllocationObject&& anObject) noexcept
 		: myOffset(0)
 		, mySize(0)
+		, myMappedMemory(nullptr)
 		, myType(NOTSET)
 		, myIsEmpty(true)
 	{
@@ -52,6 +56,8 @@ public:
 	void SetOffset(const uint64_t anOffset) { myOffset = anOffset; }
 	void SetSize(const uint64_t aSize) { mySize = aSize; }
 	void SetIsEmpty(bool aState) { myIsEmpty = aState; }
+	void SetMappedMemory(void* aMemoryPointer) { myMappedMemory = aMemoryPointer; }
+	void* GetMappedMemory() const {  return myMappedMemory; }
 
 protected:
 	void Reset()
@@ -63,6 +69,7 @@ protected:
 
 	uint64_t myOffset;
 	uint64_t mySize;
+	void* myMappedMemory;
 	ObjectType myType;
 	bool myIsEmpty;
 
@@ -75,6 +82,7 @@ private:
 			return *this;
 		myOffset = std::exchange(anObject.myOffset, 0);
 		mySize = std::exchange(anObject.mySize, 0);
+		myMappedMemory = std::exchange(anObject.myMappedMemory, nullptr);
 		myType = std::exchange(anObject.myType, NOTSET);
 		myIsEmpty = std::exchange(anObject.myIsEmpty, true);
 		return *this;

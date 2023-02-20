@@ -165,6 +165,35 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBuffer(const uint64_t aSize, const V
 	return AllocateBufferWithNewBlock(aSize, aUsage, aProperty, *it);
 }
 
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage)
+{
+	VkMemoryPropertyFlags memProp = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+	const MemoryRequirements* memReq = nullptr;
+	auto it = myMemPropCache.begin();
+	for (it; it != myMemPropCache.cend(); ++it)
+	{
+		if (it->myMemoryProperty != memProp)
+			continue;
+
+		auto it2 = it->myMemReqByBufferUsage.find(aUsage);
+		if (it2 != it->myMemReqByBufferUsage.cend())
+			memReq = &((*it2).second);
+		break;
+	}
+
+	assert(it != myMemPropCache.cend() && "Invalid VkMemoryPropertyFlags!");
+
+	if (memReq)
+	{
+		if (AM_Buffer* buffer = AllocateMappedBufferFast(aSize, *memReq))
+			return buffer;
+		if (AM_Buffer* buffer = AllocateMappedBufferSlow(aSize, *memReq))
+			return buffer;
+	}
+
+	return AllocateMappedBufferWithNewBlock(aSize, aUsage, memProp, *it);
+}
+
 AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache)
 {
 	VkBufferCreateInfo bufferInfo{};
@@ -176,7 +205,7 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferWithNewBlock(const uint64_t aS
 	AM_VkBuffer vkBuffer(bufferInfo);
 	VkMemoryRequirements memRequirements;
 	vkGetBufferMemoryRequirements(VkDrawContext::device, vkBuffer.myBuffer, &memRequirements);
-	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, aProperty);
 	MemoryRequirements& req = aCache.myMemReqByBufferUsage[aUsage];
 	req.myAlignment = memRequirements.alignment;
 	req.myMemoryTypeIndex = memoryTypeIndex;
@@ -195,7 +224,8 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferFast(const uint64_t aSize, con
 		if (block.myAlignment != aRequirement.myAlignment)
 			continue;
 
-		const uint64_t paddedSize = aSize + (block.myAlignment - (aSize % block.myAlignment));
+		const uint64_t extraBytes = aSize % block.myAlignment;
+		const uint64_t paddedSize = extraBytes ? aSize + block.myAlignment - extraBytes : aSize;
 		if (block.myExtent + paddedSize > VkDrawConstants::SINGLEALLOCSIZE)
 			continue;
 
@@ -214,7 +244,8 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferSlow(const uint64_t aSize, con
 
 		for (auto slotIter = block.myAllocationList.begin(); slotIter != block.myAllocationList.end(); ++slotIter)
 		{
-			const uint64_t paddedSize = aSize + (block.myAlignment - (aSize % block.myAlignment));
+			const uint64_t extraBytes = aSize % block.myAlignment;
+			const uint64_t paddedSize = extraBytes ? aSize + block.myAlignment - extraBytes : aSize;
 			if (!(slotIter->IsEmpty() && slotIter->GetSize() >= paddedSize))
 				continue;
 
@@ -231,6 +262,101 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferSlow(const uint64_t aSize, con
 	}
 
 	return nullptr;
+}
+
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache)
+{
+	VkBufferCreateInfo bufferInfo{};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = VkDrawConstants::SINGLEALLOCSIZE;
+	bufferInfo.usage = aUsage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	AM_VkBuffer vkBuffer(bufferInfo);
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(VkDrawContext::device, vkBuffer.myBuffer, &memRequirements);
+	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, aProperty);
+	MemoryRequirements& req = aCache.myMemReqByBufferUsage[aUsage];
+	req.myAlignment = memRequirements.alignment;
+	req.myMemoryTypeIndex = memoryTypeIndex;
+
+	std::vector<AM_BufferMemoryBlock>& bufferMemPool = myBufferMemoryPool[memoryTypeIndex];
+	AM_BufferMemoryBlock& newBlock = bufferMemPool.emplace_back();
+	newBlock.Init(vkBuffer, memoryTypeIndex, req.myAlignment);
+	AM_Buffer* buffer = newBlock.Allocate(aSize + (newBlock.myAlignment - (aSize % newBlock.myAlignment)));
+
+	vkMapMemory(VkDrawContext::device, newBlock.myMemory, 0, VkDrawConstants::SINGLEALLOCSIZE, 0, &newBlock.myMappedMemory);
+	newBlock.myIsMapped = true;
+	buffer->SetMappedMemory(newBlock.myMappedMemory);
+	return buffer;
+}
+
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBufferFast(const uint64_t aSize, const MemoryRequirements& aRequirement)
+{
+	std::vector<AM_BufferMemoryBlock>& bufferMemPool = myBufferMemoryPool[aRequirement.myMemoryTypeIndex];
+	for (AM_BufferMemoryBlock& block : bufferMemPool)
+	{
+		if (block.myAlignment != aRequirement.myAlignment)
+			continue;
+
+		const uint64_t extraBytes = aSize % block.myAlignment;
+		const uint64_t paddedSize = extraBytes ? aSize + block.myAlignment - extraBytes : aSize;
+		if (block.myExtent + paddedSize > VkDrawConstants::SINGLEALLOCSIZE)
+			continue;
+
+		AM_Buffer* buffer = block.Allocate(paddedSize);
+		if (!block.myIsMapped)
+		{
+			vkMapMemory(VkDrawContext::device, block.myMemory, 0, VkDrawConstants::SINGLEALLOCSIZE, 0, &block.myMappedMemory);
+			block.myIsMapped = true;
+		}
+		buffer->SetMappedMemory(block.myMappedMemory);
+		return buffer;
+	}
+	return nullptr;
+}
+
+AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBufferSlow(const uint64_t aSize, const MemoryRequirements& aRequirement)
+{
+	std::vector<AM_BufferMemoryBlock>& bufferMemPool = myBufferMemoryPool[aRequirement.myMemoryTypeIndex];
+	for (AM_BufferMemoryBlock& block : bufferMemPool)
+	{
+		if (block.myAlignment != aRequirement.myAlignment)
+			continue;
+
+		for (auto slotIter = block.myAllocationList.begin(); slotIter != block.myAllocationList.end(); ++slotIter)
+		{
+			const uint64_t extraBytes = aSize % block.myAlignment;
+			const uint64_t paddedSize = extraBytes ? aSize + block.myAlignment - extraBytes : aSize;
+			if (!(slotIter->IsEmpty() && slotIter->GetSize() >= paddedSize))
+				continue;
+
+			const uint64_t leftover = slotIter->GetSize() - paddedSize;
+			if (leftover == 0)
+				return &(*slotIter);
+
+			block.myAllocationList.emplace(slotIter, block.myBuffer.myBuffer, slotIter->GetOffset(), leftover);
+			if (!block.myIsMapped)
+			{
+				vkMapMemory(VkDrawContext::device, block.myMemory, 0, VkDrawConstants::SINGLEALLOCSIZE, 0, &block.myMappedMemory);
+				block.myIsMapped = true;
+			}
+			slotIter->SetMappedMemory(block.myMappedMemory);
+			slotIter->SetOffset(slotIter->GetOffset() + leftover);
+			slotIter->SetSize(paddedSize);
+			slotIter->SetIsEmpty(false);
+			return &(*slotIter);
+		}
+	}
+
+	return nullptr;
+}
+
+void AM_NaiveMemoryAllocator::CopyToMappedMemory(AM_Buffer& aBuffer, void* aSource, const size_t aSize)
+{
+	assert(aBuffer.GetMappedMemory() != nullptr && "Memory is not mapped!");
+	assert(aSize <= aBuffer.GetSize() && "Trying to map more memory than allocated!");
+	memcpy((void*)((char*)aBuffer.GetMappedMemory() + aBuffer.GetOffset()), aSource, aSize);
 }
 
 void AM_NaiveMemoryAllocator::FreeVkDeviceMemory()

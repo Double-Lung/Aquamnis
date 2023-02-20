@@ -34,7 +34,9 @@ public:
 	}
 
 	[[nodiscard]] AM_Buffer* AllocateBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty);
+	[[nodiscard]] AM_Buffer* AllocateMappedBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage);
 	AM_Image& AllocateImageMemory(const uint32_t aMemoryTypeIndex, const uint64_t aSize){}
+	void CopyToMappedMemory(AM_Buffer& aBuffer, void* aSource, const size_t aSize);
 
 	void FreeVkDeviceMemory();
 
@@ -61,6 +63,10 @@ private:
 	[[nodiscard]] AM_Buffer* AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache);
 	[[nodiscard]] AM_Buffer* AllocateBufferFast(const uint64_t aSize, const MemoryRequirements& aRequirement);
 	[[nodiscard]] AM_Buffer* AllocateBufferSlow(const uint64_t aSize, const MemoryRequirements& aRequirement);
+
+	[[nodiscard]] AM_Buffer* AllocateMappedBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache);
+	[[nodiscard]] AM_Buffer* AllocateMappedBufferFast(const uint64_t aSize, const MemoryRequirements& aRequirement);
+	[[nodiscard]] AM_Buffer* AllocateMappedBufferSlow(const uint64_t aSize, const MemoryRequirements& aRequirement);
 
 	uint32_t FindMemoryTypeIndex(const uint32_t someMemoryTypeBits, const VkMemoryPropertyFlags someProperties) const;
 

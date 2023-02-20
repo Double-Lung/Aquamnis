@@ -26,9 +26,7 @@ void VkDraw::Engage()
 }
 
 VkDraw::VkDraw() 
-	: myUniformBuffersMapped(nullptr)
-	, myStagingBuffersMapped(nullptr)
-	, myMipLevels(0)
+	: myMipLevels(0)
 	, myCurrentFrame(0)
 	, myIsFramebufferResized(false)
 {
@@ -482,7 +480,7 @@ void VkDraw::CreateDescriptorSets()
 	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = myUniformBuffers.myBuffer;
+		bufferInfo.buffer = myVirtualUniformBuffer->myBuffer;
 		bufferInfo.offset = i * 0x100;
 		bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE
 		VkDescriptorImageInfo imageInfo{};
@@ -556,26 +554,25 @@ void VkDraw::CreateTextureImage()
 	myMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 	VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4;
 
-	AM_VkBuffer stagingBuffer;
-	CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, AM_BufferTypeBits::STAGING);
-	stagingBuffer.CopyToMappedMemory(myStagingBuffersMapped,(void*)pixels, static_cast<size_t>(imageSize));
-
+	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateMappedBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)pixels, static_cast<size_t>(imageSize));
 	stbi_image_free(pixels);
 
 	CreateImage({ (uint32_t)texWidth, (uint32_t)texHeight }, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myTextureImage);
 
 	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels);
-	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage.myImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	CopyBufferToImage(*stagingBuffer, myTextureImage.myImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 	//transitionImageLayout(myTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
 	GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
+	stagingBuffer->SetIsEmpty(true);
 }
 
-void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
+void VkDraw::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight)
 {
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
 
 	VkBufferImageCopy region{};
-	region.bufferOffset = 0;
+	region.bufferOffset = aBuffer.GetOffset();
 	region.bufferRowLength = 0;
 	region.bufferImageHeight = 0;
 
@@ -584,50 +581,19 @@ void VkDraw::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, u
 	region.imageSubresource.baseArrayLayer = 0;
 	region.imageSubresource.layerCount = 1;
 
-	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = { width, height, 1 };
+	region.imageOffset = { 0, 0, 0 }; // you are the next
+	region.imageExtent = { aWidth, aHeight, 1 };
 
 	vkCmdCopyBufferToImage(
 		commandBuffer,
-		buffer,
-		image,
+		aBuffer.myBuffer,
+		anImage,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1,
 		&region
 	);
 
 	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
-}
-
-void VkDraw::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkBuffer& aBufferObject, const AM_BufferTypeBits aBufferType)
-{
-	VkBufferCreateInfo bufferInfo{};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = size;
-	bufferInfo.usage = usage;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VkMemoryRequirements memRequirements;
-	aBufferObject.Init(memRequirements, bufferInfo, aBufferType);
-
-	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, properties);
-
-	AM_SimpleMemoryObject* memoryObject = nullptr;
-	switch (aBufferType)
-	{
-	case AM_BufferTypeBits::DEVICEONLY:
-		memoryObject = &myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements);
-		break;
-	case AM_BufferTypeBits::UNIFORM:
-		memoryObject = &myMemoryAllocator.AllocateUniformBufferMemory(&myUniformBuffersMapped, memoryTypeIndex, memRequirements);
-		break;
-	case AM_BufferTypeBits::STAGING:
-		memoryObject = &myMemoryAllocator.AllocateStagingBufferMemory(&myStagingBuffersMapped, memoryTypeIndex, memRequirements);
-		break;
-	default:
-		throw std::runtime_error("wrong buffer type!");
-	}
-	aBufferObject.Bind(memoryObject);
 }
 
 uint32_t VkDraw::FindMemoryTypeIndex(const uint32_t memoryTypeBits, const VkMemoryPropertyFlags properties) const
@@ -811,42 +777,40 @@ void VkDraw::CreateColorResources()
 	CreateImageView(myColorImageView, myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
-// TODO:
-/*
-* Need to make buffer memory allocation work for any type of usage
-* allocation for mapped memory -> make sure slot empty check works
-*/
 void VkDraw::CreateVertexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(myVertices[0]) * myVertices.size();
-	
-	AM_VkBuffer stagingBuffer;
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, AM_BufferTypeBits::STAGING);
-	stagingBuffer.CopyToMappedMemory(myStagingBuffersMapped, (void*)myVertices.data(), static_cast<size_t>(bufferSize));
+	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateMappedBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)myVertices.data(), static_cast<size_t>(bufferSize));
 	myVirtualVertexBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	// need more elegant copy function
-	myVirtualVertexBuffer->SetIsEmpty(false);
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
-	VkBufferCopy copyRegion{ 0, myVirtualVertexBuffer->GetOffset(), bufferSize };
-	vkCmdCopyBuffer(commandBuffer, stagingBuffer.myBuffer, myVirtualVertexBuffer->myBuffer, 1, &copyRegion);
+	VkBufferCopy copyRegion{ stagingBuffer->GetOffset(), myVirtualVertexBuffer->GetOffset(), bufferSize };
+	vkCmdCopyBuffer(commandBuffer, stagingBuffer->myBuffer, myVirtualVertexBuffer->myBuffer, 1, &copyRegion);
 	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
+	stagingBuffer->SetIsEmpty(true);
 }
 
 void VkDraw::CreateIndexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(myIndices[0]) * myIndices.size();
-	AM_VkBuffer stagingBuffer;
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, AM_BufferTypeBits::STAGING);
-	stagingBuffer.CopyToMappedMemory(myStagingBuffersMapped, (void*)myIndices.data(), static_cast<size_t>(bufferSize));
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myIndexBuffer, AM_BufferTypeBits::DEVICEONLY);
-	CopyBuffer(stagingBuffer.myBuffer, myIndexBuffer.myBuffer, bufferSize);
+	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateMappedBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)myIndices.data(), static_cast<size_t>(bufferSize));
+	myVirtualIndexBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	// need more elegant copy function
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
+	VkBufferCopy copyRegion{ stagingBuffer->GetOffset(), myVirtualIndexBuffer->GetOffset(), bufferSize };
+	vkCmdCopyBuffer(commandBuffer, stagingBuffer->myBuffer, myVirtualIndexBuffer->myBuffer, 1, &copyRegion);
+	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
+	stagingBuffer->SetIsEmpty(true);
 }
 
 void VkDraw::CreateUniformBuffers()
 {
 	static constexpr uint64_t bufferSize = 0x100 * VkDrawConstants::MAX_FRAMES_IN_FLIGHT;
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, myUniformBuffers, AM_BufferTypeBits::UNIFORM);
+	myVirtualUniformBuffer = myMemoryAllocator.AllocateMappedBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 }
 
 void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
@@ -861,7 +825,10 @@ void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
 	ubo.view = glm::lookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	ubo.projection = glm::perspective(0.7854f, mySwapChain.GetWidth() / (float)mySwapChain.GetHeight(), 0.1f, 100.f);
 
-	char* destination = (char*) myUniformBuffersMapped + currentImage * 0x100;
+	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
+	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
+
+	char* destination = mappedUniformBuffers + currentImage * 0x100;
 	memcpy((void*)destination, &ubo, sizeof(ubo));
 }
 
@@ -949,7 +916,7 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 	//vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 	vkCmdBindVertexBuffers2(commandBuffer, 0, 1, vertexBuffers, offsets, sizes, nullptr);
 
-	vkCmdBindIndexBuffer(commandBuffer, myIndexBuffer.myBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindIndexBuffer(commandBuffer, myVirtualIndexBuffer->myBuffer, myVirtualIndexBuffer->GetOffset(), VK_INDEX_TYPE_UINT32);
 
 	VkViewport viewport{};
 	viewport.x = 0;

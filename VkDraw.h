@@ -52,8 +52,7 @@ private:
 	void CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkImage& anImageObject);
 
 	void CreateTextureImage();
-	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkBuffer& aBufferObject, const AM_BufferTypeBits aBufferType);
+	void CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight);
 
 	uint32_t FindMemoryTypeIndex(const uint32_t memoryTypeBits, VkMemoryPropertyFlags const properties) const;
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -110,9 +109,8 @@ private:
 	AM_VkSampler myTextureSampler;
 	std::vector<Vertex> myVertices;
 	std::vector<uint32_t> myIndices;
-	AM_VkBuffer myVertexBuffer;
-	AM_VkBuffer myIndexBuffer;
 
+	AM_Buffer* myVirtualUniformBuffer = nullptr;
 	AM_Buffer* myVirtualVertexBuffer = nullptr;
 	AM_Buffer* myVirtualIndexBuffer = nullptr;
 
@@ -122,8 +120,6 @@ private:
 	AM_VkPipeline myGraphicsPipeline;
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	
-	void* myUniformBuffersMapped;
-	void* myStagingBuffersMapped;
 	uint32_t myMipLevels;
 	uint32_t myCurrentFrame;
 	bool myIsFramebufferResized;
