@@ -11,12 +11,6 @@ public:
 	{
 	}
 
-	AM_BufferMemoryBlock(const uint64_t anExtent, ResourceType aType, const VkDeviceMemory aMemory, AM_VkBuffer&& aBuffer)
-		: AM_SimpleMemoryBlock(anExtent, aType, aMemory)
-		, myBuffer(std::move(aBuffer))
-	{
-	}
-
 	AM_BufferMemoryBlock(AM_BufferMemoryBlock&& aMemoryBlock) noexcept
 		: AM_SimpleMemoryBlock(std::move(aMemoryBlock))
 	{

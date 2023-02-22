@@ -39,7 +39,7 @@ AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::Allocate(const uint32_t aMemoryT
 		if (auto* slot = SubAllocation(block, aMemoryRequirements))
 			return *slot;
 
-	auto& newMemoryBlock = memoryBlocks.emplace_back();
+	auto& newMemoryBlock = memoryBlocks.emplace_back(AM_SimpleMemoryBlock::BUFFER);
 	AllocateMemory(newMemoryBlock.myMemory, aMemoryTypeIndex);
 	newMemoryBlock.myExtent = aMemoryRequirements.size;
 	return newMemoryBlock.myAllocations.emplace_back(0, aMemoryRequirements.size, newMemoryBlock.myMemory);
@@ -53,24 +53,6 @@ void AM_NaiveMemoryAllocator::AllocateMemory(VkDeviceMemory& outMemoryPtr, const
 	allocInfo.memoryTypeIndex = aMemoryTypeIndex;
 	if (vkAllocateMemory(VkDrawContext::device, &allocInfo, nullptr, &outMemoryPtr) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate memory of type ??? !");
-}
-
-AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::AllocateMappedBufferMemory(void** outMappedMemory, AM_SimpleMemoryBlock& aMemoryBlock, const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements)
-{
-	if (!aMemoryBlock.myMemory)
-	{
-		AllocateMemory(aMemoryBlock.myMemory, aMemoryTypeIndex);
-		aMemoryBlock.myExtent = aMemoryRequirements.size;
-		vkMapMemory(VkDrawContext::device, aMemoryBlock.myMemory, 0, VkDrawConstants::SINGLEALLOCSIZE, 0, &aMemoryBlock.myMappedMemory);
-		*outMappedMemory = aMemoryBlock.myMappedMemory;
-		return aMemoryBlock.myAllocations.emplace_back(0, aMemoryRequirements.size, aMemoryBlock.myMemory);
-	}
-
-	auto* slot = SubAllocation(aMemoryBlock, aMemoryRequirements);
-	if (!slot)
-		throw std::runtime_error("Failed to allocate mapped buffer memory!");
-	*outMappedMemory = (char*)aMemoryBlock.myMappedMemory;
-	return *slot;
 }
 
 AM_SimpleMemoryObject* AM_NaiveMemoryAllocator::SubAllocation(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements)
@@ -369,8 +351,4 @@ void AM_NaiveMemoryAllocator::FreeVkDeviceMemory()
 			block.myMemory = nullptr;
 		}
 	}
-	vkFreeMemory(VkDrawContext::device, myUniformBufferMemoryBlock.myMemory, nullptr);
-	vkFreeMemory(VkDrawContext::device, myStagingBufferMemoryBlock.myMemory, nullptr);
-	myUniformBufferMemoryBlock.myMemory = nullptr;
-	myStagingBufferMemoryBlock.myMemory = nullptr;
 }

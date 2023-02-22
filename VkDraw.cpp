@@ -562,7 +562,6 @@ void VkDraw::CreateTextureImage()
 
 	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels);
 	CopyBufferToImage(*stagingBuffer, myTextureImage.myImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-	//transitionImageLayout(myTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
 	GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	stagingBuffer->SetIsEmpty(true);
 }
@@ -607,14 +606,11 @@ uint32_t VkDraw::FindMemoryTypeIndex(const uint32_t memoryTypeBits, const VkMemo
 	throw std::runtime_error("failed to find suitable memory type!");
 }
 
-void VkDraw::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+void VkDraw::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
 {
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
-
-	VkBufferCopy copyRegion{};
-	copyRegion.size = size;
-	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
+	VkBufferCopy copyRegion{ aSourceBuffer.GetOffset(), aDestinationBuffer.GetOffset(), aSize };
+	vkCmdCopyBuffer(commandBuffer, aSourceBuffer.myBuffer, aDestinationBuffer.myBuffer, 1, &copyRegion);
 	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
 }
 
@@ -784,11 +780,7 @@ void VkDraw::CreateVertexBuffer()
 	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)myVertices.data(), static_cast<size_t>(bufferSize));
 	myVirtualVertexBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	// need more elegant copy function
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
-	VkBufferCopy copyRegion{ stagingBuffer->GetOffset(), myVirtualVertexBuffer->GetOffset(), bufferSize };
-	vkCmdCopyBuffer(commandBuffer, stagingBuffer->myBuffer, myVirtualVertexBuffer->myBuffer, 1, &copyRegion);
-	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
+	CopyBuffer(*stagingBuffer, *myVirtualVertexBuffer, bufferSize);
 	stagingBuffer->SetIsEmpty(true);
 }
 
@@ -799,11 +791,7 @@ void VkDraw::CreateIndexBuffer()
 	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)myIndices.data(), static_cast<size_t>(bufferSize));
 	myVirtualIndexBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	// need more elegant copy function
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
-	VkBufferCopy copyRegion{ stagingBuffer->GetOffset(), myVirtualIndexBuffer->GetOffset(), bufferSize };
-	vkCmdCopyBuffer(commandBuffer, stagingBuffer->myBuffer, myVirtualIndexBuffer->myBuffer, 1, &copyRegion);
-	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
+	CopyBuffer(*stagingBuffer, *myVirtualIndexBuffer, bufferSize);
 	stagingBuffer->SetIsEmpty(true);
 }
 

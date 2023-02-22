@@ -11,9 +11,10 @@ public:
 	{
 	}
 
-	AM_ImageMemoryBlock(AM_ImageMemoryBlock&& anImageMemoryBlock) noexcept
+	AM_ImageMemoryBlock(AM_ImageMemoryBlock&& aMemoryBlock) noexcept
+		: AM_SimpleMemoryBlock(std::move(aMemoryBlock))
 	{
-
+		*this = std::move(aMemoryBlock);
 	}
 
 	~AM_ImageMemoryBlock()
@@ -24,13 +25,16 @@ public:
 			vkFreeMemory(VkDrawContext::device, myMemory, nullptr);
 	}
 
-	
-
 private:
 	AM_ImageMemoryBlock(const AM_ImageMemoryBlock& aMemoryBlock) = delete;
 	AM_ImageMemoryBlock& operator=(const AM_ImageMemoryBlock& aMemoryBlock) = delete;
 	AM_ImageMemoryBlock& operator=(AM_ImageMemoryBlock&& aMemoryBlock) noexcept
 	{
+		if (this == &aMemoryBlock)
+			return *this;
+
+		myAllocationList = std::move(aMemoryBlock.myAllocationList);
+		myImage = std::move(aMemoryBlock.myImage);
 		return *this;
 	}
 

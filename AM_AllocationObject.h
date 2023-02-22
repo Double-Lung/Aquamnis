@@ -11,24 +11,6 @@ public:
 		IMAGE,
 	};
 
-	AM_AllocationObject()
-		: myOffset(0)
-		, mySize(0)
-		, myMappedMemory(nullptr)
-		, myType(NOTSET)
-		, myIsEmpty(true)
-	{
-	}
-
-	AM_AllocationObject(const ObjectType aType)
-		: myOffset(0)
-		, mySize(0)
-		, myMappedMemory(nullptr)
-		, myType(aType)
-		, myIsEmpty(true)
-	{
-	}
-
 	AM_AllocationObject(const ObjectType aType, const uint64_t anOffset, const uint64_t aSize)
 		: myOffset(anOffset)
 		, mySize(aSize)
@@ -50,12 +32,15 @@ public:
 
 	virtual ~AM_AllocationObject() = default;
 
-	const uint64_t GetOffset() const { return myOffset; }
-	const uint64_t GetSize() const { return mySize; }
-	bool IsEmpty() { return myIsEmpty; }
 	void SetOffset(const uint64_t anOffset) { myOffset = anOffset; }
+	const uint64_t GetOffset() const { return myOffset; }
+
 	void SetSize(const uint64_t aSize) { mySize = aSize; }
+	const uint64_t GetSize() const { return mySize; }
+
 	void SetIsEmpty(bool aState) { myIsEmpty = aState; }
+	bool IsEmpty() const { return myIsEmpty; }
+
 	void SetMappedMemory(void* aMemoryPointer) { myMappedMemory = aMemoryPointer; }
 	void* GetMappedMemory() const {  return myMappedMemory; }
 
@@ -74,6 +59,7 @@ protected:
 	bool myIsEmpty;
 
 private:
+	AM_AllocationObject() = delete;
 	AM_AllocationObject(const AM_AllocationObject& anObject) = delete;
 	AM_AllocationObject& operator=(const AM_AllocationObject& anObject) = delete;
 	AM_AllocationObject& operator=(AM_AllocationObject&& anObject) noexcept

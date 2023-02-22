@@ -6,10 +6,8 @@
 #include "AM_ImageMemoryBlock.h"
 
 // TODO: 
-// 1. optimize with single buffer for each memory type
-// 2. improve alloc overhead and merge empty slots
-
-// TODO: concurrency
+// merge empty slots
+// concurrency
 
 class AM_NaiveMemoryAllocator
 {
@@ -24,15 +22,6 @@ public:
 
 	void Init(const VkPhysicalDeviceMemoryProperties& aPhysicalMemoryProperties);
 	[[nodiscard]] AM_SimpleMemoryObject& Allocate(const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements);
-	[[nodiscard]] AM_SimpleMemoryObject& AllocateUniformBufferMemory(void** outMappedMemory, const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements)
-	{
-		return AllocateMappedBufferMemory(outMappedMemory, myUniformBufferMemoryBlock, aMemoryTypeIndex, aMemoryRequirements);
-	}
-	[[nodiscard]] AM_SimpleMemoryObject& AllocateStagingBufferMemory(void** outMappedMemory, const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements)
-	{
-		return AllocateMappedBufferMemory(outMappedMemory, myStagingBufferMemoryBlock, aMemoryTypeIndex, aMemoryRequirements);
-	}
-
 	[[nodiscard]] AM_Buffer* AllocateBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty);
 	[[nodiscard]] AM_Buffer* AllocateMappedBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage);
 	AM_Image& AllocateImageMemory(const uint32_t aMemoryTypeIndex, const uint64_t aSize){}
@@ -54,7 +43,6 @@ private:
 	};
 
 	void AllocateMemory(VkDeviceMemory& outMemoryPtr, const uint32_t aMemoryTypeIndex);
-	[[nodiscard]] AM_SimpleMemoryObject& AllocateMappedBufferMemory(void** outMappedMemory, AM_SimpleMemoryBlock& aMemoryBlock, const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements);
 	[[nodiscard]] AM_SimpleMemoryObject* SubAllocation(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements);
 	[[nodiscard]] inline uint64_t GetPadding(const uint64_t anOffset, const uint64_t anAlignmentSize) const;
 	[[nodiscard]] AM_SimpleMemoryObject* TryGetFreeSlot(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements);
@@ -71,9 +59,6 @@ private:
 	uint32_t FindMemoryTypeIndex(const uint32_t someMemoryTypeBits, const VkMemoryPropertyFlags someProperties) const;
 
 	std::vector<std::vector<AM_SimpleMemoryBlock>> myMemoryBlocksByMemoryType;
-	AM_SimpleMemoryBlock myUniformBufferMemoryBlock;
-	AM_SimpleMemoryBlock myStagingBufferMemoryBlock;
-
 	std::vector<std::vector<AM_BufferMemoryBlock>> myBufferMemoryPool;
 	std::vector<std::vector<AM_ImageMemoryBlock>> myImageMemoryPool;
 	std::vector<MemoryPropertyCache> myMemPropCache;

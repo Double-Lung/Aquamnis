@@ -39,31 +39,11 @@ public:
 		IMAGE
 	};
 
-	AM_SimpleMemoryBlock()
-		: myExtent(0)
-		, myAlignment(0)
-		, myType(NOTSET)
-		, myMemory(VK_NULL_HANDLE)
-		, myMappedMemory(nullptr)
-		, myIsMapped(false)
-	{
-	}
-
 	AM_SimpleMemoryBlock(const ResourceType aType)
 		: myExtent(0)
 		, myAlignment(0)
 		, myType(aType)
 		, myMemory(VK_NULL_HANDLE)
-		, myMappedMemory(nullptr)
-		, myIsMapped(false)
-	{
-	}
-
-	AM_SimpleMemoryBlock(const uint64_t anExtent, ResourceType aType, const VkDeviceMemory aMemory)
-		: myExtent(anExtent)
-		, myAlignment(0)
-		, myType(aType)
-		, myMemory(aMemory)
 		, myMappedMemory(nullptr)
 		, myIsMapped(false)
 	{
@@ -91,6 +71,7 @@ public:
 	bool myIsMapped;
 
 private:
+	AM_SimpleMemoryBlock() = delete;
 	AM_SimpleMemoryBlock(const AM_SimpleMemoryBlock&) = delete;
 	void operator=(const AM_SimpleMemoryBlock&) = delete;
 
