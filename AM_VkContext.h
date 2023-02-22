@@ -11,14 +11,14 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
-#include "VkDrawConstants.h"
+#include "AM_VkRenderCoreConstants.h"
 #include <vulkan/vulkan.h>
 
-class VkDrawContext
+class AM_VkContext
 {
 public:
-	VkDrawContext();
-	~VkDrawContext();
+	AM_VkContext();
+	~AM_VkContext();
 
 	void Init();
 	void GetAvailableInstanceExtensions();

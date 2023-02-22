@@ -1,5 +1,5 @@
 #pragma once
-#include "VkDrawContext.h"
+#include "AM_VkContext.h"
 
 struct AM_VkSemaphore
 {
@@ -9,12 +9,12 @@ struct AM_VkSemaphore
 		VkSemaphoreCreateInfo semaphoreInfo{};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-		if (vkCreateSemaphore(VkDrawContext::device, &semaphoreInfo, nullptr, &mySemaphore) != VK_SUCCESS)
+		if (vkCreateSemaphore(AM_VkContext::device, &semaphoreInfo, nullptr, &mySemaphore) != VK_SUCCESS)
 			throw std::runtime_error("failed to create semaphores!");
 	}
 	~AM_VkSemaphore()
 	{
-		vkDestroySemaphore(VkDrawContext::device, mySemaphore, nullptr);
+		vkDestroySemaphore(AM_VkContext::device, mySemaphore, nullptr);
 	}
 
 	VkSemaphore mySemaphore;
@@ -29,13 +29,13 @@ struct AM_VkFence
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-		if (vkCreateFence(VkDrawContext::device, &fenceInfo, nullptr, &myFence) != VK_SUCCESS)
+		if (vkCreateFence(AM_VkContext::device, &fenceInfo, nullptr, &myFence) != VK_SUCCESS)
 			throw std::runtime_error("failed to create semaphores!");
 	}
 
 	~AM_VkFence()
 	{
-		vkDestroyFence(VkDrawContext::device, myFence, nullptr);
+		vkDestroyFence(AM_VkContext::device, myFence, nullptr);
 	}
 
 	VkFence myFence;
@@ -50,12 +50,12 @@ struct AM_VkPipelineLayout
 
 	~AM_VkPipelineLayout()
 	{
-		vkDestroyPipelineLayout(VkDrawContext::device, myLayout, nullptr);
+		vkDestroyPipelineLayout(AM_VkContext::device, myLayout, nullptr);
 	}
 
 	void CreateLayout(const VkPipelineLayoutCreateInfo& aCreateInfo)
 	{
-		if (vkCreatePipelineLayout(VkDrawContext::device, &aCreateInfo, nullptr, &myLayout) != VK_SUCCESS)
+		if (vkCreatePipelineLayout(AM_VkContext::device, &aCreateInfo, nullptr, &myLayout) != VK_SUCCESS)
 			throw std::runtime_error("failed to create pipeline layout!");
 	}
 
@@ -71,12 +71,12 @@ struct AM_VkPipeline
 
 	~AM_VkPipeline()
 	{
-		vkDestroyPipeline(VkDrawContext::device, myPipeline, nullptr);
+		vkDestroyPipeline(AM_VkContext::device, myPipeline, nullptr);
 	}
 
 	void CreatePipeline(const VkGraphicsPipelineCreateInfo& aCreateInfo)
 	{
-		if (vkCreateGraphicsPipelines(VkDrawContext::device, VK_NULL_HANDLE, 1, &aCreateInfo, nullptr, &myPipeline) != VK_SUCCESS)
+		if (vkCreateGraphicsPipelines(AM_VkContext::device, VK_NULL_HANDLE, 1, &aCreateInfo, nullptr, &myPipeline) != VK_SUCCESS)
 			throw std::runtime_error("failed to create graphics pipeline!");
 	}
 
@@ -97,13 +97,13 @@ struct AM_VkFramebuffer
 
 	void CreateFrameBuffer(const VkFramebufferCreateInfo& aCreateInfo)
 	{
-		if (vkCreateFramebuffer(VkDrawContext::device, &aCreateInfo, nullptr, &myFramebuffer) != VK_SUCCESS)
+		if (vkCreateFramebuffer(AM_VkContext::device, &aCreateInfo, nullptr, &myFramebuffer) != VK_SUCCESS)
 			throw std::runtime_error("failed to create framebuffer!");
 	}
 
 	void DestroyFrameBuffer()
 	{
-		vkDestroyFramebuffer(VkDrawContext::device, myFramebuffer, nullptr);
+		vkDestroyFramebuffer(AM_VkContext::device, myFramebuffer, nullptr);
 	}
 
 	VkFramebuffer myFramebuffer;
@@ -122,7 +122,7 @@ struct AM_VkCommandBuffer
 
 	void CreateCommandBuffer(const VkCommandBufferAllocateInfo& aCreateInfo)
 	{
-		if (vkAllocateCommandBuffers(VkDrawContext::device, &aCreateInfo, &myCommandBuffer) != VK_SUCCESS)
+		if (vkAllocateCommandBuffers(AM_VkContext::device, &aCreateInfo, &myCommandBuffer) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate command buffer!");
 	}
 
@@ -138,12 +138,12 @@ struct AM_VkSampler
 
 	~AM_VkSampler()
 	{
-		vkDestroySampler(VkDrawContext::device, mySampler, nullptr);
+		vkDestroySampler(AM_VkContext::device, mySampler, nullptr);
 	}
 
 	void CreateSampler(const VkSamplerCreateInfo& aCreateInfo)
 	{
-		if (vkCreateSampler(VkDrawContext::device, &aCreateInfo, nullptr, &mySampler) != VK_SUCCESS)
+		if (vkCreateSampler(AM_VkContext::device, &aCreateInfo, nullptr, &mySampler) != VK_SUCCESS)
 			throw std::runtime_error("failed to create texture sampler!");
 	}
 
@@ -164,13 +164,13 @@ struct AM_VkImageView
 
 	void CreateView(const VkImageViewCreateInfo& aCreateInfo)
 	{
-		if (vkCreateImageView(VkDrawContext::device, &aCreateInfo, nullptr, &myView) != VK_SUCCESS)
+		if (vkCreateImageView(AM_VkContext::device, &aCreateInfo, nullptr, &myView) != VK_SUCCESS)
 			throw std::runtime_error("failed to create texture image view!");
 	}
 
 	void DestroyView()
 	{
-		vkDestroyImageView(VkDrawContext::device, myView, nullptr);
+		vkDestroyImageView(AM_VkContext::device, myView, nullptr);
 	}
 
 	VkImageView myView;
@@ -185,12 +185,12 @@ struct AM_VkDescriptorSetLayout
 
 	~AM_VkDescriptorSetLayout()
 	{
-		vkDestroyDescriptorSetLayout(VkDrawContext::device, myLayout, nullptr);
+		vkDestroyDescriptorSetLayout(AM_VkContext::device, myLayout, nullptr);
 	}
 
 	void CreateLayout(const VkDescriptorSetLayoutCreateInfo& aCreateInfo)
 	{
-		if (vkCreateDescriptorSetLayout(VkDrawContext::device, &aCreateInfo, nullptr, &myLayout) != VK_SUCCESS)
+		if (vkCreateDescriptorSetLayout(AM_VkContext::device, &aCreateInfo, nullptr, &myLayout) != VK_SUCCESS)
 			throw std::runtime_error("failed to create descriptor set layout!");
 	}
 
@@ -207,12 +207,12 @@ struct AM_VkRenderPass
 
 	~AM_VkRenderPass()
 	{
-		vkDestroyRenderPass(VkDrawContext::device, myPass, nullptr);
+		vkDestroyRenderPass(AM_VkContext::device, myPass, nullptr);
 	}
 
 	void CreateRenderPass(const VkRenderPassCreateInfo& aCreateInfo)
 	{
-		if (vkCreateRenderPass(VkDrawContext::device, &aCreateInfo, nullptr, &myPass) != VK_SUCCESS)
+		if (vkCreateRenderPass(AM_VkContext::device, &aCreateInfo, nullptr, &myPass) != VK_SUCCESS)
 			throw std::runtime_error("failed to create render pass!");
 	}
 
@@ -228,12 +228,12 @@ struct AM_VkDescriptorPool
 
 	~AM_VkDescriptorPool()
 	{
-		vkDestroyDescriptorPool(VkDrawContext::device, myPool, nullptr);
+		vkDestroyDescriptorPool(AM_VkContext::device, myPool, nullptr);
 	}
 
 	void CreateDescriptorPool(const VkDescriptorPoolCreateInfo& aCreateInfo)
 	{
-		if (vkCreateDescriptorPool(VkDrawContext::device, &aCreateInfo, nullptr, &myPool) != VK_SUCCESS)
+		if (vkCreateDescriptorPool(AM_VkContext::device, &aCreateInfo, nullptr, &myPool) != VK_SUCCESS)
 			throw std::runtime_error("failed to create descriptor pool!");
 	}
 
@@ -249,12 +249,12 @@ struct AM_VkCommandPool
 
 	~AM_VkCommandPool()
 	{
-		vkDestroyCommandPool(VkDrawContext::device, myPool, nullptr);
+		vkDestroyCommandPool(AM_VkContext::device, myPool, nullptr);
 	}
 	
 	void CreatePool(const VkCommandPoolCreateInfo& aCreateInfo)
 	{
-		if (vkCreateCommandPool(VkDrawContext::device, &aCreateInfo, nullptr, &myPool) != VK_SUCCESS)
+		if (vkCreateCommandPool(AM_VkContext::device, &aCreateInfo, nullptr, &myPool) != VK_SUCCESS)
 			throw std::runtime_error("failed to create command pool!");
 	}
 

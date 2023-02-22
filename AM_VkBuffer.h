@@ -1,6 +1,6 @@
 #pragma once
 #include "AM_SimpleMemoryBlock.h"
-#include "VkDrawContext.h"
+#include "AM_VkContext.h"
 #include <assert.h>
 
 struct AM_VkBuffer
@@ -13,7 +13,7 @@ struct AM_VkBuffer
 	AM_VkBuffer(const VkBufferCreateInfo& someInfo)
 		: myBuffer(nullptr)
 	{
-		if (vkCreateBuffer(VkDrawContext::device, &someInfo, nullptr, &myBuffer) != VK_SUCCESS)
+		if (vkCreateBuffer(AM_VkContext::device, &someInfo, nullptr, &myBuffer) != VK_SUCCESS)
 			throw std::runtime_error("failed to create buffer!");
 	}
 
@@ -40,7 +40,7 @@ struct AM_VkBuffer
 	{
 		if (myBuffer)
 		{
-			vkDestroyBuffer(VkDrawContext::device, myBuffer, nullptr);
+			vkDestroyBuffer(AM_VkContext::device, myBuffer, nullptr);
 			myBuffer = nullptr;
 		}
 	}

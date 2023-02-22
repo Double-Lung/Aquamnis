@@ -22,8 +22,9 @@
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{720879f3-1a94-4d5f-8dbc-89713b06f47f}</ProjectGuid>
-    <RootNamespace>VulkanTriangleApp</RootNamespace>
+    <RootNamespace>Aquamnis</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>VulkanRenderer</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -166,8 +167,8 @@
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp" />
     <ClCompile Include="extensionProxy.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="VkDraw.cpp" />
-    <ClCompile Include="VkDrawContext.cpp" />
+    <ClCompile Include="AM_VkRenderCore.cpp" />
+    <ClCompile Include="AM_VkContext.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AM_AllocationObject.h" />
@@ -184,9 +185,9 @@
     <ClInclude Include="AM_Window.h" />
     <ClInclude Include="ApplicationConstants.h" />
     <ClInclude Include="extensionProxy.h" />
-    <ClInclude Include="VkDraw.h" />
-    <ClInclude Include="VkDrawConstants.h" />
-    <ClInclude Include="VkDrawContext.h" />
+    <ClInclude Include="AM_VkRenderCore.h" />
+    <ClInclude Include="AM_VkRenderCoreConstants.h" />
+    <ClInclude Include="AM_VkContext.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bat\compile.bat" />

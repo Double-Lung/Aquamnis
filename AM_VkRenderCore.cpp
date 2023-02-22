@@ -1,6 +1,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "VkDraw.h"
+#include "AM_VkRenderCore.h"
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -19,20 +19,20 @@
 // the commands that have been recorded so far. It's best to do this after the texture mapping works to check 
 // if the texture resources are still set up correctly.
 
-void VkDraw::Engage()
+void AM_VkRenderCore::Engage()
 {
 	InitVulkan();
 	MainLoop();
 }
 
-VkDraw::VkDraw() 
+AM_VkRenderCore::AM_VkRenderCore() 
 	: myMipLevels(0)
 	, myCurrentFrame(0)
 	, myIsFramebufferResized(false)
 {
 }
 
-bool VkDraw::CheckExtensionSupport()
+bool AM_VkRenderCore::CheckExtensionSupport()
 {
 #ifdef _DEBUG
 	std::unordered_set<std::string> requiredExtensionSet(myVkContext.requiredInstanceExtensions.cbegin(), myVkContext.requiredInstanceExtensions.cend());
@@ -58,7 +58,7 @@ bool VkDraw::CheckExtensionSupport()
 	return true;
 }
 
-bool VkDraw::CheckInstanceLayerSupport()
+bool AM_VkRenderCore::CheckInstanceLayerSupport()
 {
 	std::unordered_set<std::string> availableLayerSet;
 	for (const auto& layerProperties : myVkContext.availableInstanceLayers)
@@ -70,7 +70,7 @@ bool VkDraw::CheckInstanceLayerSupport()
 	return true;
 }
 
-std::vector<char> VkDraw::ReadFile(const std::string& filename)
+std::vector<char> AM_VkRenderCore::ReadFile(const std::string& filename)
 {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -86,13 +86,13 @@ std::vector<char> VkDraw::ReadFile(const std::string& filename)
 	return buffer;
 }
 
-void VkDraw::FramebufferResizeCallback(GLFWwindow* window, int /*width*/, int /*height*/)
+void AM_VkRenderCore::FramebufferResizeCallback(GLFWwindow* window, int /*width*/, int /*height*/)
 {
-	VkDraw* app = reinterpret_cast<VkDraw*>(glfwGetWindowUserPointer(window));
+	AM_VkRenderCore* app = reinterpret_cast<AM_VkRenderCore*>(glfwGetWindowUserPointer(window));
 	app->myIsFramebufferResized = true;
 }
 
-void VkDraw::CreateInstance()
+void AM_VkRenderCore::CreateInstance()
 {
 	if (!CheckExtensionSupport())
 		throw std::runtime_error("extensions requested by GLFW, but not available!");
@@ -131,14 +131,14 @@ void VkDraw::CreateInstance()
 	createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
 #endif
 
-	if (vkCreateInstance(&createInfo, nullptr, &VkDrawContext::instance) != VK_SUCCESS)
+	if (vkCreateInstance(&createInfo, nullptr, &AM_VkContext::instance) != VK_SUCCESS)
 		throw std::runtime_error("failed to create Vulkan instance!");
 
-	if (glfwCreateWindowSurface(VkDrawContext::instance, myWindowInstance.GetWindow(), nullptr, &VkDrawContext::surface) != VK_SUCCESS)
+	if (glfwCreateWindowSurface(AM_VkContext::instance, myWindowInstance.GetWindow(), nullptr, &AM_VkContext::surface) != VK_SUCCESS)
 		throw std::runtime_error("failed to create window surface!");
 }
 
-void VkDraw::CreateSwapChain()
+void AM_VkRenderCore::CreateSwapChain()
 {
 	int width, height;
 	myWindowInstance.GetFramebufferSize(width, height);
@@ -180,7 +180,7 @@ void VkDraw::CreateSwapChain()
 	mySwapChain.CreateImageViews(viewInfo);
 }
 
-void VkDraw::CleanupSwapChain()
+void AM_VkRenderCore::CleanupSwapChain()
 {
 	myColorImageView.DestroyView();
 	myColorImage.Release();
@@ -190,11 +190,11 @@ void VkDraw::CleanupSwapChain()
 	mySwapChain.Destroy();
 }
 
-void VkDraw::RecreateSwapChain()
+void AM_VkRenderCore::RecreateSwapChain()
 {
 	int width = 0, height = 0;
 	myWindowInstance.WaitForFramebufferSize(width, height);
-	vkDeviceWaitIdle(VkDrawContext::device);
+	vkDeviceWaitIdle(AM_VkContext::device);
 
 	CleanupSwapChain();
 	CreateSwapChain();
@@ -203,7 +203,7 @@ void VkDraw::RecreateSwapChain()
 	CreateFramebuffers();
 }
 
-void VkDraw::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
+void AM_VkRenderCore::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -219,7 +219,7 @@ void VkDraw::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkForm
 	outImageView.CreateView(viewInfo);
 }
 
-void VkDraw::CreateDescriptorSetLayout()
+void AM_VkRenderCore::CreateDescriptorSetLayout()
 {
 	VkDescriptorSetLayoutBinding uniformBufferObjectLayoutBinding{};
 	uniformBufferObjectLayoutBinding.binding = 0;
@@ -244,7 +244,7 @@ void VkDraw::CreateDescriptorSetLayout()
 	myDescriptorSetLayout.CreateLayout(layoutInfo);
 }
 
-void VkDraw::CreateGraphicsPipeline()
+void AM_VkRenderCore::CreateGraphicsPipeline()
 {
 	auto vertShaderCode = ReadFile("shaders/vert.spv");
 	auto fragShaderCode = ReadFile("shaders/frag.spv");
@@ -389,11 +389,11 @@ void VkDraw::CreateGraphicsPipeline()
 
 	myGraphicsPipeline.CreatePipeline(pipelineInfo);
 
-	vkDestroyShaderModule(VkDrawContext::device, fragShaderModule, nullptr);
-	vkDestroyShaderModule(VkDrawContext::device, vertShaderModule, nullptr);
+	vkDestroyShaderModule(AM_VkContext::device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(AM_VkContext::device, vertShaderModule, nullptr);
 }
 
-VkShaderModule VkDraw::CreateShaderModule(const std::vector<char>& code)
+VkShaderModule AM_VkRenderCore::CreateShaderModule(const std::vector<char>& code)
 {
 	VkShaderModuleCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -401,13 +401,13 @@ VkShaderModule VkDraw::CreateShaderModule(const std::vector<char>& code)
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
 	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(VkDrawContext::device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+	if (vkCreateShaderModule(AM_VkContext::device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
 		throw std::runtime_error("failed to create shader module!");
 
 	return shaderModule;
 }
 
-void VkDraw::CreateFramebuffers()
+void AM_VkRenderCore::CreateFramebuffers()
 {
 	const auto& swapChainImageViews = mySwapChain.GetImageViews();
 	myFramebuffers.resize(swapChainImageViews.size());
@@ -429,13 +429,13 @@ void VkDraw::CreateFramebuffers()
 	}
 }
 
-void VkDraw::CreateCommandPools()
+void AM_VkRenderCore::CreateCommandPools()
 {
 	VkCommandPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	poolInfo.queueFamilyIndex = myVkContext.graphicsFamilyIndex;
 
-	myCommandPools.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	myCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	for (auto& commandPool : myCommandPools)
 		commandPool.CreatePool(poolInfo);
 
@@ -447,37 +447,37 @@ void VkDraw::CreateCommandPools()
 	myTransferCommandPool.CreatePool(transferPoolInfo);
 }
 
-void VkDraw::CreateDescriptorPool()
+void AM_VkRenderCore::CreateDescriptorPool()
 {
 	std::array<VkDescriptorPoolSize, 2> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	poolInfo.maxSets = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 
 	myDescriptorPool.CreateDescriptorPool(poolInfo);
 }
 
-void VkDraw::CreateDescriptorSets()
+void AM_VkRenderCore::CreateDescriptorSets()
 {
-	std::vector<VkDescriptorSetLayout> layouts(VkDrawConstants::MAX_FRAMES_IN_FLIGHT, myDescriptorSetLayout.myLayout);
+	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myDescriptorSetLayout.myLayout);
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = myDescriptorPool.myPool;
-	allocInfo.descriptorSetCount = static_cast<uint32_t>(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	allocInfo.pSetLayouts = layouts.data();
 
-	myDescriptorSets.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-	if (vkAllocateDescriptorSets(VkDrawContext::device, &allocInfo, myDescriptorSets.data()) != VK_SUCCESS)
+	myDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	if (vkAllocateDescriptorSets(AM_VkContext::device, &allocInfo, myDescriptorSets.data()) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate descriptor sets!");
 
-	for (size_t i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+	for (size_t i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = myVirtualUniformBuffer->myBuffer;
@@ -508,16 +508,16 @@ void VkDraw::CreateDescriptorSets()
 		descriptorWrites[1].descriptorCount = 1;
 		descriptorWrites[1].pImageInfo = &imageInfo;
 
-		vkUpdateDescriptorSets(VkDrawContext::device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		vkUpdateDescriptorSets(AM_VkContext::device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 }
 
-void VkDraw::CreateTextureImageView()
+void AM_VkRenderCore::CreateTextureImageView()
 {
 	CreateImageView(myTextureImageView, myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
 }
 
-void VkDraw::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkImage& anImageObject)
+void AM_VkRenderCore::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkImage& anImageObject)
 {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -544,10 +544,10 @@ void VkDraw::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSamp
 	anImageObject.Bind(&memoryObject);
 }
 
-void VkDraw::CreateTextureImage()
+void AM_VkRenderCore::CreateTextureImage()
 {
 	int texWidth, texHeight, texChannels;
-	stbi_uc* pixels = stbi_load(VkDrawConstants::TEXTURE_PATH, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	stbi_uc* pixels = stbi_load(AM_VkRenderCoreConstants::TEXTURE_PATH, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	if (!pixels)
 		throw std::runtime_error("failed to load texture image!");
 
@@ -566,7 +566,7 @@ void VkDraw::CreateTextureImage()
 	stagingBuffer->SetIsEmpty(true);
 }
 
-void VkDraw::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight)
+void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight)
 {
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
 
@@ -595,7 +595,7 @@ void VkDraw::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32
 	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
 }
 
-uint32_t VkDraw::FindMemoryTypeIndex(const uint32_t memoryTypeBits, const VkMemoryPropertyFlags properties) const
+uint32_t AM_VkRenderCore::FindMemoryTypeIndex(const uint32_t memoryTypeBits, const VkMemoryPropertyFlags properties) const
 {
 	const VkPhysicalDeviceMemoryProperties& physicalMemoryProperties = myVkContext.memoryProperties;
 	const VkMemoryType* memoryTypes = physicalMemoryProperties.memoryTypes;
@@ -606,7 +606,7 @@ uint32_t VkDraw::FindMemoryTypeIndex(const uint32_t memoryTypeBits, const VkMemo
 	throw std::runtime_error("failed to find suitable memory type!");
 }
 
-void VkDraw::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
+void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
 {
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
 	VkBufferCopy copyRegion{ aSourceBuffer.GetOffset(), aDestinationBuffer.GetOffset(), aSize };
@@ -614,7 +614,7 @@ void VkDraw::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer,
 	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
 }
 
-void VkDraw::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels)
+void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels)
 {
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
 	VkImageMemoryBarrier barrier{};
@@ -676,11 +676,11 @@ void VkDraw::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout
 }
 
 
-void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels)
+void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels)
 {
 	// Check if image format supports linear blitting
 	VkFormatProperties formatProperties;
-	vkGetPhysicalDeviceFormatProperties(VkDrawContext::physicalDevice, imageFormat, &formatProperties);
+	vkGetPhysicalDeviceFormatProperties(AM_VkContext::physicalDevice, imageFormat, &formatProperties);
 	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
 		throw std::runtime_error("texture image format does not support linear blitting!");
 
@@ -767,13 +767,13 @@ void VkDraw::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWid
 	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
 }
 
-void VkDraw::CreateColorResources()
+void AM_VkRenderCore::CreateColorResources()
 {
 	CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.surfaceFormat.format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myColorImage);
 	CreateImageView(myColorImageView, myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
-void VkDraw::CreateVertexBuffer()
+void AM_VkRenderCore::CreateVertexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(myVertices[0]) * myVertices.size();
 	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateMappedBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
@@ -784,7 +784,7 @@ void VkDraw::CreateVertexBuffer()
 	stagingBuffer->SetIsEmpty(true);
 }
 
-void VkDraw::CreateIndexBuffer()
+void AM_VkRenderCore::CreateIndexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(myIndices[0]) * myIndices.size();
 	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateMappedBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
@@ -795,13 +795,13 @@ void VkDraw::CreateIndexBuffer()
 	stagingBuffer->SetIsEmpty(true);
 }
 
-void VkDraw::CreateUniformBuffers()
+void AM_VkRenderCore::CreateUniformBuffers()
 {
-	static constexpr uint64_t bufferSize = 0x100 * VkDrawConstants::MAX_FRAMES_IN_FLIGHT;
+	static constexpr uint64_t bufferSize = 0x100 * AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
 	myVirtualUniformBuffer = myMemoryAllocator.AllocateMappedBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 }
 
-void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
+void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage)
 {
 	static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -820,7 +820,7 @@ void VkDraw::UpdateUniformBuffer(uint32_t currentImage)
 	memcpy((void*)destination, &ubo, sizeof(ubo));
 }
 
-VkCommandBuffer VkDraw::BeginSingleTimeCommands(VkCommandPool aCommandPool)
+VkCommandBuffer AM_VkRenderCore::BeginSingleTimeCommands(VkCommandPool aCommandPool)
 {
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -829,7 +829,7 @@ VkCommandBuffer VkDraw::BeginSingleTimeCommands(VkCommandPool aCommandPool)
 	allocInfo.commandBufferCount = 1;
 
 	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(VkDrawContext::device, &allocInfo, &commandBuffer);
+	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &commandBuffer);
 
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -840,7 +840,7 @@ VkCommandBuffer VkDraw::BeginSingleTimeCommands(VkCommandPool aCommandPool)
 	return commandBuffer;
 }
 
-void VkDraw::EndSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool aCommandPool, VkQueue aVkQueue)
+void AM_VkRenderCore::EndSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool aCommandPool, VkQueue aVkQueue)
 {
 	vkEndCommandBuffer(commandBuffer);
 
@@ -852,26 +852,26 @@ void VkDraw::EndSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool 
 	vkQueueSubmit(aVkQueue, 1, &submitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(aVkQueue);
 
-	vkFreeCommandBuffers(VkDrawContext::device, aCommandPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(AM_VkContext::device, aCommandPool, 1, &commandBuffer);
 }
 
-void VkDraw::CreateReusableCommandBuffers()
+void AM_VkRenderCore::CreateReusableCommandBuffers()
 {
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = 1;
 
-	myCommandBuffers.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-	for (int i = 0; i < VkDrawConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+	myCommandBuffers.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		allocInfo.commandPool = myCommandPools[i].myPool;
-		if (vkAllocateCommandBuffers(VkDrawContext::device, &allocInfo, &myCommandBuffers[i]) != VK_SUCCESS)
+		if (vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &myCommandBuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate command buffer!");
 	}
 }
 
-void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t imageIndex)
+void AM_VkRenderCore::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t imageIndex)
 {
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -928,19 +928,19 @@ void VkDraw::RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t i
 		throw std::runtime_error("failed to record command buffer!");
 }
 
-void VkDraw::CreateSyncObjects()
+void AM_VkRenderCore::CreateSyncObjects()
 {
-	myInFlightFences.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-	myImageAvailableSemaphores.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
-	myRenderFinishedSemaphores.resize(VkDrawConstants::MAX_FRAMES_IN_FLIGHT);
+	myInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myImageAvailableSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myRenderFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 }
 
-void VkDraw::DrawFrame()
+void AM_VkRenderCore::DrawFrame()
 {
-	vkWaitForFences(VkDrawContext::device, 1, &myInFlightFences[myCurrentFrame].myFence, VK_TRUE, UINT64_MAX);
+	vkWaitForFences(AM_VkContext::device, 1, &myInFlightFences[myCurrentFrame].myFence, VK_TRUE, UINT64_MAX);
 	
 	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(VkDrawContext::device, mySwapChain.GetSwapChain(), UINT64_MAX, myImageAvailableSemaphores[myCurrentFrame].mySemaphore, VK_NULL_HANDLE, &imageIndex);
+	VkResult result = vkAcquireNextImageKHR(AM_VkContext::device, mySwapChain.GetSwapChain(), UINT64_MAX, myImageAvailableSemaphores[myCurrentFrame].mySemaphore, VK_NULL_HANDLE, &imageIndex);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) 
 	{
@@ -951,11 +951,11 @@ void VkDraw::DrawFrame()
 	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
 		throw std::runtime_error("failed to acquire swap chain image!");
 
-	vkResetFences(VkDrawContext::device, 1, &myInFlightFences[myCurrentFrame].myFence);
+	vkResetFences(AM_VkContext::device, 1, &myInFlightFences[myCurrentFrame].myFence);
 
 	UpdateUniformBuffer(myCurrentFrame);
 
-	vkResetCommandPool(VkDrawContext::device, myCommandPools[myCurrentFrame].myPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+	vkResetCommandPool(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 	RecordCommandBuffer(myCommandBuffers[myCurrentFrame], imageIndex);
 
 	VkSubmitInfo submitInfo{};
@@ -996,17 +996,17 @@ void VkDraw::DrawFrame()
 	else if (result != VK_SUCCESS) 
 		throw std::runtime_error("failed to present swap chain image!");
 
-	myCurrentFrame = (myCurrentFrame + 1) % VkDrawConstants::MAX_FRAMES_IN_FLIGHT;
+	myCurrentFrame = (myCurrentFrame + 1) % AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
 }
 
-void VkDraw::LoadModel()
+void AM_VkRenderCore::LoadModel()
 {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, VkDrawConstants::MODEL_PATH))
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, AM_VkRenderCoreConstants::MODEL_PATH))
 		throw std::runtime_error(warn + err);
 
 	for (const tinyobj::shape_t& shape : shapes) 
@@ -1033,7 +1033,7 @@ void VkDraw::LoadModel()
 	}
 }
 
-void VkDraw::CreateTextureSampler()
+void AM_VkRenderCore::CreateTextureSampler()
 {
 	VkSamplerCreateInfo samplerInfo{};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1056,19 +1056,19 @@ void VkDraw::CreateTextureSampler()
 	myTextureSampler.CreateSampler(samplerInfo);
 }
 
-void VkDraw::CreateDepthResources()
+void AM_VkRenderCore::CreateDepthResources()
 {
 	CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myDepthImage);
 	CreateImageView(myDepthImageView, myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 	TransitionImageLayout(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
 }
 
-bool VkDraw::HasStencilComponent(VkFormat format)
+bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
 {
 	return !((format ^ VK_FORMAT_D32_SFLOAT_S8_UINT) && (format ^ VK_FORMAT_D24_UNORM_S8_UINT));
 }
 
-void VkDraw::InitVulkan()
+void AM_VkRenderCore::InitVulkan()
 {
 	myWindowInstance.Init(FramebufferResizeCallback);
 	CreateInstance();
@@ -1100,7 +1100,7 @@ void VkDraw::InitVulkan()
 	CreateSyncObjects();
 }
 
-void VkDraw::CreateRenderPass()
+void AM_VkRenderCore::CreateRenderPass()
 {
 	VkAttachmentDescription colorAttachment{};
 	colorAttachment.format = myVkContext.surfaceFormat.format;
@@ -1172,7 +1172,7 @@ void VkDraw::CreateRenderPass()
 	myRenderPass.CreateRenderPass(renderPassInfo);
 }
 
-void VkDraw::MainLoop()
+void AM_VkRenderCore::MainLoop()
 {
 	while (!myWindowInstance.ShouldCloseWindow())
 	{
@@ -1180,10 +1180,10 @@ void VkDraw::MainLoop()
 		DrawFrame();
 	}
 
-	vkDeviceWaitIdle(VkDrawContext::device);
+	vkDeviceWaitIdle(AM_VkContext::device);
 }
 
-VkVertexInputBindingDescription VkDraw::Vertex::GetBindingDescription()
+VkVertexInputBindingDescription AM_VkRenderCore::Vertex::GetBindingDescription()
 {
 	VkVertexInputBindingDescription bindingDescription{};
 	bindingDescription.binding = 0;
@@ -1192,7 +1192,7 @@ VkVertexInputBindingDescription VkDraw::Vertex::GetBindingDescription()
 	return bindingDescription;
 }
 
-std::array<VkVertexInputAttributeDescription, 3> VkDraw::Vertex::GetAttributeDescriptions()
+std::array<VkVertexInputAttributeDescription, 3> AM_VkRenderCore::Vertex::GetAttributeDescriptions()
 {
 	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 

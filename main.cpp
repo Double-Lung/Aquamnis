@@ -1,8 +1,8 @@
-#include "VkDraw.h"
+#include "AM_VkRenderCore.h"
 
 int main() 
 {
-	VkDraw app;
+	AM_VkRenderCore app;
 
 	try {
 		app.Engage();

@@ -8,13 +8,13 @@
 #include <glm/glm.hpp>
 #include <string>
 
-class VkDraw
+class AM_VkRenderCore
 {
 public:
 	// Create window and Vulkan instance
 	void Engage();
-	VkDraw();
-	~VkDraw() = default;
+	AM_VkRenderCore();
+	~AM_VkRenderCore() = default;
 	
 private:
 	struct Vertex {
@@ -86,7 +86,7 @@ private:
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 	AM_Window myWindowInstance;
-	VkDrawContext myVkContext;
+	AM_VkContext myVkContext;
 	AM_NaiveMemoryAllocator myMemoryAllocator;
 
 	std::vector<AM_VkSemaphore> myImageAvailableSemaphores;

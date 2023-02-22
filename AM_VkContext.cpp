@@ -1,11 +1,11 @@
-#include "VkDrawContext.h"
+#include "AM_VkContext.h"
 
-VkInstance VkDrawContext::instance = VK_NULL_HANDLE;
-VkSurfaceKHR VkDrawContext::surface = VK_NULL_HANDLE;
-VkPhysicalDevice VkDrawContext::physicalDevice = VK_NULL_HANDLE;
-VkDevice VkDrawContext::device = VK_NULL_HANDLE;
+VkInstance AM_VkContext::instance = VK_NULL_HANDLE;
+VkSurfaceKHR AM_VkContext::surface = VK_NULL_HANDLE;
+VkPhysicalDevice AM_VkContext::physicalDevice = VK_NULL_HANDLE;
+VkDevice AM_VkContext::device = VK_NULL_HANDLE;
 
-VkDrawContext::VkDrawContext() 
+AM_VkContext::AM_VkContext() 
 	: deviceProperties{}
 	, deviceFeatures{}
 	, surfaceCapabilities{}
@@ -39,17 +39,17 @@ VkDrawContext::VkDrawContext()
 #endif
 }
 
-VkDrawContext::~VkDrawContext()
+AM_VkContext::~AM_VkContext()
 {
-	vkDestroyDevice(VkDrawContext::device, nullptr);
-	vkDestroySurfaceKHR(VkDrawContext::instance, VkDrawContext::surface, nullptr);
+	vkDestroyDevice(AM_VkContext::device, nullptr);
+	vkDestroySurfaceKHR(AM_VkContext::instance, AM_VkContext::surface, nullptr);
 #ifdef _DEBUG
-	DestroyDebugUtilsMessengerEXT(VkDrawContext::instance, myDebugMessenger, nullptr);
+	DestroyDebugUtilsMessengerEXT(AM_VkContext::instance, myDebugMessenger, nullptr);
 #endif
-	vkDestroyInstance(VkDrawContext::instance, nullptr);
+	vkDestroyInstance(AM_VkContext::instance, nullptr);
 }
 
-bool VkDrawContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx)
+bool AM_VkContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx)
 {
 	uint32_t queueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -79,7 +79,7 @@ bool VkDrawContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQu
 }
 
 
-bool VkDrawContext::CheckDeviceExtensionSupport(VkPhysicalDevice device)
+bool AM_VkContext::CheckDeviceExtensionSupport(VkPhysicalDevice device)
 {
 	uint32_t extensionCount;
 	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -94,7 +94,7 @@ bool VkDrawContext::CheckDeviceExtensionSupport(VkPhysicalDevice device)
 	return requiredExtensions.empty();
 }
 
-void VkDrawContext::Init()
+void AM_VkContext::Init()
 {
 #if _DEBUG
 	SetupDebugMessenger();
@@ -106,7 +106,7 @@ void VkDrawContext::Init()
 	GetDepthFormat();
 }
 
-void VkDrawContext::GetAvailableInstanceExtensions()
+void AM_VkContext::GetAvailableInstanceExtensions()
 {
 	uint32_t extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
@@ -114,7 +114,7 @@ void VkDrawContext::GetAvailableInstanceExtensions()
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableInstanceExtensions.data());
 }
 
-void VkDrawContext::GetRequiredInstanceExtensions()
+void AM_VkContext::GetRequiredInstanceExtensions()
 {
 	uint32_t glfwExtensionCount = 0;
 	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -125,7 +125,7 @@ void VkDrawContext::GetRequiredInstanceExtensions()
 #endif
 }
 
-void VkDrawContext::GetAvailableInstanceLayers()
+void AM_VkContext::GetAvailableInstanceLayers()
 {
 	uint32_t layerCount;
 	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -134,16 +134,16 @@ void VkDrawContext::GetAvailableInstanceLayers()
 	vkEnumerateInstanceLayerProperties(&layerCount, availableInstanceLayers.data());
 }
 
-void VkDrawContext::ChoosePhysicalDevice()
+void AM_VkContext::ChoosePhysicalDevice()
 {
 	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(VkDrawContext::instance, &deviceCount, nullptr);
+	vkEnumeratePhysicalDevices(AM_VkContext::instance, &deviceCount, nullptr);
 
 	if (deviceCount == 0)
 		throw std::runtime_error("failed to find GPUs with Vulkan support!");
 
 	std::vector<VkPhysicalDevice> devices(deviceCount);
-	vkEnumeratePhysicalDevices(VkDrawContext::instance, &deviceCount, devices.data());
+	vkEnumeratePhysicalDevices(AM_VkContext::instance, &deviceCount, devices.data());
 
 	for (const VkPhysicalDevice availableDevice : devices)
 	{
@@ -205,7 +205,7 @@ void VkDrawContext::ChoosePhysicalDevice()
 	throw std::runtime_error("failed to find a suitable GPU!");
 }
 
-void VkDrawContext::CreateLogicalDevice()
+void AM_VkContext::CreateLogicalDevice()
 {
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos{};
 	std::unordered_set<uint32_t> uniqueQueueFamilies = { graphicsFamilyIndex, presentFamilyIndex, transferFamilyIndex };
@@ -230,7 +230,7 @@ void VkDrawContext::CreateLogicalDevice()
 	createInfo.enabledLayerCount = static_cast<uint32_t>(enabledInstanceLayers.size());
 	createInfo.ppEnabledLayerNames = enabledInstanceLayers.data();
 
-	if ( vkCreateDevice(VkDrawContext::physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS )
+	if ( vkCreateDevice(AM_VkContext::physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS )
 		throw std::runtime_error("failed to create logical device!");
 
 	vkGetDeviceQueue(device, graphicsFamilyIndex, 0, &graphicsQueue);
@@ -238,7 +238,7 @@ void VkDrawContext::CreateLogicalDevice()
 	vkGetDeviceQueue(device, transferFamilyIndex, 0, &transferQueue);
 }
 
-void VkDrawContext::InitSwapChainCreationInfo()
+void AM_VkContext::InitSwapChainCreationInfo()
 {
 	surfaceFormat = surfaceFormats[0];
 	for (const VkSurfaceFormatKHR& availableFormat : surfaceFormats)
@@ -268,7 +268,7 @@ void VkDrawContext::InitSwapChainCreationInfo()
 	swapChainImageCount = std::clamp(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.minImageCount, surfaceCapabilities.maxImageCount);   
 }
 
-void VkDrawContext::GetMaxMSAASampleCount()
+void AM_VkContext::GetMaxMSAASampleCount()
 {
 	VkSampleCountFlags counts =
 		deviceProperties.limits.framebufferColorSampleCounts
@@ -290,7 +290,7 @@ void VkDrawContext::GetMaxMSAASampleCount()
 		maxMSAASamples = VK_SAMPLE_COUNT_1_BIT;
 }
 
-VkFormat VkDrawContext::FindSupportedFormat(const std::vector<VkFormat>& candidates, const VkImageTiling& tiling, const VkFormatFeatureFlags& features) const
+VkFormat AM_VkContext::FindSupportedFormat(const std::vector<VkFormat>& candidates, const VkImageTiling& tiling, const VkFormatFeatureFlags& features) const
 {
 	for (const VkFormat& format : candidates)
 	{
@@ -306,7 +306,7 @@ VkFormat VkDrawContext::FindSupportedFormat(const std::vector<VkFormat>& candida
 	throw std::runtime_error("failed to find supported format!");
 }
 
-void VkDrawContext::GetDepthFormat()
+void AM_VkContext::GetDepthFormat()
 {
 	depthFormat = FindSupportedFormat
 	(
@@ -321,13 +321,13 @@ void VkDrawContext::GetDepthFormat()
 }
 
 #ifdef _DEBUG
-VKAPI_ATTR VkBool32 VKAPI_CALL VkDrawContext::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
+VKAPI_ATTR VkBool32 VKAPI_CALL AM_VkContext::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
 {
 	std::cerr << "\nvalidation layer: " << pCallbackData->pMessage << std::endl;
 	return VK_FALSE;
 }
 
-void VkDrawContext::PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
+void AM_VkContext::PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
 {
 	createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -336,12 +336,12 @@ void VkDrawContext::PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreate
 	createInfo.pfnUserCallback = DebugCallback;
 }
 
-void VkDrawContext::SetupDebugMessenger()
+void AM_VkContext::SetupDebugMessenger()
 {
 	VkDebugUtilsMessengerCreateInfoEXT createInfo{};
 	PopulateDebugMessengerCreateInfo(createInfo);
 
-	if (CreateDebugUtilsMessengerEXT(VkDrawContext::instance, &createInfo, nullptr, &myDebugMessenger) != VK_SUCCESS)
+	if (CreateDebugUtilsMessengerEXT(AM_VkContext::instance, &createInfo, nullptr, &myDebugMessenger) != VK_SUCCESS)
 		throw std::runtime_error("failed to set up debug messenger!");
 }
 #endif //_DEBUG

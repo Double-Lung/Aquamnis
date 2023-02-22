@@ -1,6 +1,6 @@
 #pragma once
 #include "AM_VkPrimitives.h"
-#include "VkDrawContext.h"
+#include "AM_VkContext.h"
 
 class AM_VkSwapChain
 {
@@ -28,7 +28,7 @@ public:
 
 	void Create(const VkSwapchainCreateInfoKHR& aCreateInfo)
 	{
-		if (vkCreateSwapchainKHR(VkDrawContext::device, &aCreateInfo, nullptr, &myChain) != VK_SUCCESS)
+		if (vkCreateSwapchainKHR(AM_VkContext::device, &aCreateInfo, nullptr, &myChain) != VK_SUCCESS)
 			throw std::runtime_error("failed to create swap chain!");
 		SetSwapChainImages();
 	}
@@ -47,7 +47,7 @@ public:
 	{
 		myImageViews.clear();
 		myImages.clear();
-		vkDestroySwapchainKHR(VkDrawContext::device, myChain, nullptr);
+		vkDestroySwapchainKHR(AM_VkContext::device, myChain, nullptr);
 	}
 
 	VkSwapchainKHR GetSwapChain() { return myChain; }
@@ -59,9 +59,9 @@ private:
 	void SetSwapChainImages()
 	{
 		uint32_t imageCount;
-		vkGetSwapchainImagesKHR(VkDrawContext::device, myChain, &imageCount, nullptr);
+		vkGetSwapchainImagesKHR(AM_VkContext::device, myChain, &imageCount, nullptr);
 		myImages.resize(imageCount);
-		vkGetSwapchainImagesKHR(VkDrawContext::device, myChain, &imageCount, myImages.data());
+		vkGetSwapchainImagesKHR(AM_VkContext::device, myChain, &imageCount, myImages.data());
 	}
 
 	std::vector<VkImage> myImages;

@@ -22,7 +22,7 @@ public:
 		myAllocationList.clear();
 		myImage.Release();
 		if (myMemory)
-			vkFreeMemory(VkDrawContext::device, myMemory, nullptr);
+			vkFreeMemory(AM_VkContext::device, myMemory, nullptr);
 	}
 
 private:

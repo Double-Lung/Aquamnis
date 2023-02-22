@@ -1,5 +1,5 @@
 #pragma once
-namespace VkDrawConstants
+namespace AM_VkRenderCoreConstants
 {
 	constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 	constexpr const char* MODEL_PATH = "models/vikingroom.obj";

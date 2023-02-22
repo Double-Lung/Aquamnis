@@ -21,10 +21,10 @@
     <ClCompile Include="main.cpp">
       <Filter>VkDraw</Filter>
     </ClCompile>
-    <ClCompile Include="VkDraw.cpp">
+    <ClCompile Include="AM_VkRenderCore.cpp">
       <Filter>VkDraw</Filter>
     </ClCompile>
-    <ClCompile Include="VkDrawContext.cpp">
+    <ClCompile Include="AM_VkContext.cpp">
       <Filter>VkDraw</Filter>
     </ClCompile>
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp">
@@ -38,13 +38,13 @@
     <ClInclude Include="extensionProxy.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
-    <ClInclude Include="VkDraw.h">
+    <ClInclude Include="AM_VkRenderCore.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
-    <ClInclude Include="VkDrawConstants.h">
+    <ClInclude Include="AM_VkRenderCoreConstants.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
-    <ClInclude Include="VkDrawContext.h">
+    <ClInclude Include="AM_VkContext.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
     <ClInclude Include="AM_NaiveMemoryAllocator.h">

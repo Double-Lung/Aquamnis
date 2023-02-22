@@ -1,7 +1,7 @@
 #pragma once
 #include "AM_SimpleMemoryBlock.h"
 #include <unordered_map>
-#include "VkDrawContext.h"
+#include "AM_VkContext.h"
 #include "AM_BufferMemoryBlock.h"
 #include "AM_ImageMemoryBlock.h"
 
@@ -46,7 +46,6 @@ private:
 	[[nodiscard]] AM_SimpleMemoryObject* SubAllocation(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements);
 	[[nodiscard]] inline uint64_t GetPadding(const uint64_t anOffset, const uint64_t anAlignmentSize) const;
 	[[nodiscard]] AM_SimpleMemoryObject* TryGetFreeSlot(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements);
-
 
 	[[nodiscard]] AM_Buffer* AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache);
 	[[nodiscard]] AM_Buffer* AllocateBufferFast(const uint64_t aSize, const MemoryRequirements& aRequirement);

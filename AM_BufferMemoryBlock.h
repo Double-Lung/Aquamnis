@@ -22,7 +22,7 @@ public:
 		myAllocationList.clear();
 		myBuffer.Release();
 		if (myMemory)
-			vkFreeMemory(VkDrawContext::device, myMemory, nullptr);
+			vkFreeMemory(AM_VkContext::device, myMemory, nullptr);
 	}
 
 	void Init(AM_VkBuffer& aVkBuffer, const uint32_t aMemoryTypeIndex, const uint64_t anAlignment)
@@ -32,12 +32,12 @@ public:
 
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = VkDrawConstants::SINGLEALLOCSIZE;
+		allocInfo.allocationSize = AM_VkRenderCoreConstants::SINGLEALLOCSIZE;
 		allocInfo.memoryTypeIndex = aMemoryTypeIndex;
-		if (vkAllocateMemory(VkDrawContext::device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
+		if (vkAllocateMemory(AM_VkContext::device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate memory of type ??? !");
 
-		vkBindBufferMemory(VkDrawContext::device, myBuffer.myBuffer, myMemory, 0);
+		vkBindBufferMemory(AM_VkContext::device, myBuffer.myBuffer, myMemory, 0);
 	}
 
 	AM_Buffer* Allocate(const uint64_t aSize)
