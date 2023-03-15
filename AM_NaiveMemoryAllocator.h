@@ -13,21 +13,16 @@ class AM_NaiveMemoryAllocator
 {
 public:
 	AM_NaiveMemoryAllocator() = default;
-	~AM_NaiveMemoryAllocator()
-	{
-		FreeVkDeviceMemory();
-	}
+	~AM_NaiveMemoryAllocator() = default;
 	AM_NaiveMemoryAllocator(const AM_NaiveMemoryAllocator& anAllocator) = delete;
 	AM_NaiveMemoryAllocator(const AM_NaiveMemoryAllocator&& anAllocator) = delete;
 
 	void Init(const VkPhysicalDeviceMemoryProperties& aPhysicalMemoryProperties);
-	[[nodiscard]] AM_SimpleMemoryObject& Allocate(const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements);
 	[[nodiscard]] AM_Buffer* AllocateBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty);
 	[[nodiscard]] AM_Buffer* AllocateMappedBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage);
-	AM_Image& AllocateImageMemory(const uint32_t aMemoryTypeIndex, const uint64_t aSize){}
-	void CopyToMappedMemory(AM_Buffer& aBuffer, void* aSource, const size_t aSize);
+	[[nodiscard]] AM_Image* AllocateImage(const VkImageCreateInfo& aCreateInfo, const VkMemoryPropertyFlags aProperty);
 
-	void FreeVkDeviceMemory();
+	void CopyToMappedMemory(AM_Buffer& aBuffer, void* aSource, const size_t aSize);
 
 private:
 	struct MemoryRequirements
@@ -42,22 +37,24 @@ private:
 		std::unordered_map<VkFlags, MemoryRequirements> myMemReqByBufferUsage;
 	};
 
+	// gotta get rid of this
 	void AllocateMemory(VkDeviceMemory& outMemoryPtr, const uint32_t aMemoryTypeIndex);
-	[[nodiscard]] AM_SimpleMemoryObject* SubAllocation(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements);
-	[[nodiscard]] inline uint64_t GetPadding(const uint64_t anOffset, const uint64_t anAlignmentSize) const;
-	[[nodiscard]] AM_SimpleMemoryObject* TryGetFreeSlot(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements);
 
-	[[nodiscard]] AM_Buffer* AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache);
 	[[nodiscard]] AM_Buffer* AllocateBufferFast(const uint64_t aSize, const MemoryRequirements& aRequirement);
 	[[nodiscard]] AM_Buffer* AllocateBufferSlow(const uint64_t aSize, const MemoryRequirements& aRequirement);
+	[[nodiscard]] AM_Buffer* AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache);
 
-	[[nodiscard]] AM_Buffer* AllocateMappedBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache);
 	[[nodiscard]] AM_Buffer* AllocateMappedBufferFast(const uint64_t aSize, const MemoryRequirements& aRequirement);
 	[[nodiscard]] AM_Buffer* AllocateMappedBufferSlow(const uint64_t aSize, const MemoryRequirements& aRequirement);
+	[[nodiscard]] AM_Buffer* AllocateMappedBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache);
+
+	[[nodiscard]] AM_Image* AllocateImageFast(AM_VkImage& outImage, const VkMemoryRequirements& aRequirement, const uint32_t aMemoryTypeIndex);
+	[[nodiscard]] AM_Image* AllocateImageSlow(AM_VkImage& outImage, const VkMemoryRequirements& aRequirement, const uint32_t aMemoryTypeIndex);
+	[[nodiscard]] AM_Image* AllocateImageWithNewBlock(AM_VkImage& outImage, const VkMemoryRequirements& aRequirement, const uint32_t aMemoryTypeIndex);
 
 	uint32_t FindMemoryTypeIndex(const uint32_t someMemoryTypeBits, const VkMemoryPropertyFlags someProperties) const;
+	uint64_t GetPaddedSize(const uint64_t aSize, const uint64_t& anAlignmentSize) const;
 
-	std::vector<std::vector<AM_SimpleMemoryBlock>> myMemoryBlocksByMemoryType;
 	std::vector<std::vector<AM_BufferMemoryBlock>> myBufferMemoryPool;
 	std::vector<std::vector<AM_ImageMemoryBlock>> myImageMemoryPool;
 	std::vector<MemoryPropertyCache> myMemPropCache;

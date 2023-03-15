@@ -49,7 +49,7 @@ private:
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImageView();
-	void CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkImage& anImageObject);
+	AM_Image* CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 
 	void CreateTextureImage();
 	void CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight);
@@ -99,13 +99,14 @@ private:
 	AM_VkDescriptorPool myDescriptorPool;
 	AM_VkRenderPass myRenderPass;
 	AM_VkDescriptorSetLayout myDescriptorSetLayout;
-	AM_VkImage myColorImage;
+
+	AM_Image* myColorImage = nullptr;
+	AM_Image* myDepthImage = nullptr;
+	AM_Image* myTextureImage = nullptr;
 	AM_VkImageView myColorImageView;
-	AM_VkImage myDepthImage;
 	AM_VkImageView myDepthImageView;
-	AM_VkBuffer myUniformBuffers;
-	AM_VkImage myTextureImage; 
 	AM_VkImageView myTextureImageView;
+
 	AM_VkSampler myTextureSampler;
 	std::vector<Vertex> myVertices;
 	std::vector<uint32_t> myIndices;

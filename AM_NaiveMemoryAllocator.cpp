@@ -3,14 +3,6 @@
 
 void AM_NaiveMemoryAllocator::Init(const VkPhysicalDeviceMemoryProperties& aPhysicalMemoryProperties)
 {
-	
-	myMemoryBlocksByMemoryType.resize(aPhysicalMemoryProperties.memoryTypeCount);
-	for (auto& memoryBlocks : myMemoryBlocksByMemoryType)
-		memoryBlocks.reserve(8);
-
-	//////////////////////////////////////////////
-
-	
 	std::unordered_set<VkFlags> memoryProperties;
 	myPhysicalMemoryProperties = aPhysicalMemoryProperties;
 
@@ -32,19 +24,6 @@ void AM_NaiveMemoryAllocator::Init(const VkPhysicalDeviceMemoryProperties& aPhys
 	}
 }
 
-AM_SimpleMemoryObject& AM_NaiveMemoryAllocator::Allocate(const uint32_t aMemoryTypeIndex, const VkMemoryRequirements& aMemoryRequirements)
-{
-	auto& memoryBlocks = myMemoryBlocksByMemoryType[aMemoryTypeIndex];
-	for (auto& block : memoryBlocks)
-		if (auto* slot = SubAllocation(block, aMemoryRequirements))
-			return *slot;
-
-	auto& newMemoryBlock = memoryBlocks.emplace_back(AM_SimpleMemoryBlock::BUFFER);
-	AllocateMemory(newMemoryBlock.myMemory, aMemoryTypeIndex);
-	newMemoryBlock.myExtent = aMemoryRequirements.size;
-	return newMemoryBlock.myAllocations.emplace_back(0, aMemoryRequirements.size, newMemoryBlock.myMemory);
-}
-
 void AM_NaiveMemoryAllocator::AllocateMemory(VkDeviceMemory& outMemoryPtr, const uint32_t aMemoryTypeIndex)
 {
 	VkMemoryAllocateInfo allocInfo{};
@@ -55,60 +34,6 @@ void AM_NaiveMemoryAllocator::AllocateMemory(VkDeviceMemory& outMemoryPtr, const
 		throw std::runtime_error("failed to allocate memory of type ??? !");
 }
 
-AM_SimpleMemoryObject* AM_NaiveMemoryAllocator::SubAllocation(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements)
-{
-	assert(aMemoryBlock.myMemory && "Allocation in an empty memory block!");
-	uint64_t padding = GetPadding(aMemoryBlock.myExtent, aMemoryRequirements.alignment);
-	if (aMemoryBlock.myExtent + padding + aMemoryRequirements.size <= AM_VkRenderCoreConstants::SINGLEALLOCSIZE)
-	{
-		if (padding)
-		{
-			aMemoryBlock.myExtent += padding;
-			aMemoryBlock.myAllocations.back().mySize += padding;
-		}
-		auto& slot = aMemoryBlock.myAllocations.emplace_back(aMemoryBlock.myExtent, aMemoryRequirements.size, aMemoryBlock.myMemory);
-		aMemoryBlock.myExtent += aMemoryRequirements.size;
-		return &slot;
-	}
-	auto* slot = TryGetFreeSlot(aMemoryBlock, aMemoryRequirements);
-	return slot;
-}
-
-uint64_t AM_NaiveMemoryAllocator::GetPadding(const uint64_t anOffset, const uint64_t anAlignmentSize) const 
-{
-	uint64_t mod = anOffset % anAlignmentSize;
-	return (mod ? anAlignmentSize - mod : 0);
-}
-
-AM_SimpleMemoryObject* AM_NaiveMemoryAllocator::TryGetFreeSlot(AM_SimpleMemoryBlock& aMemoryBlock, const VkMemoryRequirements& aMemoryRequirements)
-{
-	for (auto slot = aMemoryBlock.myAllocations.begin(); slot != aMemoryBlock.myAllocations.end(); ++slot)
-	{
-		uint64_t mod = slot->myOffset % aMemoryRequirements.alignment;
-		uint64_t padding = mod ? aMemoryRequirements.alignment - mod : 0;
-		if (!(slot->myIsEmpty && slot->mySize >= aMemoryRequirements.size + padding))
-			continue;
-
-		const uint64_t leftover = slot->mySize - (aMemoryRequirements.size + padding);
-		if (!(leftover || padding))
-			return &(*slot);
-
-		slot->mySize = aMemoryRequirements.size;
-		if (padding)
-		{
-			slot->myOffset += padding;
-			auto prevSlot = std::prev(slot);
-			prevSlot->mySize += padding;
-		}
-
-		if (leftover)
-			aMemoryBlock.myAllocations.emplace(std::next(slot), slot->myOffset + leftover, leftover, aMemoryBlock.myMemory);
-
-		return &(*slot);
-	}
-	return nullptr;
-}
-
 uint32_t AM_NaiveMemoryAllocator::FindMemoryTypeIndex(const uint32_t someMemoryTypeBits, const VkMemoryPropertyFlags someProperties) const
 {
 	const VkMemoryType* memoryTypes = myPhysicalMemoryProperties.memoryTypes;
@@ -117,6 +42,12 @@ uint32_t AM_NaiveMemoryAllocator::FindMemoryTypeIndex(const uint32_t someMemoryT
 			return i;
 
 	throw std::runtime_error("failed to find suitable memory type!");
+}
+
+uint64_t AM_NaiveMemoryAllocator::GetPaddedSize(const uint64_t aSize, const uint64_t& anAlignmentSize) const
+{
+	const uint64_t extraBytes = aSize % anAlignmentSize;
+	return extraBytes ? aSize + anAlignmentSize - extraBytes : aSize;
 }
 
 AM_Buffer* AM_NaiveMemoryAllocator::AllocateBuffer(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty)
@@ -160,6 +91,7 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBuffer(const uint64_t aSize, c
 		auto it2 = it->myMemReqByBufferUsage.find(aUsage);
 		if (it2 != it->myMemReqByBufferUsage.cend())
 			memReq = &((*it2).second);
+
 		break;
 	}
 
@@ -174,6 +106,21 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBuffer(const uint64_t aSize, c
 	}
 
 	return AllocateMappedBufferWithNewBlock(aSize, aUsage, memProp, *it);
+}
+
+AM_Image* AM_NaiveMemoryAllocator::AllocateImage(const VkImageCreateInfo& aCreateInfo, const VkMemoryPropertyFlags aProperty)
+{
+	AM_VkImage image(aCreateInfo);
+	VkMemoryRequirements memReq;
+	vkGetImageMemoryRequirements(AM_VkContext::device, image.myImage, &memReq);
+	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memReq.memoryTypeBits, aProperty);
+	
+	if (AM_Image* imagePtr = AllocateImageFast(image, memReq, memoryTypeIndex))
+		return imagePtr;
+	if (AM_Image* imagePtr = AllocateImageSlow(image, memReq, memoryTypeIndex))
+		return imagePtr;
+
+	return AllocateImageWithNewBlock(image, memReq, memoryTypeIndex);
 }
 
 AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferWithNewBlock(const uint64_t aSize, const VkBufferUsageFlags aUsage, const VkMemoryPropertyFlags aProperty, MemoryPropertyCache& aCache)
@@ -195,7 +142,8 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferWithNewBlock(const uint64_t aS
 	std::vector<AM_BufferMemoryBlock>& bufferMemPool = myBufferMemoryPool[memoryTypeIndex];
 	AM_BufferMemoryBlock& newBlock = bufferMemPool.emplace_back();
 	newBlock.Init(vkBuffer, memoryTypeIndex, req.myAlignment);
-	return newBlock.Allocate(aSize + (newBlock.myAlignment - (aSize % newBlock.myAlignment)));
+
+	return newBlock.Allocate(GetPaddedSize(aSize, req.myAlignment));
 }
 
 AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferFast(const uint64_t aSize, const MemoryRequirements& aRequirement)
@@ -206,8 +154,7 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferFast(const uint64_t aSize, con
 		if (block.myAlignment != aRequirement.myAlignment)
 			continue;
 
-		const uint64_t extraBytes = aSize % block.myAlignment;
-		const uint64_t paddedSize = extraBytes ? aSize + block.myAlignment - extraBytes : aSize;
+		const uint64_t paddedSize = GetPaddedSize(aSize, block.myAlignment); 
 		if (block.myExtent + paddedSize > AM_VkRenderCoreConstants::SINGLEALLOCSIZE)
 			continue;
 
@@ -226,14 +173,16 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBufferSlow(const uint64_t aSize, con
 
 		for (auto slotIter = block.myAllocationList.begin(); slotIter != block.myAllocationList.end(); ++slotIter)
 		{
-			const uint64_t extraBytes = aSize % block.myAlignment;
-			const uint64_t paddedSize = extraBytes ? aSize + block.myAlignment - extraBytes : aSize;
+			const uint64_t paddedSize = GetPaddedSize(aSize, block.myAlignment); 
 			if (!(slotIter->IsEmpty() && slotIter->GetSize() >= paddedSize))
 				continue;
 
 			const uint64_t leftover = slotIter->GetSize() - paddedSize;
 			if (leftover == 0)
+			{
+				slotIter->SetIsEmpty(false);
 				return &(*slotIter);
+			}
 
 			block.myAllocationList.emplace(slotIter, block.myBuffer.myBuffer, slotIter->GetOffset(), leftover);
 			slotIter->SetOffset(slotIter->GetOffset() + leftover);
@@ -265,7 +214,7 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBufferWithNewBlock(const uint6
 	std::vector<AM_BufferMemoryBlock>& bufferMemPool = myBufferMemoryPool[memoryTypeIndex];
 	AM_BufferMemoryBlock& newBlock = bufferMemPool.emplace_back();
 	newBlock.Init(vkBuffer, memoryTypeIndex, req.myAlignment);
-	AM_Buffer* buffer = newBlock.Allocate(aSize + (newBlock.myAlignment - (aSize % newBlock.myAlignment)));
+	AM_Buffer* buffer = newBlock.Allocate(GetPaddedSize(aSize, req.myAlignment));
 
 	vkMapMemory(AM_VkContext::device, newBlock.myMemory, 0, AM_VkRenderCoreConstants::SINGLEALLOCSIZE, 0, &newBlock.myMappedMemory);
 	newBlock.myIsMapped = true;
@@ -281,8 +230,7 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBufferFast(const uint64_t aSiz
 		if (block.myAlignment != aRequirement.myAlignment)
 			continue;
 
-		const uint64_t extraBytes = aSize % block.myAlignment;
-		const uint64_t paddedSize = extraBytes ? aSize + block.myAlignment - extraBytes : aSize;
+		const uint64_t paddedSize = GetPaddedSize(aSize, block.myAlignment);
 		if (block.myExtent + paddedSize > AM_VkRenderCoreConstants::SINGLEALLOCSIZE)
 			continue;
 
@@ -308,14 +256,16 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBufferSlow(const uint64_t aSiz
 
 		for (auto slotIter = block.myAllocationList.begin(); slotIter != block.myAllocationList.end(); ++slotIter)
 		{
-			const uint64_t extraBytes = aSize % block.myAlignment;
-			const uint64_t paddedSize = extraBytes ? aSize + block.myAlignment - extraBytes : aSize;
+			const uint64_t paddedSize = GetPaddedSize(aSize, block.myAlignment);
 			if (!(slotIter->IsEmpty() && slotIter->GetSize() >= paddedSize))
 				continue;
 
 			const uint64_t leftover = slotIter->GetSize() - paddedSize;
 			if (leftover == 0)
+			{
+				slotIter->SetIsEmpty(false);
 				return &(*slotIter);
+			}
 
 			block.myAllocationList.emplace(slotIter, block.myBuffer.myBuffer, slotIter->GetOffset(), leftover);
 			if (!block.myIsMapped)
@@ -334,21 +284,67 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateMappedBufferSlow(const uint64_t aSiz
 	return nullptr;
 }
 
+AM_Image* AM_NaiveMemoryAllocator::AllocateImageFast(AM_VkImage& outImage, const VkMemoryRequirements& aRequirement, const uint32_t aMemoryTypeIndex)
+{
+	std::vector<AM_ImageMemoryBlock>& imageMemoryPool = myImageMemoryPool[aMemoryTypeIndex];
+	for (AM_ImageMemoryBlock& block : imageMemoryPool)
+	{
+		if (block.myAlignment != aRequirement.alignment)
+			continue;
+
+		const uint64_t paddedSize = GetPaddedSize(aRequirement.size, block.myAlignment); aRequirement.size;
+		if (block.myExtent + paddedSize > AM_VkRenderCoreConstants::SINGLEALLOCSIZE)
+			continue;
+
+		return block.Allocate(outImage, paddedSize);
+	}
+	return nullptr;
+}
+
+AM_Image* AM_NaiveMemoryAllocator::AllocateImageSlow(AM_VkImage& outImage, const VkMemoryRequirements& aRequirement, const uint32_t aMemoryTypeIndex)
+{
+	std::vector<AM_ImageMemoryBlock>& imageMemoryPool = myImageMemoryPool[aMemoryTypeIndex];
+	for (AM_ImageMemoryBlock& block : imageMemoryPool)
+	{
+		if (block.myAlignment != aRequirement.alignment)
+			continue;
+
+		for (auto slotIter = block.myAllocationList.begin(); slotIter != block.myAllocationList.end(); ++slotIter)
+		{
+			const uint64_t paddedSize = GetPaddedSize(aRequirement.size, block.myAlignment); 
+			if (!(slotIter->IsEmpty() && slotIter->GetSize() >= paddedSize))
+				continue;
+
+			const uint64_t leftover = slotIter->GetSize() - paddedSize;
+			if (leftover == 0)
+			{
+				slotIter->SetIsEmpty(false);
+				return &(*slotIter);
+			}
+
+			block.myAllocationList.emplace(slotIter, slotIter->GetOffset(), leftover);
+			slotIter->SetImage(std::move(outImage));
+			slotIter->SetOffset(slotIter->GetOffset() + leftover);
+			slotIter->SetSize(paddedSize);
+			slotIter->SetIsEmpty(false);
+			return &(*slotIter);
+		}
+	}
+
+	return nullptr;
+}
+
+AM_Image* AM_NaiveMemoryAllocator::AllocateImageWithNewBlock(AM_VkImage& outImage, const VkMemoryRequirements& aRequirement, const uint32_t aMemoryTypeIndex)
+{
+	std::vector<AM_ImageMemoryBlock>& imageMemoryPool = myImageMemoryPool[aMemoryTypeIndex];
+	AM_ImageMemoryBlock& newBlock = imageMemoryPool.emplace_back();
+	newBlock.Init(aMemoryTypeIndex, aRequirement.alignment);
+	return newBlock.Allocate(outImage, GetPaddedSize(aRequirement.size, aRequirement.alignment));
+}
+
 void AM_NaiveMemoryAllocator::CopyToMappedMemory(AM_Buffer& aBuffer, void* aSource, const size_t aSize)
 {
 	assert(aBuffer.GetMappedMemory() != nullptr && "Memory is not mapped!");
 	assert(aSize <= aBuffer.GetSize() && "Trying to map more memory than allocated!");
 	memcpy((void*)((char*)aBuffer.GetMappedMemory() + aBuffer.GetOffset()), aSource, aSize);
-}
-
-void AM_NaiveMemoryAllocator::FreeVkDeviceMemory()
-{
-	for (auto& blocks : myMemoryBlocksByMemoryType)
-	{
-		for (auto& block : blocks)
-		{
-			vkFreeMemory(AM_VkContext::device, block.myMemory, nullptr);
-			block.myMemory = nullptr;
-		}
-	}
 }

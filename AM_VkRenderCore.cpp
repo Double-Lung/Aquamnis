@@ -183,9 +183,11 @@ void AM_VkRenderCore::CreateSwapChain()
 void AM_VkRenderCore::CleanupSwapChain()
 {
 	myColorImageView.DestroyView();
-	myColorImage.Release();
+	myColorImage->Release(); 
+	myColorImage->SetIsEmpty(true);
 	myDepthImageView.DestroyView();
-	myDepthImage.Release();
+	myDepthImage->Release();
+	myDepthImage->SetIsEmpty(true);
 	myFramebuffers.clear();
 	mySwapChain.Destroy();
 }
@@ -514,10 +516,10 @@ void AM_VkRenderCore::CreateDescriptorSets()
 
 void AM_VkRenderCore::CreateTextureImageView()
 {
-	CreateImageView(myTextureImageView, myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
+	CreateImageView(myTextureImageView, myTextureImage->GetImage().myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
 }
 
-void AM_VkRenderCore::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, AM_VkImage& anImageObject)
+AM_Image* AM_VkRenderCore::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
 {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -535,13 +537,7 @@ void AM_VkRenderCore::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevel
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.flags = 0; // Optional
 
-	VkMemoryRequirements memRequirements;
-	anImageObject.Init(memRequirements, imageInfo);
-
-	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, properties);
-	auto& memoryObject = myMemoryAllocator.Allocate(memoryTypeIndex, memRequirements);
-
-	anImageObject.Bind(&memoryObject);
+	return myMemoryAllocator.AllocateImage(imageInfo, properties);
 }
 
 void AM_VkRenderCore::CreateTextureImage()
@@ -558,11 +554,11 @@ void AM_VkRenderCore::CreateTextureImage()
 	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)pixels, static_cast<size_t>(imageSize));
 	stbi_image_free(pixels);
 
-	CreateImage({ (uint32_t)texWidth, (uint32_t)texHeight }, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myTextureImage);
+	myTextureImage = CreateImage({ (uint32_t)texWidth, (uint32_t)texHeight }, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels);
-	CopyBufferToImage(*stagingBuffer, myTextureImage.myImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-	GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
+	TransitionImageLayout(myTextureImage->GetImage().myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels);
+	CopyBufferToImage(*stagingBuffer, myTextureImage->GetImage().myImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	GenerateMipmaps(myTextureImage->GetImage().myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	stagingBuffer->SetIsEmpty(true);
 }
 
@@ -580,7 +576,7 @@ void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, con
 	region.imageSubresource.baseArrayLayer = 0;
 	region.imageSubresource.layerCount = 1;
 
-	region.imageOffset = { 0, 0, 0 }; // you are the next
+	region.imageOffset = { 0, 0, 0 };
 	region.imageExtent = { aWidth, aHeight, 1 };
 
 	vkCmdCopyBufferToImage(
@@ -769,8 +765,8 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 
 void AM_VkRenderCore::CreateColorResources()
 {
-	CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.surfaceFormat.format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myColorImage);
-	CreateImageView(myColorImageView, myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	myColorImage = CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.surfaceFormat.format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	CreateImageView(myColorImageView, myColorImage->GetImage().myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
 void AM_VkRenderCore::CreateVertexBuffer()
@@ -1058,9 +1054,9 @@ void AM_VkRenderCore::CreateTextureSampler()
 
 void AM_VkRenderCore::CreateDepthResources()
 {
-	CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, myDepthImage);
-	CreateImageView(myDepthImageView, myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
-	TransitionImageLayout(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
+	myDepthImage = CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	CreateImageView(myDepthImageView, myDepthImage->GetImage().myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	TransitionImageLayout(myDepthImage->GetImage().myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
 }
 
 bool AM_VkRenderCore::HasStencilComponent(VkFormat format)

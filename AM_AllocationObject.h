@@ -45,13 +45,6 @@ public:
 	void* GetMappedMemory() const {  return myMappedMemory; }
 
 protected:
-	void Reset()
-	{
-		myOffset = 0;
-		mySize = 0;
-		myIsEmpty = true;
-	}
-
 	uint64_t myOffset;
 	uint64_t mySize;
 	void* myMappedMemory;

@@ -3,32 +3,6 @@
 #include <list>
 #include <vulkan/vulkan.h>
 
-struct AM_SimpleMemoryObject
-{
-	AM_SimpleMemoryObject()
-		: myOffset(0)
-		, mySize(0)
-		, myMemory(nullptr)
-		, myIsEmpty(true)
-	{
-	}
-
-	AM_SimpleMemoryObject(const uint64_t anOffset, const uint64_t aSize, const VkDeviceMemory aMemory)
-		: myOffset(anOffset)
-		, mySize(aSize)
-		, myMemory(aMemory)
-		, myIsEmpty(true)
-	{
-	}
-
-	~AM_SimpleMemoryObject() = default;
-
-	uint64_t myOffset;
-	uint64_t mySize;
-	VkDeviceMemory myMemory;
-	bool myIsEmpty;
-};
-
 class AM_SimpleMemoryBlock
 {
 public:
@@ -62,7 +36,6 @@ public:
 
 	virtual ~AM_SimpleMemoryBlock() { assert(!myMemory); }
 
-	std::list<AM_SimpleMemoryObject> myAllocations;
 	uint64_t myExtent;
 	uint64_t myAlignment;
 	ResourceType myType;

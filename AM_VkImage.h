@@ -5,9 +5,21 @@
 struct AM_VkImage
 {
 	AM_VkImage()
-		: myMemoryObject(nullptr)
-		, myImage(nullptr)
+		: myImage(VK_NULL_HANDLE)
 	{
+	}
+
+	AM_VkImage(const VkImageCreateInfo& someInfo)
+		: myImage(VK_NULL_HANDLE)
+	{
+		if (vkCreateImage(AM_VkContext::device, &someInfo, nullptr, &myImage) != VK_SUCCESS)
+			throw std::runtime_error("failed to create image!");
+	}
+
+	AM_VkImage(AM_VkImage&& anImage) noexcept
+		: myImage(nullptr)
+	{
+		*this = std::move(anImage);
 	}
 
 	~AM_VkImage()
@@ -15,29 +27,27 @@ struct AM_VkImage
 		Release();
 	}
 
-	void Bind(AM_SimpleMemoryObject* aMemoryObject)
+	AM_VkImage& operator=(AM_VkImage&& anImage) noexcept
 	{
-		myMemoryObject = aMemoryObject;
-		myMemoryObject->myIsEmpty = false;
-		vkBindImageMemory(AM_VkContext::device, myImage, myMemoryObject->myMemory, myMemoryObject->myOffset);
-	}
-
-	void Init(VkMemoryRequirements& outMemRequirements, const VkImageCreateInfo& someInfo)
-	{
-		if (vkCreateImage(AM_VkContext::device, &someInfo, nullptr, &myImage) != VK_SUCCESS)
-			throw std::runtime_error("failed to create image!");
-		vkGetImageMemoryRequirements(AM_VkContext::device, myImage, &outMemRequirements);
+		if (this == &anImage)
+			return *this;
+		myImage = std::exchange(anImage.myImage, nullptr);
+		return *this;
 	}
 
 	void Release()
 	{
-		vkDestroyImage(AM_VkContext::device, myImage, nullptr);
-		myImage = nullptr;
-		myMemoryObject->myIsEmpty = true;
-		myMemoryObject = nullptr;
+		if (myImage)
+		{
+			vkDestroyImage(AM_VkContext::device, myImage, nullptr);
+			myImage = nullptr;
+		}
 	}
 
-	AM_SimpleMemoryObject* myMemoryObject;
 	VkImage myImage;
+
+private:
+	AM_VkImage(const AM_VkImage& anImage) = delete;
+	AM_VkImage& operator=(const AM_VkImage& anImage) = delete;
 };
 

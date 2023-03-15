@@ -22,7 +22,10 @@ public:
 		myAllocationList.clear();
 		myBuffer.Release();
 		if (myMemory)
+		{
 			vkFreeMemory(AM_VkContext::device, myMemory, nullptr);
+			myMemory = nullptr;
+		}	
 	}
 
 	void Init(AM_VkBuffer& aVkBuffer, const uint32_t aMemoryTypeIndex, const uint64_t anAlignment)

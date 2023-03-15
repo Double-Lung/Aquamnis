@@ -20,10 +20,34 @@ public:
 	~AM_ImageMemoryBlock()
 	{
 		myAllocationList.clear();
-		myImage.Release();
 		if (myMemory)
+		{
 			vkFreeMemory(AM_VkContext::device, myMemory, nullptr);
+			myMemory = nullptr;
+		}
 	}
+
+	void Init(const uint32_t aMemoryTypeIndex, const uint64_t anAlignment)
+	{
+		myAlignment = anAlignment;
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = AM_VkRenderCoreConstants::SINGLEALLOCSIZE;
+		allocInfo.memoryTypeIndex = aMemoryTypeIndex;
+		if (vkAllocateMemory(AM_VkContext::device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate memory of type ??? !");
+	}
+
+	AM_Image* Allocate(AM_VkImage& anImage, const uint64_t aSize)
+	{
+		AM_Image& image = myAllocationList.emplace_back(anImage, myExtent, aSize);
+		vkBindImageMemory(AM_VkContext::device, image.GetImage().myImage, myMemory, myExtent);
+		image.SetIsEmpty(false);
+		myExtent += aSize;
+		return &image;
+	}
+
+	std::list<AM_Image> myAllocationList;
 
 private:
 	AM_ImageMemoryBlock(const AM_ImageMemoryBlock& aMemoryBlock) = delete;
@@ -34,10 +58,6 @@ private:
 			return *this;
 
 		myAllocationList = std::move(aMemoryBlock.myAllocationList);
-		myImage = std::move(aMemoryBlock.myImage);
 		return *this;
 	}
-
-	std::list<AM_Image> myAllocationList;
-	AM_VkImage myImage;
 };
