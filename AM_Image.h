@@ -26,7 +26,7 @@ public:
 	~AM_Image() = default;
 
 	void SetImage(AM_VkImage&& anImage) { myImage = std::move(anImage); }
-	const AM_VkImage& GetImage() const { return myImage; }
+	VkImage GetImage() const { return myImage.GetImage(); }
 	void Release() { myImage.Release(); }
 
 private:

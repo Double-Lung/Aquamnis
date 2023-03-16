@@ -44,9 +44,11 @@ struct AM_VkImage
 		}
 	}
 
-	VkImage myImage;
+	VkImage GetImage() const { return myImage; }
+	void SetImage(VkImage anImage) { myImage = anImage; }
 
 private:
+	VkImage myImage;
 	AM_VkImage(const AM_VkImage& anImage) = delete;
 	AM_VkImage& operator=(const AM_VkImage& anImage) = delete;
 };

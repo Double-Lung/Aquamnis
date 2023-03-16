@@ -38,13 +38,38 @@ public:
 			throw std::runtime_error("failed to allocate memory of type ??? !");
 	}
 
-	AM_Image* Allocate(AM_VkImage& anImage, const uint64_t aSize)
+	AM_Image* Allocate(const uint64_t aSize)
 	{
-		AM_Image& image = myAllocationList.emplace_back(anImage, myExtent, aSize);
-		vkBindImageMemory(AM_VkContext::device, image.GetImage().myImage, myMemory, myExtent);
+		AM_Image& image = myAllocationList.emplace_back(myExtent, aSize);
+		image.SetMemoryHandle(myMemory);
 		image.SetIsEmpty(false);
 		myExtent += aSize;
 		return &image;
+	}
+
+	AM_Image* AllocateSlow(const uint64_t aSize)
+	{
+		for (auto slotIter = myAllocationList.begin(); slotIter != myAllocationList.end(); ++slotIter)
+		{
+			if (!(slotIter->IsEmpty() && slotIter->GetSize() >= aSize))
+				continue;
+
+			const uint64_t leftover = slotIter->GetSize() - aSize;
+			if (leftover == 0)
+			{
+				slotIter->SetIsEmpty(false);
+				return &(*slotIter);
+			}
+
+			myAllocationList.emplace(slotIter, slotIter->GetOffset(), leftover);
+			slotIter->SetOffset(slotIter->GetOffset() + leftover);
+			slotIter->SetSize(aSize);
+			slotIter->SetMemoryHandle(myMemory);
+			slotIter->SetIsEmpty(false);
+			return &(*slotIter);
+		}
+
+		return nullptr;
 	}
 
 	std::list<AM_Image> myAllocationList;

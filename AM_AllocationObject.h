@@ -14,6 +14,7 @@ public:
 	AM_AllocationObject(const ObjectType aType, const uint64_t anOffset, const uint64_t aSize)
 		: myOffset(anOffset)
 		, mySize(aSize)
+		, myMemoryHandle(nullptr)
 		, myMappedMemory(nullptr)
 		, myType(aType)
 		, myIsEmpty(true)
@@ -23,6 +24,7 @@ public:
 	AM_AllocationObject(AM_AllocationObject&& anObject) noexcept
 		: myOffset(0)
 		, mySize(0)
+		, myMemoryHandle(nullptr)
 		, myMappedMemory(nullptr)
 		, myType(NOTSET)
 		, myIsEmpty(true)
@@ -41,12 +43,16 @@ public:
 	void SetIsEmpty(bool aState) { myIsEmpty = aState; }
 	bool IsEmpty() const { return myIsEmpty; }
 
+	void SetMemoryHandle(VkDeviceMemory aMemoryHandle) { myMemoryHandle = aMemoryHandle; }
+	VkDeviceMemory GetMemoryHandle() const { return myMemoryHandle; }
+
 	void SetMappedMemory(void* aMemoryPointer) { myMappedMemory = aMemoryPointer; }
 	void* GetMappedMemory() const {  return myMappedMemory; }
 
 protected:
 	uint64_t myOffset;
 	uint64_t mySize;
+	VkDeviceMemory myMemoryHandle;
 	void* myMappedMemory;
 	ObjectType myType;
 	bool myIsEmpty;
@@ -61,6 +67,7 @@ private:
 			return *this;
 		myOffset = std::exchange(anObject.myOffset, 0);
 		mySize = std::exchange(anObject.mySize, 0);
+		myMemoryHandle = std::exchange(anObject.myMemoryHandle, nullptr);
 		myMappedMemory = std::exchange(anObject.myMappedMemory, nullptr);
 		myType = std::exchange(anObject.myType, NOTSET);
 		myIsEmpty = std::exchange(anObject.myIsEmpty, true);
