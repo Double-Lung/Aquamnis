@@ -5,9 +5,9 @@
 class AM_Image : public AM_AllocationObject
 {
 public:
-	AM_Image(AM_VkImage& anImage, const uint64_t anOffset, const uint64_t aSize)
+	AM_Image(void*, const uint64_t anOffset, const uint64_t aSize)
 		: AM_AllocationObject(AM_AllocationObject::IMAGE, anOffset, aSize)
-		, myImage(std::move(anImage))
+		, myImage{}
 	{
 	}
 

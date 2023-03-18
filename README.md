@@ -6,7 +6,7 @@
 - [x] General code refactor
 - [x] Write a naive memory allocator
 - [x] Best practices refactor
-- [ ] Improve naive memory allocator
+- [x] Improve naive memory allocator
 - [ ] Implement queue ownership transfer
 - [ ] Improve model loading
 - [ ] Unique vertex data

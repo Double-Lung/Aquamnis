@@ -66,7 +66,7 @@ template <typename T, typename M>
 		if (block.myExtent + paddedSize > AM_VkRenderCoreConstants::SINGLEALLOCSIZE)
 			continue;
 
-		T* obj = block.Allocate(paddedSize);
+		T* obj = block.Allocate(paddedSize, block.myAllocationList);
 		if (aShouldMap)
 		{
 			if (!block.myIsMapped)
@@ -91,7 +91,7 @@ template <typename T, typename M>
 		if (block.myAlignment != aRequirement.myAlignment)
 			continue;
 
-		T* obj = block.AllocateSlow(GetPaddedSize(aSize, block.myAlignment));
+		T* obj = block.AllocateSlow(GetPaddedSize(aSize, block.myAlignment), block.myAllocationList);
 		if (!obj)
 			continue;
 
@@ -118,7 +118,7 @@ template <typename T, typename M>
 	M& newBlock = memArray.emplace_back();
 	newBlock.Init(aRequirement.myMemoryTypeIndex, aRequirement.myAlignment);
 
-	T* obj = newBlock.Allocate(GetPaddedSize(aSize, aRequirement.myAlignment));
+	T* obj = newBlock.Allocate(GetPaddedSize(aSize, aRequirement.myAlignment), newBlock.myAllocationList);
 
 	if (aShouldMap)
 	{

@@ -1,7 +1,7 @@
 #pragma once
 #include <assert.h>
 #include <list>
-#include <vulkan/vulkan.h>
+#include "AM_VkContext.h"
 
 class AM_SimpleMemoryBlock
 {
@@ -36,12 +36,32 @@ public:
 
 	virtual ~AM_SimpleMemoryBlock() { assert(!myMemory); }
 
+	void Init(const uint32_t aMemoryTypeIndex, const uint64_t anAlignment)
+	{
+		myAlignment = anAlignment;
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = AM_VkRenderCoreConstants::SINGLEALLOCSIZE;
+		allocInfo.memoryTypeIndex = aMemoryTypeIndex;
+		if (vkAllocateMemory(AM_VkContext::device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate memory of type ??? !");
+	}
+
+	template <typename T>
+	T* Allocate(const uint64_t aSize, std::list<T>& anAllocationList);
+
+	template <typename T>
+	T* AllocateSlow(const uint64_t, std::list<T>& anAllocationList);
+
 	uint64_t myExtent;
 	uint64_t myAlignment;
 	ResourceType myType;
 	VkDeviceMemory myMemory;
 	void* myMappedMemory;
 	bool myIsMapped;
+
+protected:
+	virtual void* GetImageOrBufferHandle() const = 0;
 
 private:
 	AM_SimpleMemoryBlock() = delete;
@@ -61,3 +81,39 @@ private:
 		return *this;
 	}
 };
+
+template <typename T>
+T* AM_SimpleMemoryBlock::Allocate(const uint64_t aSize, std::list<T>& anAllocationList)
+{
+	T& obj = anAllocationList.emplace_back(GetImageOrBufferHandle(), myExtent, aSize);
+	obj.SetMemoryHandle(myMemory);
+	obj.SetIsEmpty(false);
+	myExtent += aSize;
+	return &obj;
+}
+
+template <typename T>
+T* AM_SimpleMemoryBlock::AllocateSlow(const uint64_t aSize, std::list<T>& anAllocationList)
+{
+	for (auto slotIter = anAllocationList.begin(); slotIter != anAllocationList.end(); ++slotIter)
+	{
+		if (!(slotIter->IsEmpty() && slotIter->GetSize() >= aSize))
+			continue;
+
+		const uint64_t leftover = slotIter->GetSize() - aSize;
+		if (leftover == 0)
+		{
+			slotIter->SetIsEmpty(false);
+			return &(*slotIter);
+		}
+
+		anAllocationList.emplace(slotIter, GetImageOrBufferHandle(), slotIter->GetOffset(), leftover);
+		slotIter->SetOffset(slotIter->GetOffset() + leftover);
+		slotIter->SetMemoryHandle(myMemory);
+		slotIter->SetSize(aSize);
+		slotIter->SetIsEmpty(false);
+		return &(*slotIter);
+	}
+
+	return nullptr;
+}

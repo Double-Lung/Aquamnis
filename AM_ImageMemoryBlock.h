@@ -27,54 +27,11 @@ public:
 		}
 	}
 
-	void Init(const uint32_t aMemoryTypeIndex, const uint64_t anAlignment)
-	{
-		myAlignment = anAlignment;
-		VkMemoryAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = AM_VkRenderCoreConstants::SINGLEALLOCSIZE;
-		allocInfo.memoryTypeIndex = aMemoryTypeIndex;
-		if (vkAllocateMemory(AM_VkContext::device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate memory of type ??? !");
-	}
-
-	AM_Image* Allocate(const uint64_t aSize)
-	{
-		AM_Image& image = myAllocationList.emplace_back(myExtent, aSize);
-		image.SetMemoryHandle(myMemory);
-		image.SetIsEmpty(false);
-		myExtent += aSize;
-		return &image;
-	}
-
-	AM_Image* AllocateSlow(const uint64_t aSize)
-	{
-		for (auto slotIter = myAllocationList.begin(); slotIter != myAllocationList.end(); ++slotIter)
-		{
-			if (!(slotIter->IsEmpty() && slotIter->GetSize() >= aSize))
-				continue;
-
-			const uint64_t leftover = slotIter->GetSize() - aSize;
-			if (leftover == 0)
-			{
-				slotIter->SetIsEmpty(false);
-				return &(*slotIter);
-			}
-
-			myAllocationList.emplace(slotIter, slotIter->GetOffset(), leftover);
-			slotIter->SetOffset(slotIter->GetOffset() + leftover);
-			slotIter->SetSize(aSize);
-			slotIter->SetMemoryHandle(myMemory);
-			slotIter->SetIsEmpty(false);
-			return &(*slotIter);
-		}
-
-		return nullptr;
-	}
-
 	std::list<AM_Image> myAllocationList;
 
 private:
+	void* GetImageOrBufferHandle() const override { return nullptr; }
+
 	AM_ImageMemoryBlock(const AM_ImageMemoryBlock& aMemoryBlock) = delete;
 	AM_ImageMemoryBlock& operator=(const AM_ImageMemoryBlock& aMemoryBlock) = delete;
 	AM_ImageMemoryBlock& operator=(AM_ImageMemoryBlock&& aMemoryBlock) noexcept

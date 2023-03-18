@@ -4,9 +4,9 @@
 class AM_Buffer : public AM_AllocationObject
 {
 public:
-	AM_Buffer(const VkBuffer aBuffer, const uint64_t anOffset, const uint64_t aSize)
+	AM_Buffer(const void* aBuffer, const uint64_t anOffset, const uint64_t aSize)
 		: AM_AllocationObject(AM_AllocationObject::BUFFER, anOffset, aSize)
-		, myBuffer(aBuffer)
+		, myBuffer((VkBuffer)aBuffer)
 	{
 	}
 
