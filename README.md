@@ -7,7 +7,8 @@
 - [x] Write a naive memory allocator
 - [x] Best practices refactor
 - [x] Improve naive memory allocator
-- [ ] Implement queue ownership transfer
+- [x] Use transfer queue for texture image creation
+- [ ] Asynchronous command submission 
 - [ ] Improve model loading
 - [ ] Unique vertex data
 - [ ] Integrate GPU Open VMA

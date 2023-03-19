@@ -564,7 +564,7 @@ void AM_VkRenderCore::CreateTextureImage()
 
 void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
 
 	VkBufferImageCopy region{};
 	region.bufferOffset = aBuffer.GetOffset();
@@ -588,7 +588,7 @@ void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, con
 		&region
 	);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
+	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
 }
 
 void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
@@ -601,7 +601,9 @@ void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinati
 
 void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
+	VkCommandPool commandPool = VK_NULL_HANDLE;
+	VkQueue queueFamily = VK_NULL_HANDLE;
+
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.oldLayout = oldLayout;
@@ -623,6 +625,9 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	VkPipelineStageFlags destinationStage;
 	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
 	{
+		commandPool = myTransferCommandPool.myPool;
+		queueFamily = myVkContext.transferQueue;
+
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
@@ -631,6 +636,9 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 	{
+		commandPool = myTransferCommandPool.myPool;
+		queueFamily = myVkContext.transferQueue;
+
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -639,6 +647,9 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
 	{
+		commandPool = myCommandPools[myCurrentFrame].myPool;
+		queueFamily = myVkContext.graphicsQueue;
+
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
@@ -647,6 +658,8 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	}
 	else
 		throw std::invalid_argument("unsupported layout transition!");
+
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(commandPool);
 
 	vkCmdPipelineBarrier(
 		commandBuffer,
@@ -657,7 +670,7 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 		1, &barrier
 	);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
+	EndSingleTimeCommands(commandBuffer, commandPool, queueFamily);
 }
 
 
