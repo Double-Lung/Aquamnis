@@ -7,10 +7,8 @@
 - [x] Write a naive memory allocator
 - [x] Best practices refactor
 - [x] Improve naive memory allocator
-- [x] Use transfer queue for texture image creation
-- [ ] Asynchronous command submission 
-- [ ] Improve model loading
-- [ ] Unique vertex data
+- [ ] Queue ownership transfer
+- [ ] Basic scene with multiple objects
 - [ ] Integrate GPU Open VMA
 - [ ] Pregenerated mipmap
 - [ ] Push constants
@@ -18,6 +16,7 @@
 - [ ] Dynamic uniforms
 - [ ] Separate images and sampler descriptors
 - [ ] Pipeline cache
+- [ ] Async queue submission
 - [ ] Multi-threaded command buffer generation
 - [ ] Multiple subpasses
 - [ ] Compute shaders
