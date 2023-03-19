@@ -90,7 +90,9 @@ private:
 
 	std::vector<AM_VkSemaphore> myImageAvailableSemaphores;
 	std::vector<AM_VkSemaphore> myRenderFinishedSemaphores;
+	std::vector<AM_VkSemaphore> myTransferSemaphores;
 	std::vector<AM_VkFence> myInFlightFences;
+	std::vector<AM_VkFence> mySyncFences;
 
 	AM_VkSwapChain mySwapChain;
 	std::vector<AM_VkCommandPool> myCommandPools;

@@ -593,10 +593,93 @@ void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, con
 
 void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
+	VkCommandBufferAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandPool = myTransferCommandPool.myPool;
+	allocInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer;
+	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &commandBuffer);
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
 	VkBufferCopy copyRegion{ aSourceBuffer.GetOffset(), aDestinationBuffer.GetOffset(), aSize };
 	vkCmdCopyBuffer(commandBuffer, aSourceBuffer.myBuffer, aDestinationBuffer.myBuffer, 1, &copyRegion);
-	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
+
+	VkBufferMemoryBarrier bufferMemoryBarrier{};
+	bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	bufferMemoryBarrier.dstAccessMask = 0;
+	bufferMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
+	bufferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
+	bufferMemoryBarrier.buffer = aDestinationBuffer.myBuffer;
+	bufferMemoryBarrier.offset = aDestinationBuffer.GetOffset();
+	bufferMemoryBarrier.size = aSize;
+
+	vkCmdPipelineBarrier(
+		commandBuffer,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,      // srcStageMask
+		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
+		0,
+		0, nullptr,  
+		1, &bufferMemoryBarrier,
+		0, nullptr
+	);
+
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	std::array<VkSemaphore, 1> signalSemaphores = { myTransferSemaphores[myCurrentFrame].mySemaphore };
+	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size());
+	submitInfo.pSignalSemaphores = signalSemaphores.data();
+
+	vkQueueSubmit(myVkContext.transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
+
+	VkCommandBuffer commandBuffer2;
+	allocInfo.commandPool = myCommandPools[myCurrentFrame].myPool;
+	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &commandBuffer2);
+	vkBeginCommandBuffer(commandBuffer2, &beginInfo);
+
+	bufferMemoryBarrier.srcAccessMask = 0;
+	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+
+	vkCmdPipelineBarrier(
+		commandBuffer2, 
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,    // srcStageMask
+		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,   // dstStageMask
+		0,
+		0, nullptr,
+		1, &bufferMemoryBarrier,               
+		0, nullptr
+	);
+
+	vkEndCommandBuffer(commandBuffer2);
+
+	submitInfo.pCommandBuffers = &commandBuffer2;
+	submitInfo.signalSemaphoreCount = 0;
+	submitInfo.pSignalSemaphores = nullptr;
+
+	std::array<VkSemaphore, 1> waitSemaphores = { myTransferSemaphores[myCurrentFrame].mySemaphore };
+	std::array<VkPipelineStageFlags, 1> waitStages = { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
+	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
+	submitInfo.pWaitSemaphores = waitSemaphores.data();
+	submitInfo.pWaitDstStageMask = waitStages.data();
+
+	vkQueueSubmit(myVkContext.graphicsQueue, 1, &submitInfo, mySyncFences[myCurrentFrame].myFence);
+
+	vkWaitForFences(AM_VkContext::device, 1, &mySyncFences[myCurrentFrame].myFence, VK_TRUE, UINT64_MAX);
+	vkResetFences(AM_VkContext::device, 1, &mySyncFences[myCurrentFrame].myFence);
+	//vkQueueWaitIdle(aVkQueue);
+	vkFreeCommandBuffers(AM_VkContext::device, myTransferCommandPool.myPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, 1, &commandBuffer2);
 }
 
 void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels)
@@ -929,8 +1012,13 @@ void AM_VkRenderCore::RecordCommandBuffer(VkCommandBuffer commandBuffer, const u
 void AM_VkRenderCore::CreateSyncObjects()
 {
 	myInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	mySyncFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myImageAvailableSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myRenderFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myTransferSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+
+	for (auto& fence : mySyncFences)
+		vkResetFences(AM_VkContext::device, 1, &fence.myFence);
 }
 
 void AM_VkRenderCore::DrawFrame()
@@ -1077,6 +1165,9 @@ void AM_VkRenderCore::InitVulkan()
 	CreateDescriptorPool();
 	CreateRenderPass();
 	CreateDescriptorSetLayout();
+
+	CreateSyncObjects();
+
 	CreateColorResources();
 	CreateDepthResources();
 	CreateUniformBuffers();
@@ -1095,7 +1186,6 @@ void AM_VkRenderCore::InitVulkan()
 	CreateFramebuffers();
 	CreateGraphicsPipeline();
 	CreateDescriptorSets();
-	CreateSyncObjects();
 }
 
 void AM_VkRenderCore::CreateRenderPass()
