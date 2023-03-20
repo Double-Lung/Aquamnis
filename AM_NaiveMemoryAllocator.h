@@ -5,14 +5,14 @@
 #include "AM_BufferMemoryBlock.h"
 #include "AM_ImageMemoryBlock.h"
 
-// TODO: 
-// merge empty slots
-// concurrency
-
 class AM_NaiveMemoryAllocator
 {
 public:
-	AM_NaiveMemoryAllocator() = default;
+	AM_NaiveMemoryAllocator()
+		: myPhysicalMemoryProperties{}
+	{
+	}
+
 	~AM_NaiveMemoryAllocator() = default;
 	AM_NaiveMemoryAllocator(const AM_NaiveMemoryAllocator& anAllocator) = delete;
 	AM_NaiveMemoryAllocator(const AM_NaiveMemoryAllocator&& anAllocator) = delete;

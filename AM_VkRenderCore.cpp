@@ -10,15 +10,6 @@
 #include <tiny_obj_loader.h>
 #include <unordered_map>
 
-// TODO: 
-// All of the helper functions that submit commands so far have been set up to execute synchronously 
-// by waiting for the queue to become idle. For practical applications it is recommended to combine these 
-// operations in a single command buffer and execute them asynchronously for higher throughput, especially 
-// the transitions and copy in the createTextureImage function. Try to experiment with this by creating a 
-// setupCommandBuffer that the helper functions record commands into, and add a flushSetupCommands to execute 
-// the commands that have been recorded so far. It's best to do this after the texture mapping works to check 
-// if the texture resources are still set up correctly.
-
 void AM_VkRenderCore::Engage()
 {
 	InitVulkan();
@@ -618,13 +609,14 @@ void AM_VkRenderCore::CreateTextureImage()
 
 	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[myCurrentFrame].mySemaphore);
 
+	// this is good for now
+	// use fence for async submission
 	vkQueueWaitIdle(myVkContext.transferQueue);
 	vkFreeCommandBuffers(AM_VkContext::device, myTransferCommandPool.myPool, 1, &commandBuffer);
 
 	vkQueueWaitIdle(myVkContext.graphicsQueue);
 	vkFreeCommandBuffers(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, 1, &graphicsCommandBuffer);
 
-	// ok so this is broken now
 	GenerateMipmaps(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	stagingBuffer->SetIsEmpty(true);
 }
