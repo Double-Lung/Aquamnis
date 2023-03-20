@@ -556,16 +556,81 @@ void AM_VkRenderCore::CreateTextureImage()
 
 	myTextureImage = CreateImage({ (uint32_t)texWidth, (uint32_t)texHeight }, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	TransitionImageLayout(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels);
-	CopyBufferToImage(*stagingBuffer, myTextureImage->GetImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	VkCommandBuffer commandBuffer;
+	BeginOneTimeCommands(commandBuffer, myTransferCommandPool.myPool);
+	TransitionImageLayout(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, commandBuffer);
+	CopyBufferToImage(*stagingBuffer, myTextureImage->GetImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), commandBuffer);
+
+	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
+	postCopyTransferMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	postCopyTransferMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	postCopyTransferMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	postCopyTransferMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
+	postCopyTransferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
+	postCopyTransferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	postCopyTransferMemoryBarrier.dstAccessMask = 0;
+	postCopyTransferMemoryBarrier.image = myTextureImage->GetImage();
+	postCopyTransferMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	postCopyTransferMemoryBarrier.subresourceRange.levelCount = myMipLevels;
+	postCopyTransferMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	postCopyTransferMemoryBarrier.subresourceRange.layerCount = 1;
+	postCopyTransferMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	vkCmdPipelineBarrier(
+		commandBuffer,
+		VK_PIPELINE_STAGE_TRANSFER_BIT, 
+		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &postCopyTransferMemoryBarrier
+	);
+
+	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[myCurrentFrame].mySemaphore);
+
+	VkCommandBuffer graphicsCommandBuffer;
+	BeginOneTimeCommands(graphicsCommandBuffer, myCommandPools[myCurrentFrame].myPool);
+
+	VkImageMemoryBarrier postCopyGraphicsMemoryBarrier{};
+	postCopyGraphicsMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	postCopyGraphicsMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	postCopyGraphicsMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	postCopyGraphicsMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
+	postCopyGraphicsMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
+	postCopyGraphicsMemoryBarrier.srcAccessMask = 0;
+	postCopyGraphicsMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	postCopyGraphicsMemoryBarrier.image = myTextureImage->GetImage();
+	postCopyGraphicsMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	postCopyGraphicsMemoryBarrier.subresourceRange.levelCount = myMipLevels;
+	postCopyGraphicsMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	postCopyGraphicsMemoryBarrier.subresourceRange.layerCount = 1;
+	postCopyGraphicsMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	vkCmdPipelineBarrier(
+		graphicsCommandBuffer,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &postCopyGraphicsMemoryBarrier
+	);
+
+	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[myCurrentFrame].mySemaphore);
+
+	vkQueueWaitIdle(myVkContext.transferQueue);
+	vkFreeCommandBuffers(AM_VkContext::device, myTransferCommandPool.myPool, 1, &commandBuffer);
+
+	vkQueueWaitIdle(myVkContext.graphicsQueue);
+	vkFreeCommandBuffers(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, 1, &graphicsCommandBuffer);
+
+	// ok so this is broken now
 	GenerateMipmaps(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	stagingBuffer->SetIsEmpty(true);
 }
 
-void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight)
+void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight, VkCommandBuffer aCommandBuffer)
 {
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myTransferCommandPool.myPool);
-
 	VkBufferImageCopy region{};
 	region.bufferOffset = aBuffer.GetOffset();
 	region.bufferRowLength = 0;
@@ -580,33 +645,19 @@ void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, con
 	region.imageExtent = { aWidth, aHeight, 1 };
 
 	vkCmdCopyBufferToImage(
-		commandBuffer,
+		aCommandBuffer,
 		aBuffer.myBuffer,
 		anImage,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1,
 		&region
 	);
-
-	EndSingleTimeCommands(commandBuffer, myTransferCommandPool.myPool, myVkContext.transferQueue);
 }
 
 void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
 {
-	VkCommandBufferAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = myTransferCommandPool.myPool;
-	allocInfo.commandBufferCount = 1;
-
 	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &commandBuffer);
-
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+	BeginOneTimeCommands(commandBuffer, myTransferCommandPool.myPool);
 
 	VkBufferCopy copyRegion{ aSourceBuffer.GetOffset(), aDestinationBuffer.GetOffset(), aSize };
 	vkCmdCopyBuffer(commandBuffer, aSourceBuffer.myBuffer, aDestinationBuffer.myBuffer, 1, &copyRegion);
@@ -631,62 +682,35 @@ void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinati
 		0, nullptr
 	);
 
-	vkEndCommandBuffer(commandBuffer);
+	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[myCurrentFrame].mySemaphore);
 
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-	std::array<VkSemaphore, 1> signalSemaphores = { myTransferSemaphores[myCurrentFrame].mySemaphore };
-	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size());
-	submitInfo.pSignalSemaphores = signalSemaphores.data();
-
-	vkQueueSubmit(myVkContext.transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
-
-	VkCommandBuffer commandBuffer2;
-	allocInfo.commandPool = myCommandPools[myCurrentFrame].myPool;
-	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &commandBuffer2);
-	vkBeginCommandBuffer(commandBuffer2, &beginInfo);
+	VkCommandBuffer graphicsCommandBuffer;
+	BeginOneTimeCommands(graphicsCommandBuffer, myCommandPools[myCurrentFrame].myPool);
 
 	bufferMemoryBarrier.srcAccessMask = 0;
 	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
 
 	vkCmdPipelineBarrier(
-		commandBuffer2, 
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,    // srcStageMask
-		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,   // dstStageMask
+		graphicsCommandBuffer, 
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
 		0,
 		0, nullptr,
 		1, &bufferMemoryBarrier,               
 		0, nullptr
 	);
 
-	vkEndCommandBuffer(commandBuffer2);
+	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[myCurrentFrame].mySemaphore);
 
-	submitInfo.pCommandBuffers = &commandBuffer2;
-	submitInfo.signalSemaphoreCount = 0;
-	submitInfo.pSignalSemaphores = nullptr;
-
-	std::array<VkSemaphore, 1> waitSemaphores = { myTransferSemaphores[myCurrentFrame].mySemaphore };
-	std::array<VkPipelineStageFlags, 1> waitStages = { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
-	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
-	submitInfo.pWaitSemaphores = waitSemaphores.data();
-	submitInfo.pWaitDstStageMask = waitStages.data();
-
-	vkQueueSubmit(myVkContext.graphicsQueue, 1, &submitInfo, mySyncFences[myCurrentFrame].myFence);
-
-	vkWaitForFences(AM_VkContext::device, 1, &mySyncFences[myCurrentFrame].myFence, VK_TRUE, UINT64_MAX);
-	vkResetFences(AM_VkContext::device, 1, &mySyncFences[myCurrentFrame].myFence);
-	//vkQueueWaitIdle(aVkQueue);
+	vkQueueWaitIdle(myVkContext.transferQueue);
 	vkFreeCommandBuffers(AM_VkContext::device, myTransferCommandPool.myPool, 1, &commandBuffer);
-	vkFreeCommandBuffers(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, 1, &commandBuffer2);
+
+	vkQueueWaitIdle(myVkContext.graphicsQueue);
+	vkFreeCommandBuffers(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, 1, &graphicsCommandBuffer);
 }
 
-void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels)
+void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer)
 {
-	VkCommandPool commandPool = VK_NULL_HANDLE;
-	VkQueue queueFamily = VK_NULL_HANDLE;
-
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.oldLayout = oldLayout;
@@ -708,9 +732,6 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	VkPipelineStageFlags destinationStage;
 	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
 	{
-		commandPool = myTransferCommandPool.myPool;
-		queueFamily = myVkContext.transferQueue;
-
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
@@ -719,9 +740,6 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 	{
-		commandPool = myTransferCommandPool.myPool;
-		queueFamily = myVkContext.transferQueue;
-
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -730,9 +748,6 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
 	{
-		commandPool = myCommandPools[myCurrentFrame].myPool;
-		queueFamily = myVkContext.graphicsQueue;
-
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
@@ -742,18 +757,14 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	else
 		throw std::invalid_argument("unsupported layout transition!");
 
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(commandPool);
-
 	vkCmdPipelineBarrier(
-		commandBuffer,
+		aCommandBuffer,
 		sourceStage, destinationStage,
 		0,
 		0, nullptr,
 		0, nullptr,
 		1, &barrier
 	);
-
-	EndSingleTimeCommands(commandBuffer, commandPool, queueFamily);
 }
 
 
@@ -901,6 +912,69 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage)
 	memcpy((void*)destination, &ubo, sizeof(ubo));
 }
 
+void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
+{
+	VkCommandBufferAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandPool = aCommandPool;
+	allocInfo.commandBufferCount = 1;
+
+	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &aCommandBuffer);
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(aCommandBuffer, &beginInfo);
+}
+
+void AM_VkRenderCore::BeginOwnershipTransfer(VkCommandBuffer& aSrcCommandBuffer, VkQueue& aSrcQueue, VkSemaphore& aSignalSemaphore)
+{
+	vkEndCommandBuffer(aSrcCommandBuffer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &aSrcCommandBuffer;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &aSignalSemaphore;
+
+	vkQueueSubmit(aSrcQueue, 1, &submitInfo, VK_NULL_HANDLE);
+}
+
+void AM_VkRenderCore::EndOwnershipTransfer(VkCommandBuffer& aDstCommandBuffer, VkQueue& aDstQueue, VkSemaphore& aWaitSemaphore)
+{
+	vkEndCommandBuffer(aDstCommandBuffer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &aDstCommandBuffer;
+	
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &aWaitSemaphore;
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
+	submitInfo.pWaitDstStageMask = waitStages;
+
+	vkQueueSubmit(aDstQueue, 1, &submitInfo, VK_NULL_HANDLE);
+}
+
+void AM_VkRenderCore::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool)
+{
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(aVkQueue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(aVkQueue);
+
+	vkFreeCommandBuffers(AM_VkContext::device, aCommandPool, 1, &commandBuffer);
+}
+
 VkCommandBuffer AM_VkRenderCore::BeginSingleTimeCommands(VkCommandPool aCommandPool)
 {
 	VkCommandBufferAllocateInfo allocInfo{};
@@ -1016,9 +1090,6 @@ void AM_VkRenderCore::CreateSyncObjects()
 	myImageAvailableSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myRenderFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myTransferSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-
-	for (auto& fence : mySyncFences)
-		vkResetFences(AM_VkContext::device, 1, &fence.myFence);
 }
 
 void AM_VkRenderCore::DrawFrame()
@@ -1146,7 +1217,11 @@ void AM_VkRenderCore::CreateDepthResources()
 {
 	myDepthImage = CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	CreateImageView(myDepthImageView, myDepthImage->GetImage(), myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
-	TransitionImageLayout(myDepthImage->GetImage(), myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
+
+	VkCommandBuffer commandBuffer;
+	BeginOneTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool);
+	TransitionImageLayout(myDepthImage->GetImage(), myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, commandBuffer);
+	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myCommandPools[myCurrentFrame].myPool);
 }
 
 bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
