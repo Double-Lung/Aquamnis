@@ -780,7 +780,8 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 	// Usually they are pre-generated and stored in the texture file alongside the base level to improve loading speed. 
 	// Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
 
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands(myCommandPools[myCurrentFrame].myPool);
+	VkCommandBuffer commandBuffer;
+	BeginOneTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool);
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -790,11 +791,26 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.subresourceRange.layerCount = 1;
+	barrier.subresourceRange.baseMipLevel = 0;
+
+	barrier.subresourceRange.levelCount = aMipLevels;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+	// transfer image back to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL to avoid messy code
+	// since we are not going to generate mipmap at runtime in the future
+	vkCmdPipelineBarrier(commandBuffer,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+		0, nullptr,
+		0, nullptr,
+		1, &barrier);
+
 	barrier.subresourceRange.levelCount = 1;
 
 	int32_t mipWidth = texWidth;
 	int32_t mipHeight = texHeight;
-
 	for (uint32_t i = 1; i < aMipLevels; i++) 
 	{
 		barrier.subresourceRange.baseMipLevel = i - 1;
@@ -856,7 +872,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 		0, nullptr,
 		1, &barrier);
 
-	EndSingleTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool, myVkContext.graphicsQueue);
+	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myCommandPools[myCurrentFrame].myPool);
 }
 
 void AM_VkRenderCore::CreateColorResources()
@@ -961,41 +977,6 @@ void AM_VkRenderCore::EndOwnershipTransfer(VkCommandBuffer& aDstCommandBuffer, V
 }
 
 void AM_VkRenderCore::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool)
-{
-	vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(aVkQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(aVkQueue);
-
-	vkFreeCommandBuffers(AM_VkContext::device, aCommandPool, 1, &commandBuffer);
-}
-
-VkCommandBuffer AM_VkRenderCore::BeginSingleTimeCommands(VkCommandPool aCommandPool)
-{
-	VkCommandBufferAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = aCommandPool;
-	allocInfo.commandBufferCount = 1;
-
-	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &commandBuffer);
-
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-	return commandBuffer;
-}
-
-void AM_VkRenderCore::EndSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool aCommandPool, VkQueue aVkQueue)
 {
 	vkEndCommandBuffer(commandBuffer);
 

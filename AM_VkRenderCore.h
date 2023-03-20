@@ -65,14 +65,12 @@ private:
 	void UpdateUniformBuffer(uint32_t currentImage);
 
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
+	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
+
 	// also submit commands in source queue
 	void BeginOwnershipTransfer(VkCommandBuffer& aSrcCommandBuffer, VkQueue& aSrcQueue, VkSemaphore& aSignalSemaphore);
 	// also submit commands in destination queue
 	void EndOwnershipTransfer(VkCommandBuffer& aDstCommandBuffer, VkQueue& aDstQueue, VkSemaphore& aWaitSemaphore);
-	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
-
-	VkCommandBuffer BeginSingleTimeCommands(VkCommandPool aCommandPool);
-	void EndSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool aCommandPool, VkQueue aVkQueue);
 
 	void CreateReusableCommandBuffers();
 	void RecordCommandBuffer(VkCommandBuffer commandBuffer, const uint32_t imageIndex);
