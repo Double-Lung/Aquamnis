@@ -8,7 +8,6 @@
 - [x] Best practices refactor
 - [x] Improve naive memory allocator
 - [x] Queue ownership transfer
-- [ ] Combine setup commands
 - [ ] Basic scene with multiple objects
 - [ ] Integrate GPU Open VMA
 - [ ] Pregenerated mipmap
