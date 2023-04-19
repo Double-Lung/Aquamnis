@@ -341,12 +341,17 @@ void AM_VkRenderCore::CreateGraphicsPipeline()
 	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicState.pDynamicStates = dynamicStates.data();
 
+	VkPushConstantRange pushConstantRange{};
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(PushConstantData);
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional
 	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.myLayout; // Optional
-	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+	pipelineLayoutInfo.pushConstantRangeCount = 1; // Optional
+	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
 
 	myPipelineLayout.CreateLayout(pipelineLayoutInfo);
 
@@ -903,13 +908,8 @@ void AM_VkRenderCore::CreateUniformBuffers()
 
 void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage)
 {
-	static auto startTime = std::chrono::high_resolution_clock::now();
-
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
 	UniformBufferObject ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f)); //glm::mat4(1.f);//
+	ubo.model = glm::mat4(1.f);
 	ubo.view = glm::lookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	ubo.projection = glm::perspective(0.7854f, mySwapChain.GetWidth() / (float)mySwapChain.GetHeight(), 0.1f, 100.f);
 
@@ -1049,7 +1049,18 @@ void AM_VkRenderCore::RecordCommandBuffer(VkCommandBuffer commandBuffer, const u
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &myDescriptorSets[myCurrentFrame], 0, nullptr);
-	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(myIndices.size()), 1, 0, 0, 0);
+
+	PushConstantData push;
+	float time = GetElapsedTimeInSeconds();
+
+	for (auto& entity : myEntities)
+	{
+		push.offset = entity.GetTransformComponent().myTranslation;
+		push.transform = glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f));
+		vkCmdPushConstants(commandBuffer, myPipelineLayout.myLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(myIndices.size()), 1, 0, 0, 0);
+	}
+
 	vkCmdEndRenderPass(commandBuffer);
 
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
@@ -1161,6 +1172,11 @@ void AM_VkRenderCore::LoadModel()
 			myIndices.push_back(static_cast<uint32_t>(myIndices.size()));
 		}
 	}
+
+	AM_Entity tempEntity = AM_Entity::CreateEntity();
+	auto& transform = tempEntity.GetTransformComponent();
+	transform.myTranslation = { 0.f, 0.f, 0.f };
+	myEntities.push_back(std::move(tempEntity));
 }
 
 void AM_VkRenderCore::CreateTextureSampler()
@@ -1317,6 +1333,13 @@ void AM_VkRenderCore::MainLoop()
 	}
 
 	vkDeviceWaitIdle(AM_VkContext::device);
+}
+
+float AM_VkRenderCore::GetElapsedTimeInSeconds()
+{
+	static auto startTime = std::chrono::high_resolution_clock::now();
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	return std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 }
 
 VkVertexInputBindingDescription AM_VkRenderCore::Vertex::GetBindingDescription()

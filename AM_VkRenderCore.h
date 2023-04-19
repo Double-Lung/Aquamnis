@@ -1,4 +1,5 @@
 #pragma once
+#include "AM_Entity.h"
 #include "AM_NaiveMemoryAllocator.h"
 #include "AM_VkBuffer.h"
 #include "AM_VkImage.h"
@@ -31,7 +32,12 @@ private:
 		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 projection;
-		
+	};
+
+	struct PushConstantData
+	{
+		glm::vec3 offset;
+		glm::mat4 transform;
 	};
 
 	bool CheckExtensionSupport();
@@ -86,6 +92,7 @@ private:
 	void CreateRenderPass();
 	void MainLoop();
 
+	static float GetElapsedTimeInSeconds();
 	static std::vector<char> ReadFile(const std::string& filename);
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
@@ -116,6 +123,7 @@ private:
 	AM_VkSampler myTextureSampler;
 	std::vector<Vertex> myVertices;
 	std::vector<uint32_t> myIndices;
+	std::vector<AM_Entity> myEntities;
 
 	AM_Buffer* myVirtualUniformBuffer = nullptr;
 	AM_Buffer* myVirtualVertexBuffer = nullptr;

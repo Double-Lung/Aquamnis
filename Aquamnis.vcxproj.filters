@@ -30,6 +30,7 @@
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="AM_Entity.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationConstants.h">
@@ -83,6 +84,7 @@
     <ClInclude Include="AM_ImageMemoryBlock.h">
       <Filter>VkDraw</Filter>
     </ClInclude>
+    <ClInclude Include="AM_Entity.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader.frag">

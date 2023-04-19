@@ -11,7 +11,7 @@
 - [ ] Basic scene with multiple objects
 - [ ] Integrate GPU Open VMA
 - [ ] Pregenerated mipmap
-- [ ] Push constants
+- [x] Push constants
 - [ ] Instanced rendering
 - [ ] Dynamic uniforms
 - [ ] Separate images and sampler descriptors

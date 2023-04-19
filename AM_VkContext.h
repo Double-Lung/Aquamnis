@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
+#include "AM_VkPrimitives.h"
 #include "AM_VkRenderCoreConstants.h"
 #include <vulkan/vulkan.h>
 
@@ -33,6 +34,8 @@ public:
 	void GetMaxMSAASampleCount();
 	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, const VkImageTiling& tiling, const VkFormatFeatureFlags& features) const;
 	void GetDepthFormat();
+
+	void CreateCommandPools();
 
 #ifdef _DEBUG
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
@@ -57,6 +60,8 @@ public:
 	std::vector<const char*> requiredInstanceExtensions;
 	std::vector<VkExtensionProperties> availableInstanceExtensions;
 	std::vector<VkLayerProperties> availableInstanceLayers;
+	std::vector<AM_VkCommandPool> myCommandPools;
+	AM_VkCommandPool myTransferCommandPool;
 
 	static VkInstance instance;
 	static VkSurfaceKHR surface;

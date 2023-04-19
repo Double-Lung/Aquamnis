@@ -320,6 +320,24 @@ void AM_VkContext::GetDepthFormat()
 	);
 }
 
+void AM_VkContext::CreateCommandPools()
+{
+	VkCommandPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.queueFamilyIndex = graphicsFamilyIndex;
+
+	myCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	for (auto& commandPool : myCommandPools)
+		commandPool.CreatePool(poolInfo);
+
+	VkCommandPoolCreateInfo transferPoolInfo{};
+	transferPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	transferPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+	transferPoolInfo.queueFamilyIndex = transferFamilyIndex;
+
+	myTransferCommandPool.CreatePool(transferPoolInfo);
+}
+
 #ifdef _DEBUG
 VKAPI_ATTR VkBool32 VKAPI_CALL AM_VkContext::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
 {
