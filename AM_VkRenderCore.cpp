@@ -19,7 +19,6 @@ void AM_VkRenderCore::Engage()
 AM_VkRenderCore::AM_VkRenderCore() 
 	: myMipLevels(0)
 	, myCurrentFrame(0)
-	, myIsFramebufferResized(false)
 {
 }
 
@@ -75,12 +74,6 @@ std::vector<char> AM_VkRenderCore::ReadFile(const std::string& filename)
 	file.close();
 
 	return buffer;
-}
-
-void AM_VkRenderCore::FramebufferResizeCallback(GLFWwindow* window, int /*width*/, int /*height*/)
-{
-	AM_VkRenderCore* app = reinterpret_cast<AM_VkRenderCore*>(glfwGetWindowUserPointer(window));
-	app->myIsFramebufferResized = true;
 }
 
 void AM_VkRenderCore::CreateInstance()
@@ -1023,17 +1016,6 @@ void AM_VkRenderCore::RecordCommandBuffer(VkCommandBuffer commandBuffer, const u
 	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 	renderPassInfo.pClearValues = clearValues.data();
 
-	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
-
- 	VkBuffer vertexBuffers[] = { myVirtualVertexBuffer->myBuffer };
- 	VkDeviceSize offsets[] = { myVirtualVertexBuffer->GetOffset() };
-	VkDeviceSize sizes[] = { myVirtualVertexBuffer->GetSize() };
-	//vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindVertexBuffers2(commandBuffer, 0, 1, vertexBuffers, offsets, sizes, nullptr);
-
-	vkCmdBindIndexBuffer(commandBuffer, myVirtualIndexBuffer->myBuffer, myVirtualIndexBuffer->GetOffset(), VK_INDEX_TYPE_UINT32);
-
 	VkViewport viewport{};
 	viewport.x = 0;
 	viewport.y = static_cast<float>(mySwapChain.GetHeight());
@@ -1047,6 +1029,17 @@ void AM_VkRenderCore::RecordCommandBuffer(VkCommandBuffer commandBuffer, const u
 	scissor.offset = { 0, 0 };
 	scissor.extent = mySwapChain.GetExtent();
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
+
+ 	VkBuffer vertexBuffers[] = { myVirtualVertexBuffer->myBuffer };
+ 	VkDeviceSize offsets[] = { myVirtualVertexBuffer->GetOffset() };
+	VkDeviceSize sizes[] = { myVirtualVertexBuffer->GetSize() };
+	//vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindVertexBuffers2(commandBuffer, 0, 1, vertexBuffers, offsets, sizes, nullptr);
+
+	vkCmdBindIndexBuffer(commandBuffer, myVirtualIndexBuffer->myBuffer, myVirtualIndexBuffer->GetOffset(), VK_INDEX_TYPE_UINT32);
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &myDescriptorSets[myCurrentFrame], 0, nullptr);
 
@@ -1129,9 +1122,9 @@ void AM_VkRenderCore::DrawFrame()
 	presentInfo.pResults = nullptr;
 	result = vkQueuePresentKHR(myVkContext.presentQueue, &presentInfo);
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || myIsFramebufferResized) 
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || myWindowInstance.WasWindowResized()) 
 	{
-		myIsFramebufferResized = false;
+		myWindowInstance.ResetResizeFlag();
 		RecreateSwapChain();
 	}
 	else if (result != VK_SUCCESS) 
@@ -1220,7 +1213,7 @@ bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
 
 void AM_VkRenderCore::InitVulkan()
 {
-	myWindowInstance.Init(FramebufferResizeCallback);
+	myWindowInstance.Init();
 	CreateInstance();
 	myVkContext.Init();
 	myMemoryAllocator.Init(myVkContext.memoryProperties);

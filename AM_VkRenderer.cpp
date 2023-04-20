@@ -16,6 +16,7 @@ AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_Na
 	, myImageIndex(0)
 	, myIsFrameStarted(false)
 {
+	CreateSyncObjects();
 	CreateRenderPass();
 	RecreateSwapChain();
 	CreateReusableCommandBuffers();
@@ -107,9 +108,9 @@ void AM_VkRenderer::EndFrame()
 	presentInfo.pResults = nullptr;
 	VkResult result = vkQueuePresentKHR(myVkContext.presentQueue, &presentInfo);
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || myIsFramebufferResized)
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || myWindow.WasWindowResized())
 	{
-		myIsFramebufferResized = false;
+		myWindow.ResetResizeFlag();
 		RecreateSwapChain();
 	}
 	else if (result != VK_SUCCESS)
@@ -365,6 +366,13 @@ void AM_VkRenderer::CreateFramebuffers()
 
 		myFramebuffers[i].CreateFrameBuffer(framebufferInfo);
 	}
+}
+
+void AM_VkRenderer::CreateSyncObjects()
+{
+	myInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myImageAvailableSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myRenderFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 }
 
 AM_Image* AM_VkRenderer::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)

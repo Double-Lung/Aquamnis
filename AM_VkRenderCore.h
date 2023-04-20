@@ -94,7 +94,6 @@ private:
 
 	static float GetElapsedTimeInSeconds();
 	static std::vector<char> ReadFile(const std::string& filename);
-	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 	AM_Window myWindowInstance;
 	AM_VkContext myVkContext;
@@ -137,6 +136,5 @@ private:
 	
 	uint32_t myMipLevels;
 	uint32_t myCurrentFrame;
-	bool myIsFramebufferResized;
 };
 

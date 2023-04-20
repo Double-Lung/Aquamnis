@@ -10,6 +10,7 @@ class AM_Window
 public:
 	AM_Window()
 		: myWindow(nullptr)
+		, myIsFramebufferResized(false)
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -26,10 +27,10 @@ public:
 		glfwTerminate();
 	}
 
-	void Init(GLFWframebuffersizefun aFramebuffersizefun)
+	void Init()
 	{
 		glfwSetWindowUserPointer(myWindow, this);
-		glfwSetFramebufferSizeCallback(myWindow, aFramebuffersizefun);
+		glfwSetFramebufferSizeCallback(myWindow, FramebufferResizeCallback);
 		glfwSetWindowSizeLimits
 		(
 			myWindow,
@@ -57,10 +58,20 @@ public:
 
 	GLFWwindow* GetWindow() const { return myWindow; }
 
+	bool WasWindowResized() const { return myIsFramebufferResized; }
+	void ResetResizeFlag() { myIsFramebufferResized = false; }
+
 	void GetFramebufferSize(int& aWidth, int& aHeight)
 	{
 		glfwGetFramebufferSize(myWindow, &aWidth, &aHeight);
 	}
 private:
+	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
+	{
+		AM_Window* amWindow = reinterpret_cast<AM_Window*>(glfwGetWindowUserPointer(window));
+		amWindow->myIsFramebufferResized = true;
+	}
+
+	bool myIsFramebufferResized;
 	GLFWwindow* myWindow;
 };

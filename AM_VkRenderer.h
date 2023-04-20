@@ -36,6 +36,7 @@ private:
 	void CreateColorResources();
 	void CreateDepthResources();
 	void CreateFramebuffers();
+	void CreateSyncObjects();
 
 	// temp utils
 	AM_Image* CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
@@ -53,12 +54,15 @@ private:
 	std::vector<VkCommandBuffer> myCommandBuffers;
 
 	// for swapchain
+	std::vector<AM_VkSemaphore> myImageAvailableSemaphores;
+	std::vector<AM_VkSemaphore> myRenderFinishedSemaphores;
+	std::vector<AM_VkFence> myInFlightFences;
 	std::vector<AM_VkFramebuffer> myFramebuffers;
 	AM_VkRenderPass myRenderPass;
 	AM_VkImageView myColorImageView;
 	AM_VkImageView myDepthImageView;
-	AM_Image* myColorImage = nullptr;
-	AM_Image* myDepthImage = nullptr;
+	AM_Image* myColorImage;
+	AM_Image* myDepthImage;
 
 	uint32_t myCurrentFrame;
 	uint32_t myImageIndex;

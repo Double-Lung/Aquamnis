@@ -101,6 +101,7 @@ void AM_VkContext::Init()
 #endif
 	ChoosePhysicalDevice();
 	CreateLogicalDevice();
+	CreateCommandPools();
 	InitSwapChainCreationInfo();
 	GetMaxMSAASampleCount();
 	GetDepthFormat();
