@@ -51,7 +51,6 @@ private:
 	void CreateGraphicsPipeline();
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);
 	void CreateFramebuffers();
-	void CreateCommandPools();
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImageView();
@@ -106,8 +105,6 @@ private:
 	std::vector<AM_VkFence> mySyncFences;
 
 	AM_VkSwapChain mySwapChain;
-	std::vector<AM_VkCommandPool> myCommandPools;
-	AM_VkCommandPool myTransferCommandPool;
 	AM_VkDescriptorPool myDescriptorPool;
 	AM_VkRenderPass myRenderPass;
 	AM_VkDescriptorSetLayout myDescriptorSetLayout;

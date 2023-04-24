@@ -420,24 +420,6 @@ void AM_VkRenderCore::CreateFramebuffers()
 	}
 }
 
-void AM_VkRenderCore::CreateCommandPools()
-{
-	VkCommandPoolCreateInfo poolInfo{};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.queueFamilyIndex = myVkContext.graphicsFamilyIndex;
-
-	myCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	for (auto& commandPool : myCommandPools)
-		commandPool.CreatePool(poolInfo);
-
-	VkCommandPoolCreateInfo transferPoolInfo{};
-	transferPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	transferPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-	transferPoolInfo.queueFamilyIndex = myVkContext.transferFamilyIndex;
-
-	myTransferCommandPool.CreatePool(transferPoolInfo);
-}
-
 void AM_VkRenderCore::CreateDescriptorPool()
 {
 	std::array<VkDescriptorPoolSize, 2> poolSizes{};
@@ -546,7 +528,7 @@ void AM_VkRenderCore::CreateTextureImage()
 	myTextureImage = CreateImage({ (uint32_t)texWidth, (uint32_t)texHeight }, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myTransferCommandPool.myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
 	TransitionImageLayout(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, commandBuffer);
 	CopyBufferToImage(*stagingBuffer, myTextureImage->GetImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), commandBuffer);
 
@@ -578,7 +560,7 @@ void AM_VkRenderCore::CreateTextureImage()
 	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[myCurrentFrame].mySemaphore);
 
 	VkCommandBuffer graphicsCommandBuffer;
-	BeginOneTimeCommands(graphicsCommandBuffer, myCommandPools[myCurrentFrame].myPool);
+	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[myCurrentFrame].myPool);
 
 	VkImageMemoryBarrier postCopyGraphicsMemoryBarrier{};
 	postCopyGraphicsMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -610,10 +592,10 @@ void AM_VkRenderCore::CreateTextureImage()
 	// this is good for now
 	// use fence for async submission
 	vkQueueWaitIdle(myVkContext.transferQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myTransferCommandPool.myPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myTransferCommandPool.myPool, 1, &commandBuffer);
 
 	vkQueueWaitIdle(myVkContext.graphicsQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, 1, &graphicsCommandBuffer);
+	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[myCurrentFrame].myPool, 1, &graphicsCommandBuffer);
 
 	GenerateMipmaps(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	stagingBuffer->SetIsEmpty(true);
@@ -647,7 +629,7 @@ void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, con
 void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
 {
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myTransferCommandPool.myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
 
 	VkBufferCopy copyRegion{ aSourceBuffer.GetOffset(), aDestinationBuffer.GetOffset(), aSize };
 	vkCmdCopyBuffer(commandBuffer, aSourceBuffer.myBuffer, aDestinationBuffer.myBuffer, 1, &copyRegion);
@@ -675,7 +657,7 @@ void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinati
 	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[myCurrentFrame].mySemaphore);
 
 	VkCommandBuffer graphicsCommandBuffer;
-	BeginOneTimeCommands(graphicsCommandBuffer, myCommandPools[myCurrentFrame].myPool);
+	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[myCurrentFrame].myPool);
 
 	bufferMemoryBarrier.srcAccessMask = 0;
 	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
@@ -693,10 +675,10 @@ void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinati
 	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[myCurrentFrame].mySemaphore);
 
 	vkQueueWaitIdle(myVkContext.transferQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myTransferCommandPool.myPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myTransferCommandPool.myPool, 1, &commandBuffer);
 
 	vkQueueWaitIdle(myVkContext.graphicsQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, 1, &graphicsCommandBuffer);
+	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[myCurrentFrame].myPool, 1, &graphicsCommandBuffer);
 }
 
 void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer)
@@ -771,7 +753,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 	// Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
 
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[myCurrentFrame].myPool);
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -862,7 +844,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 		0, nullptr,
 		1, &barrier);
 
-	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myCommandPools[myCurrentFrame].myPool);
+	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[myCurrentFrame].myPool);
 }
 
 void AM_VkRenderCore::CreateColorResources()
@@ -986,7 +968,7 @@ void AM_VkRenderCore::CreateReusableCommandBuffers()
 	myCommandBuffers.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		allocInfo.commandPool = myCommandPools[i].myPool;
+		allocInfo.commandPool = myVkContext.myCommandPools[myCurrentFrame].myPool;
 		if (vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &myCommandBuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate command buffer!");
 	}
@@ -1089,7 +1071,7 @@ void AM_VkRenderCore::DrawFrame()
 
 	UpdateUniformBuffer(myCurrentFrame);
 
-	vkResetCommandPool(AM_VkContext::device, myCommandPools[myCurrentFrame].myPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+	vkResetCommandPool(AM_VkContext::device, myVkContext.myCommandPools[myCurrentFrame].myPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 	RecordCommandBuffer(myCommandBuffers[myCurrentFrame], imageIndex);
 
 	VkSubmitInfo submitInfo{};
@@ -1201,9 +1183,9 @@ void AM_VkRenderCore::CreateDepthResources()
 	CreateImageView(myDepthImageView, myDepthImage->GetImage(), myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myCommandPools[myCurrentFrame].myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[myCurrentFrame].myPool);
 	TransitionImageLayout(myDepthImage->GetImage(), myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, commandBuffer);
-	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myCommandPools[myCurrentFrame].myPool);
+	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[myCurrentFrame].myPool);
 }
 
 bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
@@ -1218,7 +1200,6 @@ void AM_VkRenderCore::InitVulkan()
 	myVkContext.Init();
 	myMemoryAllocator.Init(myVkContext.memoryProperties);
 	CreateSwapChain();
-	CreateCommandPools();
 	CreateDescriptorPool();
 	CreateRenderPass();
 	CreateDescriptorSetLayout();

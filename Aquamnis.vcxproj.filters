@@ -31,6 +31,8 @@
       <Filter>Utilities</Filter>
     </ClCompile>
     <ClCompile Include="AM_Entity.cpp" />
+    <ClCompile Include="AM_VkRenderer.cpp" />
+    <ClCompile Include="AM_SimpleRenderSystem.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationConstants.h">
@@ -85,6 +87,8 @@
       <Filter>VkDraw</Filter>
     </ClInclude>
     <ClInclude Include="AM_Entity.h" />
+    <ClInclude Include="AM_VkRenderer.h" />
+    <ClInclude Include="AM_SimpleRenderSystem.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader.frag">

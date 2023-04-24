@@ -166,6 +166,8 @@
   <ItemGroup>
     <ClCompile Include="AM_Entity.cpp" />
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp" />
+    <ClCompile Include="AM_SimpleRenderSystem.cpp" />
+    <ClCompile Include="AM_VkRenderer.cpp" />
     <ClCompile Include="extensionProxy.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="AM_VkRenderCore.cpp" />
@@ -179,10 +181,12 @@
     <ClInclude Include="AM_Image.h" />
     <ClInclude Include="AM_ImageMemoryBlock.h" />
     <ClInclude Include="AM_NaiveMemoryAllocator.h" />
+    <ClInclude Include="AM_SimpleRenderSystem.h" />
     <ClInclude Include="AM_VkBuffer.h" />
     <ClInclude Include="AM_VkImage.h" />
     <ClInclude Include="AM_SimpleMemoryBlock.h" />
     <ClInclude Include="AM_VkPrimitives.h" />
+    <ClInclude Include="AM_VkRenderer.h" />
     <ClInclude Include="AM_VkSwapChain.h" />
     <ClInclude Include="AM_Window.h" />
     <ClInclude Include="ApplicationConstants.h" />
