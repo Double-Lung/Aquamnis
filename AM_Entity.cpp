@@ -1,5 +1,9 @@
+#define TINYOBJLOADER_IMPLEMENTATION
 #include "AM_Entity.h"
+#include "AM_VkRenderCoreConstants.h"
 #include <array>
+#include <stdexcept>
+#include <tiny_obj_loader.h>
 
 VkVertexInputBindingDescription Vertex::GetBindingDescription()
 {
@@ -30,4 +34,38 @@ std::array<VkVertexInputAttributeDescription, 3> Vertex::GetAttributeDescription
 	attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
 	return attributeDescriptions;
+}
+
+void AM_Entity::LoadModel()
+{
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn, err;
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, AM_VkRenderCoreConstants::MODEL_PATH))
+		throw std::runtime_error(warn + err);
+
+	for (const tinyobj::shape_t& shape : shapes)
+	{
+		for (const tinyobj::index_t& index : shape.mesh.indices)
+		{
+			Vertex vertex{};
+			vertex.myPosition =
+			{
+				attrib.vertices[3 * index.vertex_index + 0],
+				attrib.vertices[3 * index.vertex_index + 1],
+				attrib.vertices[3 * index.vertex_index + 2]
+			};
+			vertex.texCoord =
+			{
+				attrib.texcoords[2 * index.texcoord_index + 0],
+				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+			};
+
+			vertex.myColor = { 1.0f, 1.0f, 1.0f };
+			myVertices.push_back(vertex);
+			myIndices.push_back(static_cast<uint32_t>(myIndices.size()));
+		}
+	}
 }

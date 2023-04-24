@@ -13,13 +13,25 @@ public:
 
 	VkRenderPass GetRenderPass() const { return myRenderPass.myPass; }
 	bool isFrameInProgress() const { return myIsFrameStarted; }
-	inline VkCommandBuffer GetCurrentCommandBuffer() const;
-	inline uint32_t GetFrameIndex() const;
+	inline VkCommandBuffer GetCurrentCommandBuffer() const
+	{
+		assert(myIsFrameStarted && "Cannot get command buffer when frame not in progress");
+		return myCommandBuffers[myCurrentFrame];
+	}
+
+	inline uint32_t GetFrameIndex() const
+	{
+		assert(myIsFrameStarted && "Cannot get frame index when frame not in progress");
+		return myCurrentFrame;
+	}
 
 	VkCommandBuffer BeginFrame();
 	void EndFrame();
 	void BeginRenderPass(VkCommandBuffer commandBuffer);
 	void EndRenderPass(VkCommandBuffer commandBuffer);
+
+	uint32_t GetWidth() const { return mySwapChain.GetWidth(); }
+	uint32_t GetHeight() const { return mySwapChain.GetHeight(); }
 
 private:
 	AM_VkRenderer(const AM_VkRenderer&) = delete;

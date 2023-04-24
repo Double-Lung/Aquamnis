@@ -11,7 +11,6 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
-#include "AM_VkPrimitives.h"
 #include "AM_VkRenderCoreConstants.h"
 #include <vulkan/vulkan.h>
 
@@ -46,6 +45,27 @@ public:
 	void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	void SetupDebugMessenger();
 #endif
+
+	struct AM_VkCommandPool
+	{
+		AM_VkCommandPool()
+			: myPool(nullptr)
+		{
+		}
+
+		~AM_VkCommandPool()
+		{
+			vkDestroyCommandPool(AM_VkContext::device, myPool, nullptr);
+		}
+
+		void CreatePool(const VkCommandPoolCreateInfo& aCreateInfo)
+		{
+			if (vkCreateCommandPool(AM_VkContext::device, &aCreateInfo, nullptr, &myPool) != VK_SUCCESS)
+				throw std::runtime_error("failed to create command pool!");
+		}
+
+		VkCommandPool myPool;
+	};
 
 	VkPhysicalDeviceProperties deviceProperties;
 	VkPhysicalDeviceFeatures deviceFeatures;

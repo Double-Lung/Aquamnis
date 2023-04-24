@@ -239,24 +239,3 @@ struct AM_VkDescriptorPool
 
 	VkDescriptorPool myPool;
 };
-
-struct AM_VkCommandPool
-{
-	AM_VkCommandPool()
-		: myPool(nullptr)
-	{
-	}
-
-	~AM_VkCommandPool()
-	{
-		vkDestroyCommandPool(AM_VkContext::device, myPool, nullptr);
-	}
-	
-	void CreatePool(const VkCommandPoolCreateInfo& aCreateInfo)
-	{
-		if (vkCreateCommandPool(AM_VkContext::device, &aCreateInfo, nullptr, &myPool) != VK_SUCCESS)
-			throw std::runtime_error("failed to create command pool!");
-	}
-
-	VkCommandPool myPool;
-};

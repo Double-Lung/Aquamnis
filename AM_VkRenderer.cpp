@@ -17,26 +17,17 @@ AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_Na
 	, myIsFrameStarted(false)
 {
 	CreateSyncObjects();
+	CreateSwapChain();
 	CreateRenderPass();
-	RecreateSwapChain();
+	CreateColorResources();
+	CreateDepthResources();
+	CreateFramebuffers();
 	CreateReusableCommandBuffers();
 }
 
 AM_VkRenderer::~AM_VkRenderer()
 {
 	FreeCommandBuffers();
-}
-
-VkCommandBuffer AM_VkRenderer::GetCurrentCommandBuffer() const
-{
-	assert(myIsFrameStarted && "Cannot get command buffer when frame not in progress");
-	return myCommandBuffers[myCurrentFrame];
-}
-
-uint32_t AM_VkRenderer::GetFrameIndex() const
-{
-	assert(myIsFrameStarted && "Cannot get frame index when frame not in progress");
-	return myCurrentFrame;
 }
 
 VkCommandBuffer AM_VkRenderer::BeginFrame()
@@ -48,7 +39,7 @@ VkCommandBuffer AM_VkRenderer::BeginFrame()
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
 		RecreateSwapChain();
-		return;
+		return nullptr;
 	}
 
 	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)

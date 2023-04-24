@@ -1,6 +1,10 @@
 #pragma once
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_VkContext.h"
 #include "AM_VkPrimitives.h"
+#include <glm/gtc/matrix_transform.hpp>
 
 class AM_Buffer;
 class AM_Entity;
@@ -11,6 +15,7 @@ public:
 	~AM_SimpleRenderSystem(){}
 
 	void RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::vector<AM_Entity>& someEntites);
+	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout.myLayout; }
 
 private:
 	struct PushConstantData

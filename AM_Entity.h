@@ -55,6 +55,7 @@ public:
 	AM_Buffer* GetVertexBuffer() const { return myVirtualVertexBuffer; }
 	AM_Buffer* GetIndexBuffer() const { return myVirtualIndexBuffer; }
 
+	void LoadModel();
 	void SetVertexData(std::vector<Vertex>&& someVertices) { myVertices = std::move(someVertices); }
 	void SetIndexData(std::vector<uint32_t>&& someIndices) { myIndices = std::move(someIndices); }
 	void SetVertexBuffer(AM_Buffer* aVertexBuffer) { myVirtualVertexBuffer = aVertexBuffer; }
