@@ -41,6 +41,11 @@ AM_VkContext::AM_VkContext()
 
 AM_VkContext::~AM_VkContext()
 {
+	for (auto& commandPool : myCommandPools)
+	{
+		vkDestroyCommandPool(AM_VkContext::device, commandPool.myPool, nullptr);
+	}
+
 	vkDestroyDevice(AM_VkContext::device, nullptr);
 	vkDestroySurfaceKHR(AM_VkContext::instance, AM_VkContext::surface, nullptr);
 #ifdef _DEBUG

@@ -53,10 +53,7 @@ public:
 		{
 		}
 
-		~AM_VkCommandPool()
-		{
-			vkDestroyCommandPool(AM_VkContext::device, myPool, nullptr);
-		}
+		~AM_VkCommandPool(){}
 
 		void CreatePool(const VkCommandPoolCreateInfo& aCreateInfo)
 		{

@@ -33,6 +33,7 @@ AM_VkRenderer::~AM_VkRenderer()
 VkCommandBuffer AM_VkRenderer::BeginFrame()
 {
 	assert(!myIsFrameStarted && "Can't call beginFrame while already in progress");
+	vkWaitForFences(myVkContext.device, 1, &myInFlightFences[myCurrentFrame].myFence, VK_TRUE, UINT64_MAX);
 
 	VkResult result = vkAcquireNextImageKHR(AM_VkContext::device, mySwapChain.GetSwapChain(), UINT64_MAX, myImageAvailableSemaphores[myCurrentFrame].mySemaphore, VK_NULL_HANDLE, &myImageIndex);
 
