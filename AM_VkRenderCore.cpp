@@ -2,6 +2,7 @@
 #include "AM_VkRenderCore.h"
 #include "AM_VkRenderer.h"
 #include "AM_SimpleRenderSystem.h"
+#include "AM_Camera.h"
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -20,6 +21,12 @@ void AM_VkRenderCore::Engage()
 AM_VkRenderCore::AM_VkRenderCore() 
 	: myMipLevels(0)
 {
+}
+
+AM_VkRenderCore::~AM_VkRenderCore()
+{
+	delete myRenderSystem;
+	delete myRenderer;
 }
 
 bool AM_VkRenderCore::CheckExtensionSupport()
@@ -577,12 +584,12 @@ void AM_VkRenderCore::CreateUniformBuffers()
 	myVirtualUniformBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
-void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage)
+void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera)
 {
 	UniformBufferObject ubo{};
-	ubo.model = glm::mat4(1.f);
-	ubo.view = glm::lookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
-	ubo.projection = glm::perspective(0.7854f, (float)(myRenderer->GetWidth()) / (float)(myRenderer->GetHeight()), 0.1f, 100.f);
+	ubo.model = glm::identity<glm::mat4>();
+	ubo.view = aCamera.GetViewMatrix();
+	ubo.projection = aCamera.GetProjectionMatrix();
 
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
 	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
@@ -725,20 +732,28 @@ void AM_VkRenderCore::InitVulkan()
 
 void AM_VkRenderCore::MainLoop()
 {
+	AM_Camera camera;
+	camera.SetPerspectiveProjection(0.7854f, myRenderer->GetAspectRatio(), 0.1f, 100.f);
+	camera.SetLookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	while (!myWindowInstance.ShouldCloseWindow())
 	{
 		glfwPollEvents();
-		//DrawFrame();
-
 		if (auto commandBufer = myRenderer->BeginFrame())
 		{
 			myRenderer->BeginRenderPass(commandBufer);
 
-			UpdateUniformBuffer(myRenderer->GetFrameIndex());
-			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities);
+			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera);
+
+			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 
 			myRenderer->EndRenderPass(commandBufer);
 			myRenderer->EndFrame();
+
+			if (myWindowInstance.ShouldUpdateCamera())
+			{
+				camera.SetPerspectiveProjection(0.7854f, myRenderer->GetAspectRatio(), 0.1f, 100.f);
+				myWindowInstance.ResetCameraUpdateFlag();
+			}
 		}
 	}
 

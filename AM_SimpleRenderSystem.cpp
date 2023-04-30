@@ -1,6 +1,7 @@
 #include "AM_SimpleRenderSystem.h"
 #include "AM_Buffer.h"
 #include "AM_Entity.h"
+#include "AM_Camera.h"
 #include <array>
 #include <chrono>
 #include <fstream>
@@ -15,7 +16,7 @@ AM_SimpleRenderSystem::AM_SimpleRenderSystem(AM_VkContext& aVkContext, VkRenderP
 	CreateGraphicsPipeline(aRenderPass);
 }
 
-void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::vector<AM_Entity>& someEntites)
+void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::vector<AM_Entity>& someEntites, const AM_Camera&/* aCamera*/)
 {
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
 

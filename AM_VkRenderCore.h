@@ -1,4 +1,7 @@
 #pragma once
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_Entity.h"
 #include "AM_NaiveMemoryAllocator.h"
 #include "AM_VkBuffer.h"
@@ -11,13 +14,14 @@
 
 class AM_VkRenderer;
 class AM_SimpleRenderSystem;
+class AM_Camera;
 class AM_VkRenderCore
 {
 public:
 	// Create window and Vulkan instance
 	void Engage();
 	AM_VkRenderCore();
-	~AM_VkRenderCore() = default;
+	~AM_VkRenderCore();
 	
 private:
 	struct UniformBufferObject
@@ -46,7 +50,7 @@ private:
 	void CreateVertexBuffer(AM_Entity& anEntity);
 	void CreateIndexBuffer(AM_Entity& anEntity);
 	void CreateUniformBuffers();
-	void UpdateUniformBuffer(uint32_t currentImage);
+	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera);
 
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
 	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
@@ -84,7 +88,6 @@ private:
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	
 	uint32_t myMipLevels;
-
 	AM_VkRenderer* myRenderer = nullptr;
 	AM_SimpleRenderSystem* myRenderSystem = nullptr;
 };

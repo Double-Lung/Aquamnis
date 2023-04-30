@@ -164,6 +164,7 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AM_Camera.cpp" />
     <ClCompile Include="AM_Entity.cpp" />
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp" />
     <ClCompile Include="AM_SimpleRenderSystem.cpp" />
@@ -177,6 +178,7 @@
     <ClInclude Include="AM_AllocationObject.h" />
     <ClInclude Include="AM_Buffer.h" />
     <ClInclude Include="AM_BufferMemoryBlock.h" />
+    <ClInclude Include="AM_Camera.h" />
     <ClInclude Include="AM_Entity.h" />
     <ClInclude Include="AM_Image.h" />
     <ClInclude Include="AM_ImageMemoryBlock.h" />

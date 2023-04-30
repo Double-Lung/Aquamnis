@@ -32,6 +32,7 @@ public:
 
 	uint32_t GetWidth() const { return mySwapChain.GetWidth(); }
 	uint32_t GetHeight() const { return mySwapChain.GetHeight(); }
+	float GetAspectRatio() const { return mySwapChain.GetExtentRatio(); }
 
 private:
 	AM_VkRenderer(const AM_VkRenderer&) = delete;

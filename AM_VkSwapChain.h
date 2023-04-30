@@ -25,6 +25,7 @@ public:
 	const VkExtent2D& GetExtent() const { return myExtent; }
 	uint32_t GetWidth() const { return myExtent.width; }
 	uint32_t GetHeight() const { return myExtent.height; }
+	float GetExtentRatio() const { return (float)myExtent.width / (float)myExtent.height; }
 
 	void Create(const VkSwapchainCreateInfoKHR& aCreateInfo)
 	{

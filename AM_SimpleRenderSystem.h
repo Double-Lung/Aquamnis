@@ -4,17 +4,18 @@
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_VkContext.h"
 #include "AM_VkPrimitives.h"
-#include <glm/gtc/matrix_transform.hpp>
+#include <glm/glm.hpp>
 
 class AM_Buffer;
 class AM_Entity;
+class AM_Camera;
 class AM_SimpleRenderSystem
 {
 public:
 	AM_SimpleRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass);
 	~AM_SimpleRenderSystem(){}
 
-	void RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::vector<AM_Entity>& someEntites);
+	void RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::vector<AM_Entity>& someEntites, const AM_Camera& aCamera);
 	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout.myLayout; }
 
 private:

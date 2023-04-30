@@ -11,6 +11,7 @@ public:
 	AM_Window()
 		: myWindow(nullptr)
 		, myIsFramebufferResized(false)
+		, myShouldUpdateCamera(false)
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -60,6 +61,8 @@ public:
 
 	bool WasWindowResized() const { return myIsFramebufferResized; }
 	void ResetResizeFlag() { myIsFramebufferResized = false; }
+	bool ShouldUpdateCamera() const { return myShouldUpdateCamera; }
+	void ResetCameraUpdateFlag() { myShouldUpdateCamera = false; }
 
 	void GetFramebufferSize(int& aWidth, int& aHeight)
 	{
@@ -70,8 +73,10 @@ private:
 	{
 		AM_Window* amWindow = reinterpret_cast<AM_Window*>(glfwGetWindowUserPointer(window));
 		amWindow->myIsFramebufferResized = true;
+		amWindow->myShouldUpdateCamera = true;
 	}
 
 	bool myIsFramebufferResized;
+	bool myShouldUpdateCamera;
 	GLFWwindow* myWindow;
 };
