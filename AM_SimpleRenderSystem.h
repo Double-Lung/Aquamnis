@@ -32,7 +32,6 @@ private:
 
 	// temp utils
 	static std::vector<char> ReadFile(const std::string& filename);
-	static float GetElapsedTimeInSeconds();
 
 	// should go into pipeline
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);

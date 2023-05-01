@@ -3,7 +3,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 AM_Camera::AM_Camera()
-	: myProjectionMatrix{1.0f}
+	: myTransformComp{}
+	, myProjectionMatrix{1.0f}
 	, myViewMatrix{1.0f}
 {
 }
@@ -25,23 +26,23 @@ void AM_Camera::SetLookAt(const glm::vec3& anEyePos, const glm::vec3& aTargetPos
 
 void AM_Camera::SetDirection(const glm::vec3& anEyePos, const glm::vec3& aDirection, const glm::vec3& anUpVector)
 {
-	const glm::vec3 w{ glm::normalize(aDirection) };
-	const glm::vec3 u{ glm::normalize(glm::cross(w, anUpVector)) };
-	const glm::vec3 v{ glm::cross(w, u) };
+	const glm::vec3 f{ glm::normalize(aDirection) };
+	const glm::vec3 s{ glm::normalize(glm::cross(f, anUpVector)) };
+	const glm::vec3 u{ glm::cross(s, f) };
 
 	myViewMatrix = glm::mat4{ 1.f };
-	myViewMatrix[0][0] = u.x;
-	myViewMatrix[1][0] = u.y;
-	myViewMatrix[2][0] = u.z;
-	myViewMatrix[0][1] = v.x;
-	myViewMatrix[1][1] = v.y;
-	myViewMatrix[2][1] = v.z;
-	myViewMatrix[0][2] = w.x;
-	myViewMatrix[1][2] = w.y;
-	myViewMatrix[2][2] = w.z;
-	myViewMatrix[3][0] = -glm::dot(u, anEyePos);
-	myViewMatrix[3][1] = -glm::dot(v, anEyePos);
-	myViewMatrix[3][2] = -glm::dot(w, anEyePos);
+	myViewMatrix[0][0] = s.x;
+	myViewMatrix[1][0] = s.y;
+	myViewMatrix[2][0] = s.z;
+	myViewMatrix[0][1] = u.x;
+	myViewMatrix[1][1] = u.y;
+	myViewMatrix[2][1] = u.z;
+	myViewMatrix[0][2] = -f.x;
+	myViewMatrix[1][2] = -f.y;
+	myViewMatrix[2][2] = -f.z;
+	myViewMatrix[3][0] = -glm::dot(s, anEyePos);
+	myViewMatrix[3][1] = -glm::dot(u, anEyePos);
+	myViewMatrix[3][2] = glm::dot(f, anEyePos);
 }
 
 void AM_Camera::SetRotation(const glm::vec3& anEyePos, const glm::vec3& aRotation)
@@ -52,20 +53,20 @@ void AM_Camera::SetRotation(const glm::vec3& anEyePos, const glm::vec3& aRotatio
 	const float s2 = glm::sin(aRotation.x);
 	const float c1 = glm::cos(aRotation.y);
 	const float s1 = glm::sin(aRotation.y);
-	const glm::vec3 u{ (c1 * c3 + s1 * s2 * s3), (c2 * s3), (c1 * s2 * s3 - c3 * s1) };
-	const glm::vec3 v{ (c3 * s1 * s2 - c1 * s3), (c2 * c3), (c1 * c3 * s2 + s1 * s3) };
-	const glm::vec3 w{ (c2 * s1), (-s2), (c1 * c2) };
+	const glm::vec3 s{ (c1 * c3 + s1 * s2 * s3), (c2 * s3), (c1 * s2 * s3 - c3 * s1) };
+	const glm::vec3 u{ (c3 * s1 * s2 - c1 * s3), (c2 * c3), (c1 * c3 * s2 + s1 * s3) };
+	const glm::vec3 f{ (c2 * s1), (-s2), (c1 * c2) };
 	myViewMatrix = glm::mat4{ 1.f };
-	myViewMatrix[0][0] = u.x;
-	myViewMatrix[1][0] = u.y;
-	myViewMatrix[2][0] = u.z;
-	myViewMatrix[0][1] = v.x;
-	myViewMatrix[1][1] = v.y;
-	myViewMatrix[2][1] = v.z;
-	myViewMatrix[0][2] = w.x;
-	myViewMatrix[1][2] = w.y;
-	myViewMatrix[2][2] = w.z;
-	myViewMatrix[3][0] = -glm::dot(u, anEyePos);
-	myViewMatrix[3][1] = -glm::dot(v, anEyePos);
-	myViewMatrix[3][2] = -glm::dot(w, anEyePos);
+	myViewMatrix[0][0] = s.x;
+	myViewMatrix[1][0] = s.y;
+	myViewMatrix[2][0] = s.z;
+	myViewMatrix[0][1] = u.x;
+	myViewMatrix[1][1] = u.y;
+	myViewMatrix[2][1] = u.z;
+	myViewMatrix[0][2] = f.x;
+	myViewMatrix[1][2] = f.y;
+	myViewMatrix[2][2] = f.z;
+	myViewMatrix[3][0] = -glm::dot(s, anEyePos);
+	myViewMatrix[3][1] = -glm::dot(u, anEyePos);
+	myViewMatrix[3][2] = -glm::dot(f, anEyePos);
 }

@@ -2,6 +2,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#include "AM_Entity.h"
 #include <glm/glm.hpp>
 
 class AM_Camera
@@ -19,8 +20,11 @@ public:
 	const glm::mat4& GetProjectionMatrix() const { return myProjectionMatrix; }
 	const glm::mat4& GetViewMatrix() const { return myViewMatrix; }
 
+	TransformComponent myTransformComp;
+
 private:
 	glm::mat4 myProjectionMatrix;
 	glm::mat4 myViewMatrix;
+
 };
 

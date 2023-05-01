@@ -2,8 +2,8 @@
 #include "AM_Buffer.h"
 #include "AM_Entity.h"
 #include "AM_Camera.h"
+#include "AM_SimpleTimer.h"
 #include <array>
-#include <chrono>
 #include <fstream>
 
 AM_SimpleRenderSystem::AM_SimpleRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
@@ -21,7 +21,7 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
 
 	PushConstantData push;
-	const float time = GetElapsedTimeInSeconds();
+	const float time = AM_SimpleTimer::GetInstance().GetTimeElapsed();
 	for (auto& entity : someEntites)
 	{
 		AM_Buffer* vertexBuffer = entity.GetVertexBuffer();
@@ -34,7 +34,7 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 		vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 
 		push.offset = entity.GetTransformComponent().myTranslation;
-		push.transform = glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f));
+		push.transform = glm::mat4{ 1.f };//glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f));
 		vkCmdPushConstants(aCommandBuffer, myPipelineLayout.myLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
 		vkCmdDrawIndexed(aCommandBuffer, static_cast<uint32_t>(entity.GetIndices().size()), 1, 0, 0, 0);
 	}
@@ -208,13 +208,6 @@ std::vector<char> AM_SimpleRenderSystem::ReadFile(const std::string& filename)
 	file.close();
 
 	return buffer;
-}
-
-float AM_SimpleRenderSystem::GetElapsedTimeInSeconds()
-{
-	static auto startTime = std::chrono::high_resolution_clock::now();
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	return std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 }
 
 VkShaderModule AM_SimpleRenderSystem::CreateShaderModule(const std::vector<char>& code)

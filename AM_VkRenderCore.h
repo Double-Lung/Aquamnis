@@ -68,6 +68,8 @@ private:
 	void InitVulkan();
 	void MainLoop();
 
+	void UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera);
+
 	AM_Window myWindowInstance;
 	AM_VkContext myVkContext;
 	AM_NaiveMemoryAllocator myMemoryAllocator;

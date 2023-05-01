@@ -3,7 +3,7 @@
 #include "AM_VkRenderer.h"
 #include "AM_SimpleRenderSystem.h"
 #include "AM_Camera.h"
-#include <chrono>
+#include "AM_SimpleTimer.h"
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -733,15 +733,19 @@ void AM_VkRenderCore::InitVulkan()
 void AM_VkRenderCore::MainLoop()
 {
 	AM_Camera camera;
+	camera.myTransformComp.myTranslation = { 0.f, 15.f, 35.f };
+	camera.myTransformComp.myRotation = { 0.f, 0.f, 0.f };
 	camera.SetPerspectiveProjection(0.7854f, myRenderer->GetAspectRatio(), 0.1f, 100.f);
-	camera.SetLookAt(glm::vec3(35.f, 25.f, 35.f), glm::vec3(0.f, 5.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	camera.SetRotation(camera.myTransformComp.myTranslation, camera.myTransformComp.myRotation);
+
 	while (!myWindowInstance.ShouldCloseWindow())
 	{
 		glfwPollEvents();
+		float deltaTime = AM_SimpleTimer::GetInstance().GetDeltaTime();
 		if (auto commandBufer = myRenderer->BeginFrame())
 		{
 			myRenderer->BeginRenderPass(commandBufer);
-
+			UpdateCameraTransform(deltaTime, camera);
 			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera);
 
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
@@ -758,5 +762,80 @@ void AM_VkRenderCore::MainLoop()
 	}
 
 	vkDeviceWaitIdle(AM_VkContext::device);
+}
+
+void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera)
+{
+	bool rotationChanged = false;
+	glm::vec3 rotation{ 0.f };
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_LEFT) == GLFW_PRESS)
+	{
+		rotationChanged = true;
+		rotation.y += 1.f;
+	}
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_RIGHT) == GLFW_PRESS)
+	{
+		rotationChanged = true;
+		rotation.y -= 1.f;
+	}
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_UP) == GLFW_PRESS)
+	{
+		rotationChanged = true;
+		rotation.x += 1.f;
+	}
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_DOWN) == GLFW_PRESS)
+	{
+		rotationChanged = true;
+		rotation.x -= 1.f;
+	}
+	if (rotationChanged)
+		aCamera.myTransformComp.myRotation += 1.5f * aDeltaTime * glm::normalize(rotation);
+
+	aCamera.myTransformComp.myRotation.x = glm::clamp(aCamera.myTransformComp.myRotation.x, -1.5f, 1.5f);
+	aCamera.myTransformComp.myRotation.y = glm::mod(aCamera.myTransformComp.myRotation.y, glm::two_pi<float>());
+
+	const float yaw = aCamera.myTransformComp.myRotation.y;
+	glm::vec3 forwardDir{ -sin(yaw), 0.f, -cos(yaw) }; // camera is facing -z axis by default
+	glm::vec3 rightDir{ -forwardDir.z, 0.f, forwardDir.x };
+	glm::vec3 upDir{ 0.f, 1.f, 0.f };
+
+ 	bool translateChanged = false;
+	glm::vec3 translate{ 0.f };
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_A) == GLFW_PRESS)
+	{
+		translateChanged = true;
+		translate -= rightDir;
+	}
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_D) == GLFW_PRESS)
+	{
+		translateChanged = true;
+		translate += rightDir;
+	}
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_W) == GLFW_PRESS)
+	{
+		translateChanged = true;
+		translate += forwardDir;
+	}
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_S) == GLFW_PRESS)
+	{
+		translateChanged = true;
+		translate -= forwardDir;
+	}
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_Q) == GLFW_PRESS)
+	{
+		translateChanged = true;
+		translate += upDir;
+	}
+	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_E) == GLFW_PRESS)
+	{
+		translateChanged = true;
+		translate -= upDir;
+	}
+
+	if (translateChanged)
+		aCamera.myTransformComp.myTranslation += 5.f * aDeltaTime * glm::normalize(translate);
+
+	if (translateChanged || rotationChanged)
+		aCamera.SetRotation(aCamera.myTransformComp.myTranslation, aCamera.myTransformComp.myRotation);
 }
 
