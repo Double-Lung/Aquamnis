@@ -2,7 +2,9 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -10,11 +12,34 @@ struct Vertex
 {
 	glm::vec3 myPosition;
 	glm::vec3 myColor;
+	glm::vec3 myNormal;
 	glm::vec2 texCoord;
 
 	static VkVertexInputBindingDescription GetBindingDescription();
 	static std::array<VkVertexInputAttributeDescription, 3> GetAttributeDescriptions();
+
+	bool operator==(const Vertex& aVertex) const
+	{
+		return myPosition == aVertex.myPosition &&
+			myColor == aVertex.myColor &&
+			myNormal == aVertex.myNormal &&
+			texCoord == aVertex.texCoord;
+	}
 };
+
+namespace std
+{
+	template<> struct hash<Vertex>
+	{
+		size_t operator()(Vertex const& aVertex) const
+		{
+			return ((hash<glm::vec3>()(aVertex.myPosition) ^
+				(hash<glm::vec3>()(aVertex.myColor) << 1)) >> 1) ^
+				(hash<glm::vec3>()(aVertex.myNormal) << 1) ^
+				(hash<glm::vec2>()(aVertex.texCoord) << 1);
+		}
+	};
+}
 
 struct TransformComponent
 {

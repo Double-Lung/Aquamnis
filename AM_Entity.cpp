@@ -4,6 +4,7 @@
 #include <array>
 #include <stdexcept>
 #include <tiny_obj_loader.h>
+#include <unordered_map>
 
 VkVertexInputBindingDescription Vertex::GetBindingDescription()
 {
@@ -46,6 +47,7 @@ void AM_Entity::LoadModel()
 	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, AM_VkRenderCoreConstants::MODEL_PATH))
 		throw std::runtime_error(warn + err);
 
+	std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 	for (const tinyobj::shape_t& shape : shapes)
 	{
 		for (const tinyobj::index_t& index : shape.mesh.indices)
@@ -57,15 +59,26 @@ void AM_Entity::LoadModel()
 				attrib.vertices[3 * index.vertex_index + 1],
 				attrib.vertices[3 * index.vertex_index + 2]
 			};
+			vertex.myNormal =
+			{
+				attrib.normals[3 * index.vertex_index + 0],
+				attrib.normals[3 * index.vertex_index + 1],
+				attrib.normals[3 * index.vertex_index + 2]
+			};
 			vertex.texCoord =
 			{
 				attrib.texcoords[2 * index.texcoord_index + 0],
-				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+				1.f - attrib.texcoords[2 * index.texcoord_index + 1] // vulkan uv
 			};
-
 			vertex.myColor = { 1.0f, 1.0f, 1.0f };
-			myVertices.push_back(vertex);
-			myIndices.push_back(static_cast<uint32_t>(myIndices.size()));
+
+			if (uniqueVertices.count(vertex) == 0)
+			{
+				uniqueVertices[vertex] = static_cast<uint32_t>(myVertices.size());
+				myVertices.push_back(vertex);
+			}
+
+			myIndices.push_back(uniqueVertices[vertex]);
 		}
 	}
 }
