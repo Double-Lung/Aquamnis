@@ -15,9 +15,9 @@ VkVertexInputBindingDescription Vertex::GetBindingDescription()
 	return bindingDescription;
 }
 
-std::array<VkVertexInputAttributeDescription, 3> Vertex::GetAttributeDescriptions()
+std::array<VkVertexInputAttributeDescription, 4> Vertex::GetAttributeDescriptions()
 {
-	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+	std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
 
 	attributeDescriptions[0].binding = 0;
 	attributeDescriptions[0].location = 0;
@@ -31,8 +31,13 @@ std::array<VkVertexInputAttributeDescription, 3> Vertex::GetAttributeDescription
 
 	attributeDescriptions[2].binding = 0;
 	attributeDescriptions[2].location = 2;
-	attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-	attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+	attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[2].offset = offsetof(Vertex, myNormal);
+
+	attributeDescriptions[3].binding = 0;
+	attributeDescriptions[3].location = 3;
+	attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
+	attributeDescriptions[3].offset = offsetof(Vertex, texCoord);
 
 	return attributeDescriptions;
 }
@@ -81,4 +86,76 @@ void AM_Entity::LoadModel()
 			myIndices.push_back(uniqueVertices[vertex]);
 		}
 	}
+}
+
+glm::mat4 TransformComponent::GetNormalMatrix()
+{
+	const float c3 = glm::cos(myRotation.z);
+	const float s3 = glm::sin(myRotation.z);
+	const float c2 = glm::cos(myRotation.x);
+	const float s2 = glm::sin(myRotation.x);
+	const float c1 = glm::cos(myRotation.y);
+	const float s1 = glm::sin(myRotation.y);
+	const glm::vec3 invScale = 1.f / myScale;
+	return glm::mat4
+	{
+		{
+			invScale.x * (c1 * c3 + s1 * s2 * s3),
+			invScale.x * (c2 * s3),
+			invScale.x * (c1 * s2 * s3 - c3 * s1),
+			0.f
+		},
+		{
+			invScale.y * (c3 * s1 * s2 - c1 * s3),
+			invScale.y * (c2 * c3),
+			invScale.y * (c1 * c3 * s2 + s1 * s3),
+			0.f
+		},
+		{
+			invScale.z * (c2 * s1),
+			invScale.z * (-s2),
+			invScale.z * (c1 * c2),
+			0.f
+		},
+		{
+			0.f,0.f,0.f,1.f
+		}
+	};
+}
+
+glm::mat4 TransformComponent::GetMatrix()
+{
+	const float c3 = glm::cos(myRotation.z);
+	const float s3 = glm::sin(myRotation.z);
+	const float c2 = glm::cos(myRotation.x);
+	const float s2 = glm::sin(myRotation.x);
+	const float c1 = glm::cos(myRotation.y);
+	const float s1 = glm::sin(myRotation.y);
+	return glm::mat4
+	{
+		{
+			myScale.x * (c1 * c3 + s1 * s2 * s3),
+			myScale.x * (c2 * s3),
+			myScale.x * (c1 * s2 * s3 - c3 * s1),
+			0.0f,
+		},
+		{
+			myScale.y * (c3 * s1 * s2 - c1 * s3),
+			myScale.y * (c2 * c3),
+			myScale.y * (c1 * c3 * s2 + s1 * s3),
+			0.0f,
+		},
+		{
+			myScale.z * (c2 * s1),
+			myScale.z * (-s2),
+			myScale.z * (c1 * c2),
+			0.0f,
+		},
+		{
+			myTranslation.x,
+			myTranslation.y,
+			myTranslation.z,
+			1.0f
+		}
+	};
 }

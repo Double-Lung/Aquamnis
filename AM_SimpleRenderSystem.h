@@ -21,7 +21,7 @@ public:
 private:
 	struct PushConstantData
 	{
-		glm::vec3 offset;
+		glm::mat4 normalMat;
 		glm::mat4 transform;
 	};
 

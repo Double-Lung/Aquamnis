@@ -33,7 +33,7 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 		vkCmdBindIndexBuffer(aCommandBuffer, indexBuffer->myBuffer, indexBuffer->GetOffset(), VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 
-		push.offset = entity.GetTransformComponent().myTranslation;
+		push.normalMat = entity.GetTransformComponent().GetNormalMatrix();
 		push.transform = glm::mat4{ 1.f };//glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f));
 		vkCmdPushConstants(aCommandBuffer, myPipelineLayout.myLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
 		vkCmdDrawIndexed(aCommandBuffer, static_cast<uint32_t>(entity.GetIndices().size()), 1, 0, 0, 0);
