@@ -176,28 +176,6 @@ struct AM_VkImageView
 	VkImageView myView;
 };
 
-struct AM_VkDescriptorSetLayout
-{
-	AM_VkDescriptorSetLayout()
-		: myLayout(nullptr)
-	{
-	}
-
-	~AM_VkDescriptorSetLayout()
-	{
-		vkDestroyDescriptorSetLayout(AM_VkContext::device, myLayout, nullptr);
-	}
-
-	void CreateLayout(const VkDescriptorSetLayoutCreateInfo& aCreateInfo)
-	{
-		if (vkCreateDescriptorSetLayout(AM_VkContext::device, &aCreateInfo, nullptr, &myLayout) != VK_SUCCESS)
-			throw std::runtime_error("failed to create descriptor set layout!");
-	}
-
-	VkDescriptorSetLayout myLayout;
-};
-
-
 struct AM_VkRenderPass
 {
 	AM_VkRenderPass()
@@ -217,25 +195,4 @@ struct AM_VkRenderPass
 	}
 
 	VkRenderPass myPass;
-};
-
-struct AM_VkDescriptorPool
-{
-	AM_VkDescriptorPool()
-		: myPool(nullptr)
-	{
-	}
-
-	~AM_VkDescriptorPool()
-	{
-		vkDestroyDescriptorPool(AM_VkContext::device, myPool, nullptr);
-	}
-
-	void CreateDescriptorPool(const VkDescriptorPoolCreateInfo& aCreateInfo)
-	{
-		if (vkCreateDescriptorPool(AM_VkContext::device, &aCreateInfo, nullptr, &myPool) != VK_SUCCESS)
-			throw std::runtime_error("failed to create descriptor pool!");
-	}
-
-	VkDescriptorPool myPool;
 };

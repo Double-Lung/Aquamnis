@@ -8,6 +8,7 @@
 #include "AM_VkImage.h"
 #include "AM_VkSwapChain.h"
 #include "AM_Window.h"
+#include "AM_VkDescriptorUtils.h"
 #include <array>
 #include <glm/glm.hpp>
 #include <string>

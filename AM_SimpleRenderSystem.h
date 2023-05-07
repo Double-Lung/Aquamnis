@@ -4,6 +4,7 @@
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_VkContext.h"
 #include "AM_VkPrimitives.h"
+#include "AM_VkDescriptorUtils.h"
 #include <glm/glm.hpp>
 
 class AM_Buffer;
@@ -16,7 +17,9 @@ public:
 	~AM_SimpleRenderSystem(){}
 
 	void RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::vector<AM_Entity>& someEntites, const AM_Camera& aCamera);
-	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout.myLayout; }
+	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout.GetDescriptorSetLayout(); }
+	VkDescriptorSetLayout& GetDescriptorSetLayout() { return myDescriptorSetLayout.GetDescriptorSetLayout(); }
+	AM_VkDescriptorSetLayout& GetDescriptorSetLayoutWrapper() { return myDescriptorSetLayout; }
 
 private:
 	struct PushConstantData

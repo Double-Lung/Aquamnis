@@ -7,10 +7,10 @@
 #include <fstream>
 
 AM_SimpleRenderSystem::AM_SimpleRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
-	: myVkContext(aVkContext)
+	: myVkContext{aVkContext}
 	, myGraphicsPipeline{}
 	, myPipelineLayout{}
-	, myDescriptorSetLayout{}
+	, myDescriptorSetLayout{aVkContext}
 {
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline(aRenderPass);
@@ -22,6 +22,8 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 
 	PushConstantData push;
 	const float time = AM_SimpleTimer::GetInstance().GetTimeElapsed();
+
+	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 	for (auto& entity : someEntites)
 	{
 		AM_Buffer* vertexBuffer = entity.GetVertexBuffer();
@@ -31,7 +33,6 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 		VkDeviceSize sizes[] = { vertexBuffer->GetSize() };
 		vkCmdBindVertexBuffers2(aCommandBuffer, 0, 1, vertexBuffers, offsets, sizes, nullptr);
 		vkCmdBindIndexBuffer(aCommandBuffer, indexBuffer->myBuffer, indexBuffer->GetOffset(), VK_INDEX_TYPE_UINT32);
-		vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 
 		push.normalMat = entity.GetTransformComponent().GetNormalMatrix();
 		push.transform = glm::mat4{ 1.f };//glm::rotate(glm::mat4(1.f), time * 1.5708f * 0.6667f, glm::vec3(0.f, 1.f, 0.f));
@@ -152,7 +153,7 @@ void AM_SimpleRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional
-	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.myLayout; // Optional
+	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.GetDescriptorSetLayout();
 	pipelineLayoutInfo.pushConstantRangeCount = 1; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
 
@@ -226,25 +227,7 @@ VkShaderModule AM_SimpleRenderSystem::CreateShaderModule(const std::vector<char>
 
 void AM_SimpleRenderSystem::CreateDescriptorSetLayout()
 {
-	VkDescriptorSetLayoutBinding uniformBufferObjectLayoutBinding{};
-	uniformBufferObjectLayoutBinding.binding = 0;
-	uniformBufferObjectLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uniformBufferObjectLayoutBinding.descriptorCount = 1;
-	uniformBufferObjectLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	uniformBufferObjectLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-	samplerLayoutBinding.binding = 1;
-	samplerLayoutBinding.descriptorCount = 1;
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBinding.pImmutableSamplers = nullptr;
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uniformBufferObjectLayoutBinding, samplerLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo layoutInfo{};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-	layoutInfo.pBindings = bindings.data();
-
-	myDescriptorSetLayout.CreateLayout(layoutInfo);
+	myDescriptorSetLayout.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 1);
+	myDescriptorSetLayout.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+	myDescriptorSetLayout.CreateLayout();
 }

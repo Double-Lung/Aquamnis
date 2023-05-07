@@ -169,6 +169,7 @@
     <ClCompile Include="AM_NaiveMemoryAllocator.cpp" />
     <ClCompile Include="AM_SimpleRenderSystem.cpp" />
     <ClCompile Include="AM_SimpleTimer.cpp" />
+    <ClCompile Include="AM_VkDescriptorUtils.cpp" />
     <ClCompile Include="AM_VkRenderer.cpp" />
     <ClCompile Include="extensionProxy.cpp" />
     <ClCompile Include="main.cpp" />
@@ -187,6 +188,7 @@
     <ClInclude Include="AM_SimpleRenderSystem.h" />
     <ClInclude Include="AM_SimpleTimer.h" />
     <ClInclude Include="AM_VkBuffer.h" />
+    <ClInclude Include="AM_VkDescriptorUtils.h" />
     <ClInclude Include="AM_VkImage.h" />
     <ClInclude Include="AM_SimpleMemoryBlock.h" />
     <ClInclude Include="AM_VkPrimitives.h" />

@@ -35,6 +35,7 @@
     <ClCompile Include="AM_SimpleRenderSystem.cpp" />
     <ClCompile Include="AM_Camera.cpp" />
     <ClCompile Include="AM_SimpleTimer.cpp" />
+    <ClCompile Include="AM_VkDescriptorUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationConstants.h">
@@ -93,6 +94,7 @@
     <ClInclude Include="AM_SimpleRenderSystem.h" />
     <ClInclude Include="AM_Camera.h" />
     <ClInclude Include="AM_SimpleTimer.h" />
+    <ClInclude Include="AM_VkDescriptorUtils.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader.frag">
