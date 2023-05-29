@@ -30,6 +30,9 @@ private:
 		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 projection;
+		glm::vec4 ambientColor;
+		glm::vec4 lightColor;
+		glm::vec3 lightPosition;
 	};
 
 	bool CheckExtensionSupport();

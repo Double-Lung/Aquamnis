@@ -563,6 +563,9 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 	ubo.model = glm::identity<glm::mat4>();
 	ubo.view = aCamera.GetViewMatrix();
 	ubo.projection = aCamera.GetProjectionMatrix();
+	ubo.ambientColor = { 1.f, 1.f, 1.f, 0.02f };
+	ubo.lightColor = { 1.f, 0.f, 0.f, 1.f };
+	ubo.lightPosition = { 0.f, 20.f, 0.f };
 
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
 	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
