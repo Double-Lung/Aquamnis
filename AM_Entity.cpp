@@ -42,14 +42,14 @@ std::array<VkVertexInputAttributeDescription, 4> Vertex::GetAttributeDescription
 	return attributeDescriptions;
 }
 
-void AM_Entity::LoadModel()
+void AM_Entity::LoadModel(const char* aFilePath)
 {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, AM_VkRenderCoreConstants::MODEL_PATH))
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, aFilePath))
 		throw std::runtime_error(warn + err);
 
 	std::unordered_map<Vertex, uint32_t> uniqueVertices{};
@@ -66,9 +66,9 @@ void AM_Entity::LoadModel()
 			};
 			vertex.myNormal =
 			{
-				attrib.normals[3 * index.vertex_index + 0],
-				attrib.normals[3 * index.vertex_index + 1],
-				attrib.normals[3 * index.vertex_index + 2]
+				attrib.normals[3 * index.normal_index + 0],
+				attrib.normals[3 * index.normal_index + 1],
+				attrib.normals[3 * index.normal_index + 2]
 			};
 			vertex.texCoord =
 			{

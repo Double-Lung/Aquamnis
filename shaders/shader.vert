@@ -18,7 +18,6 @@ uniform Push
 layout(set = 0, binding = 0) 
 uniform UniformBufferObject 
 {
-    mat4 model;
     mat4 view;
     mat4 proj;
     vec4 ambientColor;
@@ -27,23 +26,20 @@ uniform UniformBufferObject
 } ubo;
 
 const vec3 DIRECTION_TO_LIGHT = normalize(vec3(1.0, 1.0, 1.0));
-const float AMBIENT = 0.05;
 
 void main() 
 {
-    vec4 pointLightPosWorld = push.transform * vec4(inPosition, 1.0);
-    gl_Position = ubo.proj * ubo.view * pointLightPosWorld;
+    vec4 worldPosition = push.transform * vec4(inPosition, 1.0);
+    gl_Position = ubo.proj * ubo.view * worldPosition;
     vec3 normal = normalize(mat3(push.normalMat) * inNormal);
 
-    vec3 dirToPointLight = ubo.lightPosition - pointLightPosWorld.xyz;
+    vec3 dirToPointLight = ubo.lightPosition - worldPosition.xyz;
     float ligthFallOff = 1.0 / dot(dirToPointLight,dirToPointLight);
     vec3 pointLightColor = ubo.lightColor.xyz * ubo.lightColor.w * ligthFallOff;
     vec3 ambientLight = ubo.ambientColor.xyz * ubo.ambientColor.w;
+    float directLight = max(dot(normal, DIRECTION_TO_LIGHT), 0.0);
     vec3 diffuseLight = pointLightColor * max(dot(normal, normalize(dirToPointLight)), 0) + ambientLight;
 
-
-    //float lightIntensity = max(dot(normal, DIRECTION_TO_LIGHT), AMBIENT);
-
-    fragColor = inColor * diffuseLight;
+    fragColor = diffuseLight + directLight;
     fragTexCoord = inTexCoord;
 }

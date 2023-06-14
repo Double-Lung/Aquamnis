@@ -560,11 +560,10 @@ void AM_VkRenderCore::CreateUniformBuffers()
 void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera)
 {
 	UniformBufferObject ubo{};
-	ubo.model = glm::identity<glm::mat4>();
 	ubo.view = aCamera.GetViewMatrix();
 	ubo.projection = aCamera.GetProjectionMatrix();
 	ubo.ambientColor = { 1.f, 1.f, 1.f, 0.02f };
-	ubo.lightColor = { 1.f, 0.f, 0.f, 1.f };
+	ubo.lightColor = { 0.f, 0.2f, 1.f, 1.f };
 	ubo.lightPosition = { 0.f, 20.f, 0.f };
 
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
@@ -645,13 +644,32 @@ void AM_VkRenderCore::CreateSyncObjects()
 
 void AM_VkRenderCore::LoadEntities()
 {
-	AM_Entity tempEntity = AM_Entity::CreateEntity();
-	auto& transform = tempEntity.GetTransformComponent();
-	transform.myTranslation = { 0.f, 0.f, 0.f };
-	tempEntity.LoadModel();
-	CreateVertexBuffer(tempEntity);
-	CreateIndexBuffer(tempEntity);
-	myEntities.push_back(std::move(tempEntity));
+ 	AM_Entity vikingRoomEntity = AM_Entity::CreateEntity();
+ 	auto& transform1 = vikingRoomEntity.GetTransformComponent();
+ 	transform1.myTranslation = { 12.f, 0.f, 0.f };
+ 	vikingRoomEntity.LoadModel(AM_VkRenderCoreConstants::MODEL_PATH);
+ 	CreateVertexBuffer(vikingRoomEntity);
+ 	CreateIndexBuffer(vikingRoomEntity);
+ 	myEntities.push_back(std::move(vikingRoomEntity));
+
+	AM_Entity vaseEntity = AM_Entity::CreateEntity();
+	auto& transform2 = vaseEntity.GetTransformComponent();
+	transform2.myTranslation = { -8.f, 0.f, 0.f };
+	transform2.myRotation = { 3.14159f, 0.f, 0.f};
+	transform2.myScale = { 20.f, 20.f, 20.f };
+	vaseEntity.LoadModel("models/smooth_vase.obj");
+	CreateVertexBuffer(vaseEntity);
+	CreateIndexBuffer(vaseEntity);
+	myEntities.push_back(std::move(vaseEntity));
+
+	AM_Entity quadEntity = AM_Entity::CreateEntity();
+	auto& transform3 = quadEntity.GetTransformComponent();
+	transform3.myTranslation = { 0.f, -1.f, 0.f };
+	transform3.myScale = { 42.f, 1.f, 42.f };
+	quadEntity.LoadModel("models/quad.obj");
+	CreateVertexBuffer(quadEntity);
+	CreateIndexBuffer(quadEntity);
+	myEntities.push_back(std::move(quadEntity));
 }
 
 void AM_VkRenderCore::CreateTextureSampler()
