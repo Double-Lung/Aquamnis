@@ -105,3 +105,4 @@ void AM_VkDescriptorSetWriter::Update(VkDescriptorSet& aDescriptorSet)
 	}
 	vkUpdateDescriptorSets(myPool.myVkContext.device, static_cast<uint32_t>(myWrites.size()), myWrites.data(), 0, nullptr);
 }
+

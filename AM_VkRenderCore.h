@@ -86,7 +86,7 @@ private:
 	AM_VkImageView myTextureImageView;
 	AM_VkSampler myTextureSampler;
 
-	std::vector<AM_Entity> myEntities;
+	std::unordered_map<uint64_t, AM_Entity> myEntities;
 
 	AM_Buffer* myVirtualUniformBuffer = nullptr;
 

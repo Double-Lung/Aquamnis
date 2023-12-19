@@ -7,6 +7,8 @@ layout(location = 3) in vec2 inTexCoord;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
+layout(location = 2) out vec3 fragPosWorld;
+layout(location = 3) out vec3 fragNormalWorld;
 
 layout(push_constant)
 uniform Push
@@ -25,21 +27,23 @@ uniform UniformBufferObject
     vec3 lightPosition;
 } ubo;
 
-const vec3 DIRECTION_TO_LIGHT = normalize(vec3(1.0, 1.0, 1.0));
-
 void main() 
 {
     vec4 worldPosition = push.transform * vec4(inPosition, 1.0);
     gl_Position = ubo.proj * ubo.view * worldPosition;
-    vec3 normal = normalize(mat3(push.normalMat) * inNormal);
 
-    vec3 dirToPointLight = ubo.lightPosition - worldPosition.xyz;
-    float ligthFallOff = 1.0 / dot(dirToPointLight,dirToPointLight);
-    vec3 pointLightColor = ubo.lightColor.xyz * ubo.lightColor.w * ligthFallOff;
-    vec3 ambientLight = ubo.ambientColor.xyz * ubo.ambientColor.w;
-    float directLight = max(dot(normal, DIRECTION_TO_LIGHT), 0.0);
-    vec3 diffuseLight = pointLightColor * max(dot(normal, normalize(dirToPointLight)), 0) + ambientLight;
-
-    fragColor = diffuseLight + directLight;
+    fragNormalWorld = normalize(mat3(push.normalMat) * inNormal);
+    fragPosWorld = worldPosition.xyz;
+    fragColor = inColor;
     fragTexCoord = inTexCoord;
+
+ //   vec3 dirToPointLight = ubo.lightPosition - worldPosition.xyz;
+  //  float ligthFallOff = 1.0 / dot(dirToPointLight,dirToPointLight);
+  //  vec3 pointLightColor = ubo.lightColor.xyz * ubo.lightColor.w * ligthFallOff;
+ //   vec3 ambientLight = ubo.ambientColor.xyz * ubo.ambientColor.w;
+ //   float directLight = max(dot(normal, DIRECTION_TO_LIGHT), 0.0);
+ //   vec3 diffuseLight = pointLightColor * max(dot(normal, normalize(dirToPointLight)), 0) + ambientLight;
+
+ //   fragColor = diffuseLight + directLight;
+    
 }

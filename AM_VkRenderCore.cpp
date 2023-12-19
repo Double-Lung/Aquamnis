@@ -562,9 +562,9 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 	UniformBufferObject ubo{};
 	ubo.view = aCamera.GetViewMatrix();
 	ubo.projection = aCamera.GetProjectionMatrix();
-	ubo.ambientColor = { 1.f, 1.f, 1.f, 0.02f };
-	ubo.lightColor = { 0.f, 0.2f, 1.f, 1.f };
-	ubo.lightPosition = { 0.f, 20.f, 0.f };
+	ubo.ambientColor = { 1.f, 1.f, 1.f, 0.03f };
+	ubo.lightColor = { 1.f, 0.2f, 0.f, 1.f };
+	ubo.lightPosition = { -8.f, 1.f, 0.f };
 
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
 	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
@@ -650,7 +650,7 @@ void AM_VkRenderCore::LoadEntities()
  	vikingRoomEntity.LoadModel(AM_VkRenderCoreConstants::MODEL_PATH);
  	CreateVertexBuffer(vikingRoomEntity);
  	CreateIndexBuffer(vikingRoomEntity);
- 	myEntities.push_back(std::move(vikingRoomEntity));
+	myEntities.emplace(vikingRoomEntity.GetId(), std::move(vikingRoomEntity));
 
 	AM_Entity vaseEntity = AM_Entity::CreateEntity();
 	auto& transform2 = vaseEntity.GetTransformComponent();
@@ -660,7 +660,7 @@ void AM_VkRenderCore::LoadEntities()
 	vaseEntity.LoadModel("models/smooth_vase.obj");
 	CreateVertexBuffer(vaseEntity);
 	CreateIndexBuffer(vaseEntity);
-	myEntities.push_back(std::move(vaseEntity));
+	myEntities.emplace(vaseEntity.GetId(), std::move(vaseEntity));
 
 	AM_Entity quadEntity = AM_Entity::CreateEntity();
 	auto& transform3 = quadEntity.GetTransformComponent();
@@ -669,7 +669,7 @@ void AM_VkRenderCore::LoadEntities()
 	quadEntity.LoadModel("models/quad.obj");
 	CreateVertexBuffer(quadEntity);
 	CreateIndexBuffer(quadEntity);
-	myEntities.push_back(std::move(quadEntity));
+	myEntities.emplace(quadEntity.GetId(), std::move(quadEntity));
 }
 
 void AM_VkRenderCore::CreateTextureSampler()
@@ -767,7 +767,7 @@ void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera
 		rotationChanged = true;
 		rotation.y += 1.f;
 	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_RIGHT) == GLFW_PRESS)
+	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_RIGHT) == GLFW_PRESS)
 	{
 		rotationChanged = true;
 		rotation.y -= 1.f;
@@ -777,7 +777,7 @@ void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera
 		rotationChanged = true;
 		rotation.x += 1.f;
 	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_DOWN) == GLFW_PRESS)
+	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_DOWN) == GLFW_PRESS)
 	{
 		rotationChanged = true;
 		rotation.x -= 1.f;
@@ -799,8 +799,8 @@ void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera
 	{
 		translateChanged = true;
 		translate -= rightDir;
-	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_D) == GLFW_PRESS)
+	} 
+	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_D) == GLFW_PRESS)
 	{
 		translateChanged = true;
 		translate += rightDir;
@@ -810,7 +810,7 @@ void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera
 		translateChanged = true;
 		translate += forwardDir;
 	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_S) == GLFW_PRESS)
+	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_S) == GLFW_PRESS)
 	{
 		translateChanged = true;
 		translate -= forwardDir;
@@ -820,7 +820,7 @@ void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera
 		translateChanged = true;
 		translate += upDir;
 	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_E) == GLFW_PRESS)
+	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_E) == GLFW_PRESS)
 	{
 		translateChanged = true;
 		translate -= upDir;

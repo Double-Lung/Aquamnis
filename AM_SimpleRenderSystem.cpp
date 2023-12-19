@@ -16,7 +16,7 @@ AM_SimpleRenderSystem::AM_SimpleRenderSystem(AM_VkContext& aVkContext, VkRenderP
 	CreateGraphicsPipeline(aRenderPass);
 }
 
-void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::vector<AM_Entity>& someEntites, const AM_Camera&/* aCamera*/)
+void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera&/* aCamera*/)
 {
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
 
@@ -24,8 +24,9 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 	const float time = AM_SimpleTimer::GetInstance().GetTimeElapsed();
 
 	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
-	for (auto& entity : someEntites)
+	for (auto& entry : someEntites)
 	{
+		auto& entity = entry.second;
 		AM_Buffer* vertexBuffer = entity.GetVertexBuffer();
 		AM_Buffer* indexBuffer = entity.GetIndexBuffer();
 		VkBuffer vertexBuffers[] = { vertexBuffer->myBuffer };
@@ -227,7 +228,7 @@ VkShaderModule AM_SimpleRenderSystem::CreateShaderModule(const std::vector<char>
 
 void AM_SimpleRenderSystem::CreateDescriptorSetLayout()
 {
-	myDescriptorSetLayout.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 1);
+	myDescriptorSetLayout.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
 	myDescriptorSetLayout.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 	myDescriptorSetLayout.CreateLayout();
 }
