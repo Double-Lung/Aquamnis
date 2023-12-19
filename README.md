@@ -8,7 +8,7 @@
 - [x] Best practices refactor
 - [x] Improve naive memory allocator
 - [x] Queue ownership transfer
-- [ ] Basic scene with multiple objects
+- [x] Basic scene with multiple objects
 - [ ] Integrate GPU Open VMA
 - [ ] Pregenerated mipmap
 - [x] Push constants
