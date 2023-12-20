@@ -7,6 +7,15 @@ project("AMRenderCore")
 
    files { "**.h", "**.cpp", "**.cxx", "**.hpp", "**.inl" }
    
+   includedirs 
+   { 
+      "$(VULKAN_SDK)/include",
+	  "../extern/glm/glm",
+	  "../extern/stb",
+	  "../extern/tinyobjloader"
+   }
+   links { "$(VULKAN_SDK)/lib/vulkan-1.lib" }
+   
    targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
    objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
    
@@ -19,10 +28,18 @@ project("AMRenderCore")
 	  runtime "Debug"
       symbols "On"
 	  optimize "Off"
+	  includedirs 
+      { 
+         "../extern/GLFW_Debug/include",
+      }
 
    filter "configurations:Release"
       defines { "NDEBUG" }
 	  runtime "Release"
 	  symbols "On"
       optimize "On"
+	  includedirs 
+      { 
+         "../extern/GLFW/include",
+      }
 	  
