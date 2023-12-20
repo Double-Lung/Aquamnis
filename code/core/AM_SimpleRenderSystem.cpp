@@ -44,8 +44,8 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 
 void AM_SimpleRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 {
-	auto vertShaderCode = ReadFile("shaders/vert.spv");
-	auto fragShaderCode = ReadFile("shaders/frag.spv");
+	auto vertShaderCode = ReadFile("../../data/shaders/vert.spv");
+	auto fragShaderCode = ReadFile("../../data/shaders/frag.spv");
 #ifdef _DEBUG
 	std::cout << "vert file size: " << vertShaderCode.size() << '\n';
 	std::cout << "frag file size: " << fragShaderCode.size() << '\n';

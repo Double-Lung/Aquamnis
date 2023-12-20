@@ -657,7 +657,7 @@ void AM_VkRenderCore::LoadEntities()
 	transform2.myTranslation = { -8.f, 0.f, 0.f };
 	transform2.myRotation = { 3.14159f, 0.f, 0.f};
 	transform2.myScale = { 20.f, 20.f, 20.f };
-	vaseEntity.LoadModel("models/smooth_vase.obj");
+	vaseEntity.LoadModel("../../data/models/smooth_vase.obj");
 	CreateVertexBuffer(vaseEntity);
 	CreateIndexBuffer(vaseEntity);
 	myEntities.emplace(vaseEntity.GetId(), std::move(vaseEntity));
@@ -666,7 +666,7 @@ void AM_VkRenderCore::LoadEntities()
 	auto& transform3 = quadEntity.GetTransformComponent();
 	transform3.myTranslation = { 0.f, -1.f, 0.f };
 	transform3.myScale = { 42.f, 1.f, 42.f };
-	quadEntity.LoadModel("models/quad.obj");
+	quadEntity.LoadModel("../../data/models/quad.obj");
 	CreateVertexBuffer(quadEntity);
 	CreateIndexBuffer(quadEntity);
 	myEntities.emplace(quadEntity.GetId(), std::move(quadEntity));
