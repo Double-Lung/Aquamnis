@@ -1,39 +1,65 @@
 project "MainExe"
-   kind "ConsoleApp"
-   language "C++"
-   cppdialect "C++17"
-   targetdir "binaries/%{cfg.buildcfg}"
-   staticruntime "off"
+    kind "ConsoleApp"
+    language "C++"
+    cppdialect "C++17"
+    targetdir "binaries/%{cfg.buildcfg}"
+    staticruntime "off"
 
-   files { "**.h", "**.cpp", "**.cxx", "**.hpp", "**.inl" }
+    files { "**.h", "**.cpp", "**.cxx", "**.hpp", "**.inl" }
 
-   includedirs
-   {
-	  -- Include Core
-	  "../core"
-   }
+    includedirs
+    {
+		"../core",
+		"$(VULKAN_SDK)/Include",
+	    "../extern/glm",
+	    "../extern/stb",
+  	    "../extern/tinyobjloader"
+    }
 
-   links
-   {
-      "AMRenderCore"
-   }
+	libdirs
+	{
+		"$(VULKAN_SDK)/Lib"
+	}
 
-   targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
-   objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
+	links
+	{
+		"AMRenderCore",
+		"glfw3",
+		"vulkan-1"
+	}
 
-   filter "system:windows"
-       systemversion "latest"
-       defines { "WINDOWS" }
+    targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
+    objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
 
-   filter "configurations:Debug"
-       defines { "DEBUG" }
-       runtime "Debug"
-	   optimize "Off"
-       symbols "On"
+    filter "system:windows"
+        systemversion "latest"
+        defines { "WINDOWS" }
 
-   filter "configurations:Release"
-       kind "WindowedApp"
-       defines { "NDEBUG" }
-       runtime "Release"
-       optimize "On"
-       symbols "On"
+    filter "configurations:Debug"
+        defines { "_DEBUG" }
+        runtime "Debug"
+	    optimize "Off"
+        symbols "On"
+		includedirs 
+		{ 
+			"../extern/GLFW_Debug/include",
+		}
+	    libdirs
+		{
+			"../extern/GLFW_Debug/lib",
+		}
+
+    filter "configurations:Release"
+        kind "WindowedApp"
+        defines { "NDEBUG" }
+        runtime "Release"
+        optimize "On"
+        symbols "On"
+		includedirs 
+		{ 
+			"../extern/GLFW/include",
+		}
+	    libdirs
+		{
+			"../extern/GLFW/lib",
+		}
