@@ -2,7 +2,6 @@ project("AMRenderCore")
     kind "StaticLib"
     language "C++"
     cppdialect "C++17"
-    targetdir "binaries/%{cfg.buildcfg}"
     staticruntime "off"
 
     files { "**.h", "**.cpp", "**.cxx", "**.hpp", "**.inl" }
@@ -15,8 +14,8 @@ project("AMRenderCore")
   	    "../extern/tinyobjloader"
     }
    
-    targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
-    objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
+    targetdir ("../../bin/" .. OutputDir .. "/%{prj.name}")
+    objdir ("../../bin/" .. OutputDir .. "/%{prj.name}/obj")
    
     filter "system:windows"
 		systemversion "latest"

@@ -36,8 +36,7 @@ void AM_VkDescriptorPool::CreatePool(uint32_t aMaxSets, VkDescriptorPoolCreateFl
 	descriptorPoolInfo.maxSets = aMaxSets;
 	descriptorPoolInfo.flags = somePoolFlags;
 
-	if (vkCreateDescriptorPool(myVkContext.device, &descriptorPoolInfo, nullptr, &myPool) !=
-		VK_SUCCESS)
+	if (vkCreateDescriptorPool(myVkContext.device, &descriptorPoolInfo, nullptr, &myPool) != VK_SUCCESS)
 		throw std::runtime_error("failed to create descriptor pool!");
 }
 

@@ -2,9 +2,18 @@ project "MainExe"
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++17"
-    targetdir "binaries/%{cfg.buildcfg}"
     staticruntime "off"
-
+	
+	buildmessage "===Custom Build Step==="
+	buildcommands 
+	{
+		"../scripts/compile_shaders.bat"
+	}
+	buildoutputs 
+	{  
+		"../../data/shader_bytecode"
+	}
+	
     files { "**.h", "**.cpp", "**.cxx", "**.hpp", "**.inl" }
 
     includedirs
@@ -28,8 +37,8 @@ project "MainExe"
 		"vulkan-1"
 	}
 
-    targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
-    objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
+    targetdir ("../../bin/" .. OutputDir .. "/%{prj.name}")
+    objdir ("../../bin/" .. OutputDir .. "/%{prj.name}/obj")
 
     filter "system:windows"
         systemversion "latest"
@@ -51,6 +60,7 @@ project "MainExe"
 
     filter "configurations:Release"
         kind "WindowedApp"
+		entrypoint "mainCRTStartup"
         defines { "NDEBUG" }
         runtime "Release"
         optimize "On"

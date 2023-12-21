@@ -9,7 +9,7 @@ workspace("Aquamnis")
     filter "system:windows"
 		buildoptions { "/EHsc", "/Zc:preprocessor", "/Zc:__cplusplus" }
 	  
-OutputDir = "%{cfg.system}_%{cfg.architecture}/%{cfg.buildcfg}"
+OutputDir = "%{cfg.buildcfg}_%{cfg.system}_%{cfg.architecture}/"
 
 group "Core"
 	include "code/core/Build-Core.lua"
