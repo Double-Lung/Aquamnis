@@ -15,6 +15,7 @@
 
 class AM_VkRenderer;
 class AM_SimpleRenderSystem;
+class AM_PointLightRenderSystem;
 class AM_Camera;
 class AM_VkRenderCore
 {
@@ -95,5 +96,6 @@ private:
 	uint32_t myMipLevels;
 	AM_VkRenderer* myRenderer = nullptr;
 	AM_SimpleRenderSystem* myRenderSystem = nullptr;
+	AM_PointLightRenderSystem* myPointLightRenderSystem = nullptr;
 };
 

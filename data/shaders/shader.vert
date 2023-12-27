@@ -36,14 +36,4 @@ void main()
     fragPosWorld = worldPosition.xyz;
     fragColor = inColor;
     fragTexCoord = inTexCoord;
-
- //   vec3 dirToPointLight = ubo.lightPosition - worldPosition.xyz;
-  //  float ligthFallOff = 1.0 / dot(dirToPointLight,dirToPointLight);
-  //  vec3 pointLightColor = ubo.lightColor.xyz * ubo.lightColor.w * ligthFallOff;
- //   vec3 ambientLight = ubo.ambientColor.xyz * ubo.ambientColor.w;
- //   float directLight = max(dot(normal, DIRECTION_TO_LIGHT), 0.0);
- //   vec3 diffuseLight = pointLightColor * max(dot(normal, normalize(dirToPointLight)), 0) + ambientLight;
-
- //   fragColor = diffuseLight + directLight;
-    
 }

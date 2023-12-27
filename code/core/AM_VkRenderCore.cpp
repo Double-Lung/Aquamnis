@@ -2,6 +2,7 @@
 #include "AM_VkRenderCore.h"
 #include "AM_VkRenderer.h"
 #include "AM_SimpleRenderSystem.h"
+#include "AM_PointLightRenderSystem.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include <cstdint>
@@ -27,6 +28,7 @@ AM_VkRenderCore::AM_VkRenderCore()
 
 AM_VkRenderCore::~AM_VkRenderCore()
 {
+	delete myPointLightRenderSystem;
 	delete myRenderSystem;
 	delete myRenderer;
 }
@@ -564,7 +566,7 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 	ubo.projection = aCamera.GetProjectionMatrix();
 	ubo.ambientColor = { 1.f, 1.f, 1.f, 0.03f };
 	ubo.lightColor = { 1.f, 0.2f, 0.f, 1.f };
-	ubo.lightPosition = { -8.f, 1.f, 0.f };
+	ubo.lightPosition = { -8.f, 10.f, 0.f };
 
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
 	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
@@ -720,6 +722,8 @@ void AM_VkRenderCore::InitVulkan()
 	CreateUniformBuffers();
 
 	myRenderSystem = new AM_SimpleRenderSystem(myVkContext, myRenderer->GetRenderPass());
+	myPointLightRenderSystem = new AM_PointLightRenderSystem(myVkContext, myRenderer->GetRenderPass());
+	
 	CreateDescriptorPool();
 	CreateDescriptorSets();
 }
@@ -743,6 +747,7 @@ void AM_VkRenderCore::MainLoop()
 			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera);
 
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
+			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 
 			myRenderer->EndRenderPass(commandBufer);
 			myRenderer->EndFrame();
