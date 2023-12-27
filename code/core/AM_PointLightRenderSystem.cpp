@@ -28,8 +28,8 @@ void AM_PointLightRenderSystem::Render(VkCommandBuffer aCommandBuffer, VkDescrip
 
 void AM_PointLightRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 {
-	auto vertShaderCode = ReadFile("../data/shader_bytecode/pointlight_vert.spv");
-	auto fragShaderCode = ReadFile("../data/shader_bytecode/pointlight_frag.spv");
+	auto vertShaderCode = ReadFile("../data/shader_bytecode/pointlight.vert.spv");
+	auto fragShaderCode = ReadFile("../data/shader_bytecode/pointlight.frag.spv");
 #ifdef _DEBUG
 	std::cout << "vert file size: " << vertShaderCode.size() << '\n';
 	std::cout << "frag file size: " << fragShaderCode.size() << '\n';

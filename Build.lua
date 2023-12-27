@@ -11,8 +11,19 @@ workspace("Aquamnis")
 	  
 OutputDir = "%{cfg.buildcfg}_%{cfg.system}_%{cfg.architecture}/"
 
+group "Data"
+	project "Shaders"
+		kind "None"
+		files { "data/shaders/**.vert", "data/shaders/**.frag" }
+	project "Scripts"
+		kind "None"
+		files { "scripts/**.bat" }
+group ""
+
 group "Core"
 	include "code/core/Build-Core.lua"
 group ""
 
-include "code/app/Build-App.lua"
+group "Exetutables"
+	include "code/app/Build-App.lua"
+group ""
