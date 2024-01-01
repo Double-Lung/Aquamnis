@@ -17,14 +17,20 @@ uniform Push
     mat4 transform;
 } push;
 
+struct PointLight
+{
+    vec4 position;
+    vec4 color;
+};
+
 layout(set = 0, binding = 0) 
 uniform UniformBufferObject 
 {
     mat4 view;
     mat4 proj;
     vec4 ambientColor;
-    vec4 lightColor;
-    vec3 lightPosition;
+    PointLight pointLights[2];
+    int numLights;
 } ubo;
 
 void main() 

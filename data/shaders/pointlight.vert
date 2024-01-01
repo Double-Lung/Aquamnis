@@ -2,15 +2,28 @@
 
 layout(location = 0) out vec2 fragOffset;
 
+struct PointLight
+{
+    vec4 position;
+    vec4 color;
+};
+
 layout(set = 0, binding = 0) 
 uniform UniformBufferObject 
 {
     mat4 view;
     mat4 proj;
     vec4 ambientColor;
-    vec4 lightColor;
-    vec3 lightPosition;
+    PointLight pointLights[2];
+    int numLights;
 } ubo;
+
+layout(push_constant) uniform Push
+{
+    vec4 position;
+    vec4 color;
+    float radius;
+} push;
 
 const vec2 OFFSETS[6] = vec2[](
   vec2(-1.0, -1.0),
@@ -21,12 +34,10 @@ const vec2 OFFSETS[6] = vec2[](
   vec2(1.0, 1.0)
 );
 
-const float LIGHT_RADIUS = 0.1;
-
 void main() 
 {
     fragOffset = OFFSETS[gl_VertexIndex];
-    gl_Position = ubo.proj * ubo.view * vec4(ubo.lightPosition, 1.0);
+    gl_Position = ubo.proj * ubo.view * push.position;
     gl_Position /= gl_Position.w;
-    gl_Position.xy += LIGHT_RADIUS * vec2(3.0/4.0, 1.0)  * fragOffset;
+    gl_Position.xy += push.radius * vec2(3.0/4.0, 1.0)  * fragOffset;
 }

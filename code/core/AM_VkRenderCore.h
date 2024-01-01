@@ -26,13 +26,19 @@ public:
 	~AM_VkRenderCore();
 	
 private:
+	struct PointLightInstanceData
+	{
+		glm::vec4 position{};
+		glm::vec4 color{};
+	};
+
 	struct UniformBufferObject
 	{
 		glm::mat4 view;
 		glm::mat4 projection;
 		glm::vec4 ambientColor;
-		glm::vec4 lightColor;
-		glm::vec3 lightPosition;
+		PointLightInstanceData pointLightData[2];
+		int numLights;
 	};
 
 	bool CheckExtensionSupport();
@@ -54,7 +60,7 @@ private:
 	void CreateVertexBuffer(AM_Entity& anEntity);
 	void CreateIndexBuffer(AM_Entity& anEntity);
 	void CreateUniformBuffers();
-	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera);
+	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites);
 
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
 	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);

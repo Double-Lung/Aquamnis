@@ -3,17 +3,30 @@
 layout(location = 0) in vec2 fragOffset;
 layout(location = 0) out vec4 outColor;
 
+struct PointLight
+{
+    vec4 position;
+    vec4 color;
+};
+
 layout(set = 0, binding = 0) 
 uniform UniformBufferObject 
 {
     mat4 view;
     mat4 proj;
     vec4 ambientColor;
-    vec4 lightColor;
-    vec3 lightPosition;
+    PointLight pointLights[2];
+    int numLights;
 } ubo;
+
+layout(push_constant) uniform Push
+{
+    vec4 position;
+    vec4 color;
+    float radius;
+} push;
 
 void main() {
     float toggle = step(sqrt(dot(fragOffset, fragOffset)), 1.0);
-    outColor = vec4(ubo.lightColor.xyz * toggle, 0.0);
+    outColor = vec4(push.color.xyz * toggle, 1.0);
 }

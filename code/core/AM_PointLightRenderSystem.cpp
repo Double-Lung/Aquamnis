@@ -6,6 +6,13 @@
 #include <array>
 #include <fstream>
 
+struct PointLightPushConstants
+{
+	glm::vec4 position{};
+	glm::vec4 color{};
+	float radius;
+};
+
 AM_PointLightRenderSystem::AM_PointLightRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
 	: myVkContext{ aVkContext }
 	, myGraphicsPipeline{}
@@ -16,14 +23,26 @@ AM_PointLightRenderSystem::AM_PointLightRenderSystem(AM_VkContext& aVkContext, V
 	CreateGraphicsPipeline(aRenderPass);
 }
 
-void AM_PointLightRenderSystem::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& /*someEntites*/, const AM_Camera&/* aCamera*/)
+void AM_PointLightRenderSystem::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera&/* aCamera*/)
 {
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
-	const float time = AM_SimpleTimer::GetInstance().GetTimeElapsed();
-
 	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 	
-	vkCmdDraw(aCommandBuffer, 6, 1, 0, 0);
+	for (auto& kv : someEntites)
+	{
+		auto& entity = kv.second;
+		if (!entity.HasPointLightComponent())
+			continue;
+
+		PointLightPushConstants push{};
+		push.position = glm::vec4(entity.GetTransformComponent().myTranslation, 1.f);
+		push.color = glm::vec4(entity.GetColor(), entity.GetPointLightIntensity());
+		push.radius = 0.1f;
+
+		vkCmdPushConstants(aCommandBuffer, myPipelineLayout.myLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PointLightPushConstants), &push);
+
+		vkCmdDraw(aCommandBuffer, 6, 1, 0, 0);
+	}
 }
 
 void AM_PointLightRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
@@ -130,17 +149,17 @@ void AM_PointLightRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicState.pDynamicStates = dynamicStates.data();
 
-// 	VkPushConstantRange pushConstantRange{};
-// 	pushConstantRange.offset = 0;
-// 	pushConstantRange.size = 0;
-// 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 	VkPushConstantRange pushConstantRange{};
+ 	pushConstantRange.offset = 0;
+ 	pushConstantRange.size = sizeof(PointLightPushConstants);
+ 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional
 	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.GetDescriptorSetLayout();
-	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+	pipelineLayoutInfo.pushConstantRangeCount = 1; // Optional
+	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
 
 	myPipelineLayout.CreateLayout(pipelineLayoutInfo);
 

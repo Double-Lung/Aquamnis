@@ -559,19 +559,31 @@ void AM_VkRenderCore::CreateUniformBuffers()
 	myVirtualUniformBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
-void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera)
+void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites)
 {
 	UniformBufferObject ubo{};
 	ubo.view = aCamera.GetViewMatrix();
 	ubo.projection = aCamera.GetProjectionMatrix();
 	ubo.ambientColor = { 1.f, 1.f, 1.f, 0.03f };
-	ubo.lightColor = { 1.f, 0.2f, 0.f, 1.f };
-	ubo.lightPosition = { -8.f, 10.f, 0.f };
+
+	int lightIndex = 0;
+	for (auto& kv : someEntites)
+	{
+		auto& entity = kv.second;
+		if (!entity.HasPointLightComponent())
+			continue;
+
+		ubo.pointLightData[lightIndex].position = glm::vec4(entity.GetTransformComponent().myTranslation, 1.f);
+		ubo.pointLightData[lightIndex].color = glm::vec4(entity.GetColor(), entity.GetPointLightIntensity());
+		++lightIndex;
+	}
+	ubo.numLights = lightIndex;
 
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
 	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
 
 	char* destination = mappedUniformBuffers + currentImage * 0x100;
+	static_assert(sizeof(ubo) <= 0x100, "UBO size is larger than 256 bytes!!!");
 	memcpy((void*)destination, &ubo, sizeof(ubo));
 }
 
@@ -672,6 +684,18 @@ void AM_VkRenderCore::LoadEntities()
 	CreateVertexBuffer(quadEntity);
 	CreateIndexBuffer(quadEntity);
 	myEntities.emplace(quadEntity.GetId(), std::move(quadEntity));
+
+	AM_Entity pointLight1 = AM_Entity::CreateEntity();
+	pointLight1.InitLightComponent();
+	pointLight1.GetTransformComponent().myTranslation = { -5.f, 2.f, -.7f };
+	pointLight1.SetColor({1.f, .1f, .1f});
+	myEntities.emplace(pointLight1.GetId(), std::move(pointLight1));
+
+	AM_Entity pointLight2 = AM_Entity::CreateEntity();
+	pointLight2.InitLightComponent();
+	pointLight2.GetTransformComponent().myTranslation = { -5.f, 2.f, .7f };
+	pointLight2.SetColor({ 1.f, 1.f, .1f });
+	myEntities.emplace(pointLight2.GetId(), std::move(pointLight2));
 }
 
 void AM_VkRenderCore::CreateTextureSampler()
@@ -744,7 +768,7 @@ void AM_VkRenderCore::MainLoop()
 		{
 			myRenderer->BeginRenderPass(commandBufer);
 			UpdateCameraTransform(deltaTime, camera);
-			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera);
+			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera, myEntities);
 
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);

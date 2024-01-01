@@ -27,6 +27,8 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 	for (auto& entry : someEntites)
 	{
 		auto& entity = entry.second;
+		if (entity.HasPointLightComponent())
+			continue;
 		AM_Buffer* vertexBuffer = entity.GetVertexBuffer();
 		AM_Buffer* indexBuffer = entity.GetIndexBuffer();
 		VkBuffer vertexBuffers[] = { vertexBuffer->myBuffer };

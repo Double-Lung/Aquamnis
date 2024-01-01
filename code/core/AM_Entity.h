@@ -7,6 +7,7 @@
 #include <glm/gtx/hash.hpp>
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <memory>
 
 struct Vertex
 {
@@ -51,6 +52,11 @@ struct TransformComponent
 	glm::mat4 GetMatrix();
 };
 
+struct PointLightComponent
+{
+	float myIntensity;
+};
+
 class AM_Buffer;
 class AM_Entity
 {
@@ -64,14 +70,25 @@ public:
 		return AM_Entity{id++};
 	}
 
+	void InitLightComponent(float anIntensity = 1.f)
+	{
+		myPointLightComponent = std::make_unique<PointLightComponent>();
+		myPointLightComponent->myIntensity = anIntensity;
+	}
+
 	uint64_t GetId() const { return myId; }
 	TransformComponent& GetTransformComponent() { return myTransform; }
 	const TransformComponent& GetTransformComponent() const { return myTransform; }
+	bool HasPointLightComponent() { return myPointLightComponent != nullptr; }
+	float GetPointLightIntensity(){ return myPointLightComponent->myIntensity; }
 
 	const std::vector<Vertex>& GetVertices() const { return myVertices; }
 	const std::vector<uint32_t>& GetIndices() const { return myIndices; }
 	AM_Buffer* GetVertexBuffer() const { return myVirtualVertexBuffer; }
 	AM_Buffer* GetIndexBuffer() const { return myVirtualIndexBuffer; }
+	
+	void SetColor(const glm::vec3& aColor) { myColor = aColor; }
+	const glm::vec3& GetColor() const { return myColor; }
 
 	void LoadModel(const char* aFilePath);
 	void SetVertexData(std::vector<Vertex>&& someVertices) { myVertices = std::move(someVertices); }
@@ -81,8 +98,12 @@ public:
 
 private:
 	explicit AM_Entity(uint64_t anId)
-		: myId(anId)
+		: myVirtualVertexBuffer{nullptr}
+		, myVirtualIndexBuffer{nullptr}
+		, myId(anId)
 		, myTransform{}
+		, myColor{1.f, 1.f, 1.f}
+		, myPointLightComponent{nullptr}
 	{
 	}
 
@@ -95,5 +116,7 @@ private:
 	AM_Buffer* myVirtualIndexBuffer;
 	uint64_t myId;
 	TransformComponent myTransform;
+	glm::vec3 myColor;
+	std::unique_ptr<PointLightComponent> myPointLightComponent;
 };
 
