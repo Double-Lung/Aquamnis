@@ -155,7 +155,7 @@ void AM_VkRenderCore::CreateDescriptorSets()
 	{
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = myVirtualUniformBuffer->myBuffer;
-		bufferInfo.offset = i * 0x100;
+		bufferInfo.offset = i * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
 		bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -555,7 +555,7 @@ void AM_VkRenderCore::CreateIndexBuffer(AM_Entity& anEntity)
 
 void AM_VkRenderCore::CreateUniformBuffers()
 {
-	static constexpr uint64_t bufferSize = 0x100 * AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
+	static constexpr uint64_t bufferSize = AM_VkRenderCoreConstants::UBO_ALIGNMENT * AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
 	myVirtualUniformBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
@@ -564,6 +564,7 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 	UniformBufferObject ubo{};
 	ubo.view = aCamera.GetViewMatrix();
 	ubo.projection = aCamera.GetProjectionMatrix();
+	ubo.inverseView = aCamera.GetInverseViewMatrix();
 	ubo.ambientColor = { 1.f, 1.f, 1.f, 0.03f };
 
 	int lightIndex = 0;
@@ -582,8 +583,8 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
 	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
 
-	char* destination = mappedUniformBuffers + currentImage * 0x100;
-	static_assert(sizeof(ubo) <= 0x100, "UBO size is larger than 256 bytes!!!");
+	char* destination = mappedUniformBuffers + currentImage * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
+	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
 	memcpy((void*)destination, &ubo, sizeof(ubo));
 }
 

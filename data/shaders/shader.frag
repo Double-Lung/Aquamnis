@@ -18,8 +18,9 @@ uniform UniformBufferObject
 {
     mat4 view;
     mat4 proj;
+    mat4 invView;
     vec4 ambientColor;
-    PointLight pointLights[2];
+    PointLight pointLights[8];
     int numLights;
 } ubo;
 

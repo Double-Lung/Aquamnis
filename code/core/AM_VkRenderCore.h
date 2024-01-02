@@ -36,8 +36,9 @@ private:
 	{
 		glm::mat4 view;
 		glm::mat4 projection;
+		glm::mat4 inverseView;
 		glm::vec4 ambientColor;
-		PointLightInstanceData pointLightData[2];
+		PointLightInstanceData pointLightData[8];
 		int numLights;
 	};
 
