@@ -356,4 +356,4 @@ JSON/Schemas/Catalog/https%003A%002F%002Fgo.microsoft.com%002Ffwlink%002F%003Fli
 *.sln
 *.vcxproj
 generated/
-shader_bytecode/
+*.spv

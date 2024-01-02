@@ -31,17 +31,37 @@ const vec3 DIRECTION_TO_LIGHT = normalize(vec3(1.0, 1.0, 1.0));
 
 void main() {
     vec3 diffuseLight = ubo.ambientColor.xyz * ubo.ambientColor.w;
+    vec3 specularLight = vec3(0.0);
     vec3 surfaceNormal = normalize(fragNormalWorld);
+
+    vec3 cameraPosWorld = ubo.invView[3].xyz;
+    vec3 viewDir = normalize(cameraPosWorld - fragPosWorld);
+
+    // global specular Light
+    // vec3 halfAngleVecG = normalize(DIRECTION_TO_LIGHT + viewDir);
+    // float blinnTermG = dot(surfaceNormal, halfAngleVecG);
+    // blinnTermG = clamp(blinnTermG, 0, 1);
+    // blinnTermG = pow(blinnTermG, 32.0);
+    // specularLight += vec3(1.f, 1.f, 1.f) * blinnTermG;
+
     for (int i = 0; i < ubo.numLights; ++i)
     {
         PointLight light = ubo.pointLights[i];
         vec3 dirToPointLight = light.position.xyz - fragPosWorld;
         float ligthFallOff = 1.0 / dot(dirToPointLight, dirToPointLight);
-        float cosAngIncidence = max(dot(surfaceNormal, normalize(dirToPointLight)), 0);
+        dirToPointLight = normalize(dirToPointLight);
+        float cosAngIncidence = max(dot(surfaceNormal, dirToPointLight), 0);
         vec3 singleLightColor = light.color.xyz * light.color.w * ligthFallOff;
         diffuseLight += singleLightColor *  cosAngIncidence;
+
+        // specularLight
+        vec3 halfAngleVec = normalize(dirToPointLight + viewDir);
+        float blinnTerm = dot(surfaceNormal, halfAngleVec);
+        blinnTerm = clamp(blinnTerm, 0, 1);
+        blinnTerm = pow(blinnTerm, 32.0);
+        specularLight += singleLightColor * blinnTerm;
     }
 
     float directLight = max(dot(surfaceNormal, DIRECTION_TO_LIGHT), 0.0);
-    outColor = vec4(fragColor * (diffuseLight + directLight), 1.0); // texture(texSampler, fragTexCoord) * 
+    outColor = vec4(fragColor * (diffuseLight + specularLight), 1.0); // texture(texSampler, fragTexCoord) * 
 }
