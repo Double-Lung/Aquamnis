@@ -5,6 +5,7 @@
 #include "AM_SimpleTimer.h"
 #include <array>
 #include <fstream>
+#include <algorithm>
 
 struct PointLightPushConstants
 {
@@ -23,17 +24,32 @@ AM_PointLightRenderSystem::AM_PointLightRenderSystem(AM_VkContext& aVkContext, V
 	CreateGraphicsPipeline(aRenderPass);
 }
 
-void AM_PointLightRenderSystem::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera&/* aCamera*/)
+void AM_PointLightRenderSystem::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera)
 {
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
 	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 	
+	std::vector<uint64_t> sortedPointLights;
 	for (auto& kv : someEntites)
 	{
 		auto& entity = kv.second;
 		if (!entity.HasPointLightComponent())
 			continue;
+		sortedPointLights.push_back(kv.first);
+	}
 
+	glm::vec3 camPos = aCamera.GetPosition();
+
+	std::sort(sortedPointLights.begin(), sortedPointLights.end(), [&someEntites, &camPos](uint64_t Ida, uint64_t Idb) -> bool
+	{
+		glm::vec3 offset1 = camPos - someEntites.at(Ida).GetTransformComponent().myTranslation;
+		glm::vec3 offset2 = camPos - someEntites.at(Idb).GetTransformComponent().myTranslation;
+		return glm::dot(offset1, offset1) > glm::dot(offset2, offset2);
+	});
+
+	for (auto id : sortedPointLights)
+	{
+		auto& entity = someEntites.at(id);
 		PointLightPushConstants push{};
 		push.position = glm::vec4(entity.GetTransformComponent().myTranslation, 1.f);
 		push.color = glm::vec4(entity.GetColor(), entity.GetPointLightIntensity());
@@ -119,9 +135,9 @@ void AM_PointLightRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	colorBlendAttachment.blendEnable = VK_FALSE;
-	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
+	colorBlendAttachment.blendEnable = VK_TRUE;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
 	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
 	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional

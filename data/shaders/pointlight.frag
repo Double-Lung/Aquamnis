@@ -29,5 +29,5 @@ layout(push_constant) uniform Push
 
 void main() {
     float toggle = step(sqrt(dot(fragOffset, fragOffset)), 1.0);
-    outColor = vec4(push.color.xyz * toggle, 1.0);
+    outColor = vec4(push.color.xyz * toggle, toggle);
 }

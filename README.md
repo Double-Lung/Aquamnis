@@ -8,10 +8,11 @@
 - [x] Best practices refactor
 - [x] Improve naive memory allocator
 - [x] Queue ownership transfer
+- [x] Simple push constants usage
 - [x] Basic scene with multiple objects
+- [ ] Simple compute shader
 - [ ] Integrate GPU Open VMA
 - [ ] Pregenerated mipmap
-- [x] Push constants
 - [ ] Instanced rendering
 - [ ] Dynamic uniforms
 - [ ] Separate images and sampler descriptors
@@ -19,4 +20,4 @@
 - [ ] Async queue submission
 - [ ] Multi-threaded command buffer generation
 - [ ] Multiple subpasses
-- [ ] Compute shaders
+

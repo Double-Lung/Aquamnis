@@ -20,6 +20,7 @@ public:
 	const glm::mat4& GetProjectionMatrix() const { return myProjectionMatrix; }
 	const glm::mat4& GetViewMatrix() const { return myViewMatrix; }
 	const glm::mat4& GetInverseViewMatrix() const { return myInverseViewMatrix; }
+	glm::vec3 GetPosition() const { return myInverseViewMatrix[3]; }
 
 	TransformComponent myTransformComp;
 
