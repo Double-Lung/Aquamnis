@@ -24,6 +24,7 @@ AM_VkContext::AM_VkContext()
 	, graphicsQueue(VK_NULL_HANDLE)
 	, presentQueue(VK_NULL_HANDLE)
 	, transferQueue(VK_NULL_HANDLE)
+	, computeQueue(VK_NULL_HANDLE)
 	, presentMode(VK_PRESENT_MODE_MAX_ENUM_KHR)
 	, depthFormat(VK_FORMAT_MAX_ENUM)
 	, maxMSAASamples(VK_SAMPLE_COUNT_1_BIT)
@@ -31,6 +32,7 @@ AM_VkContext::AM_VkContext()
 	, graphicsFamilyIndex(0)
 	, presentFamilyIndex(0)
 	, transferFamilyIndex(0)
+	, computeFamilyIndex(0)
 {
 	GetAvailableInstanceExtensions();
 	GetRequiredInstanceExtensions();
@@ -54,7 +56,7 @@ AM_VkContext::~AM_VkContext()
 	vkDestroyInstance(AM_VkContext::instance, nullptr);
 }
 
-bool AM_VkContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx)
+bool AM_VkContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx, int& computeQueueIdx)
 {
 	uint32_t queueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -79,10 +81,19 @@ bool AM_VkContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQue
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT || !(queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT))
 			continue;
 		transferQueueIdx = i;
+		break;
 	}
-	return (graphicsQueueIdx >= 0) && (presentQueueIdx >= 0) && (transferQueueIdx >= 0);
-}
 
+	for (uint32_t i = 0; i < queueFamilies.size(); ++i)
+	{
+		if (!(queueFamilies[i].queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)))
+			continue;
+		computeQueueIdx = i;
+		break;
+	}
+
+	return (graphicsQueueIdx >= 0) && (presentQueueIdx >= 0) && (transferQueueIdx >= 0) && (computeQueueIdx >= 0);
+}
 
 bool AM_VkContext::CheckDeviceExtensionSupport(VkPhysicalDevice device)
 {
@@ -176,8 +187,8 @@ void AM_VkContext::ChoosePhysicalDevice()
 		if (!(feats.geometryShader && feats.samplerAnisotropy && feats.sampleRateShading))
 			continue;
 
-		int transferQueueIdx = -1, graphicsQueueIdx = -1, presentQueueIdx = -1;
-		if (!TryGetQueueFamilies(availableDevice, transferQueueIdx, graphicsQueueIdx, presentQueueIdx))
+		int transferQueueIdx = -1, graphicsQueueIdx = -1, presentQueueIdx = -1, computeQueueIdx = -1;
+		if (!TryGetQueueFamilies(availableDevice, transferQueueIdx, graphicsQueueIdx, presentQueueIdx, computeQueueIdx))
 			continue;
 
 		// We find a suitable device
@@ -205,6 +216,7 @@ void AM_VkContext::ChoosePhysicalDevice()
 		transferFamilyIndex = static_cast<uint32_t>(transferQueueIdx);
 		graphicsFamilyIndex = static_cast<uint32_t>(graphicsQueueIdx);
 		presentFamilyIndex = static_cast<uint32_t>(presentQueueIdx);
+		computeFamilyIndex = static_cast<uint32_t>(computeQueueIdx);
 		physicalDevice = availableDevice;
 		return;
 	}
@@ -214,7 +226,7 @@ void AM_VkContext::ChoosePhysicalDevice()
 void AM_VkContext::CreateLogicalDevice()
 {
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos{};
-	std::unordered_set<uint32_t> uniqueQueueFamilies = { graphicsFamilyIndex, presentFamilyIndex, transferFamilyIndex };
+	std::unordered_set<uint32_t> uniqueQueueFamilies = { graphicsFamilyIndex, presentFamilyIndex, transferFamilyIndex, computeFamilyIndex };
 	float queuePriority = 1.0f;
 	for ( const uint32_t& queueFamily : uniqueQueueFamilies )
 	{
@@ -242,6 +254,7 @@ void AM_VkContext::CreateLogicalDevice()
 	vkGetDeviceQueue(device, graphicsFamilyIndex, 0, &graphicsQueue);
 	vkGetDeviceQueue(device, presentFamilyIndex, 0, &presentQueue);
 	vkGetDeviceQueue(device, transferFamilyIndex, 0, &transferQueue);
+	vkGetDeviceQueue(device, computeFamilyIndex, 0, &computeQueue);
 }
 
 void AM_VkContext::InitSwapChainCreationInfo()

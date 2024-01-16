@@ -24,7 +24,7 @@ public:
 	void GetAvailableInstanceExtensions();
 	void GetRequiredInstanceExtensions();
 	void GetAvailableInstanceLayers();
-	bool TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx);
+	bool TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx, int& computeQueueIdx);
 	bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
 	void ChoosePhysicalDevice();
 	void CreateLogicalDevice();
@@ -92,6 +92,7 @@ public:
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
 	VkQueue transferQueue;
+	VkQueue computeQueue;
 
 	VkPresentModeKHR presentMode;
 	VkFormat depthFormat;
@@ -100,4 +101,5 @@ public:
 	uint32_t graphicsFamilyIndex;
 	uint32_t presentFamilyIndex;
 	uint32_t transferFamilyIndex;
+	uint32_t computeFamilyIndex;
 };

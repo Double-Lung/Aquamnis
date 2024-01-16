@@ -16,6 +16,7 @@
 class AM_VkRenderer;
 class AM_SimpleRenderSystem;
 class AM_PointLightRenderSystem;
+class AM_SimpleGPUParticleSystem;
 class AM_Camera;
 class AM_VkRenderCore
 {
@@ -42,6 +43,13 @@ private:
 		int numLights;
 	};
 
+	struct Particle
+	{
+		glm::vec2 position;
+		glm::vec2 velocity;
+		glm::vec4 color;
+	};
+
 	bool CheckExtensionSupport();
 	bool CheckInstanceLayerSupport();
 	void CreateInstance();
@@ -62,6 +70,8 @@ private:
 	void CreateIndexBuffer(AM_Entity& anEntity);
 	void CreateUniformBuffers();
 	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites);
+
+	void CreateShaderStorageBuffers();
 
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
 	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
@@ -87,6 +97,7 @@ private:
 
 	std::vector<AM_VkSemaphore> myTransferSemaphores;
 	std::vector<AM_VkFence> mySyncFences;
+	std::vector<AM_Buffer*> myVirtualShaderStorageBuffers;
 
 	AM_VkDescriptorPool myDescriptorPool;
 
@@ -99,10 +110,12 @@ private:
 	AM_Buffer* myVirtualUniformBuffer = nullptr;
 
 	std::vector<VkDescriptorSet> myDescriptorSets;
+	std::vector<VkDescriptorSet> myComputeDescriptorSets;
 	
 	uint32_t myMipLevels;
 	AM_VkRenderer* myRenderer = nullptr;
 	AM_SimpleRenderSystem* myRenderSystem = nullptr;
 	AM_PointLightRenderSystem* myPointLightRenderSystem = nullptr;
+	AM_SimpleGPUParticleSystem* mySimpleGPUParticleSystem = nullptr;
 };
 

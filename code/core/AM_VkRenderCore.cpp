@@ -10,7 +10,7 @@
 #include <fstream>
 #include <glm/gtc/matrix_transform.hpp>
 #include <stb_image.h>
-
+#include <random>
 #include <unordered_map>
 
 void AM_VkRenderCore::Engage()
@@ -136,11 +136,13 @@ void AM_VkRenderCore::CreateImageView(AM_VkImageView& outImageView, VkImage imag
 void AM_VkRenderCore::CreateDescriptorPool()
 {
 	std::vector<VkDescriptorPoolSize> poolSizes;
-	poolSizes.resize(2);
+	poolSizes.resize(3);
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSizes[2].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
 
 	myDescriptorPool.CreatePool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT), 0, poolSizes);
 }
@@ -148,8 +150,13 @@ void AM_VkRenderCore::CreateDescriptorPool()
 void AM_VkRenderCore::CreateDescriptorSets()
 {
 	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myRenderSystem->GetDescriptorSetLayout());
+	std::vector<VkDescriptorSetLayout> computeLayouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myRenderSystem->GetDescriptorSetLayout());
+
 	myDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myDescriptorPool.AllocateDescriptorSets(layouts, myDescriptorSets);
+
+	myComputeDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myDescriptorPool.AllocateDescriptorSets(computeLayouts, myComputeDescriptorSets);
 	
 	for (size_t i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
@@ -586,6 +593,40 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 	char* destination = mappedUniformBuffers + currentImage * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
 	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
 	memcpy((void*)destination, &ubo, sizeof(ubo));
+}
+
+void AM_VkRenderCore::CreateShaderStorageBuffers()
+{
+	myVirtualShaderStorageBuffers.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+
+	std::default_random_engine rndEngine((unsigned)time(nullptr));
+	std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
+
+	// Initial particle positions on a circle
+	static constexpr int PARTICLE_COUNT = 100;
+	std::vector<Particle> particles(PARTICLE_COUNT);
+	for (Particle& particle : particles)
+	{
+		float r = 0.25f * sqrt(rndDist(rndEngine));
+		float theta = rndDist(rndEngine) * 2.f * 3.1415926f;
+		float x = r * cos(theta) * (600.f / 800.f); 
+		float y = r * sin(theta);
+		particle.position = glm::vec2(x, y);
+		particle.velocity = glm::normalize(glm::vec2(x, y)) * 0.00025f;
+		particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
+	}
+
+	VkDeviceSize bufferSize = sizeof(Particle) * PARTICLE_COUNT;
+	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)particles.data(), static_cast<size_t>(bufferSize));
+
+	for (AM_Buffer* SSBO : myVirtualShaderStorageBuffers)
+	{
+		SSBO = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		CopyBuffer(*stagingBuffer, *SSBO, bufferSize);
+	}
+
+	stagingBuffer->SetIsEmpty(true);
 }
 
 void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
