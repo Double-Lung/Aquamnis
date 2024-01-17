@@ -3,6 +3,7 @@
 #include "AM_VkRenderer.h"
 #include "AM_SimpleRenderSystem.h"
 #include "AM_PointLightRenderSystem.h"
+#include "AM_SimpleGPUParticleSystem.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include <cstdint>
@@ -28,6 +29,7 @@ AM_VkRenderCore::AM_VkRenderCore()
 
 AM_VkRenderCore::~AM_VkRenderCore()
 {
+	delete mySimpleGPUParticleSystem;
 	delete myPointLightRenderSystem;
 	delete myRenderSystem;
 	delete myRenderer;
@@ -144,13 +146,14 @@ void AM_VkRenderCore::CreateDescriptorPool()
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	poolSizes[2].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
 
-	myDescriptorPool.CreatePool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT), 0, poolSizes);
+	// compute set * MAX_FRAMES_IN_FLIGHT + graphics set * MAX_FRAMES_IN_FLIGHT
+	myDescriptorPool.CreatePool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2, 0, poolSizes);
 }
 
 void AM_VkRenderCore::CreateDescriptorSets()
 {
 	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myRenderSystem->GetDescriptorSetLayout());
-	std::vector<VkDescriptorSetLayout> computeLayouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myRenderSystem->GetDescriptorSetLayout());
+	std::vector<VkDescriptorSetLayout> computeLayouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, mySimpleGPUParticleSystem->GetDescriptorSetLayout());
 
 	myDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myDescriptorPool.AllocateDescriptorSets(layouts, myDescriptorSets);
@@ -173,6 +176,25 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		writter.WriteBuffer(0, &bufferInfo);
 		writter.WriteImage(1, &imageInfo);
 		writter.Update(myDescriptorSets[i]);
+
+		// for compute shader
+		VkDescriptorBufferInfo storageBufferInfoLastFrame{};
+		auto* virtualBuffer = myVirtualShaderStorageBuffers[(i - 1) % AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT];
+		storageBufferInfoLastFrame.buffer = virtualBuffer->myBuffer;
+		storageBufferInfoLastFrame.offset = virtualBuffer->GetOffset();
+		storageBufferInfoLastFrame.range = virtualBuffer->GetSize();
+
+		VkDescriptorBufferInfo storageBufferInfoCurrentFrame{};
+		auto* virtualBuffer2 = myVirtualShaderStorageBuffers[i];
+		storageBufferInfoLastFrame.buffer = virtualBuffer2->myBuffer;
+		storageBufferInfoLastFrame.offset = virtualBuffer2->GetOffset();
+		storageBufferInfoLastFrame.range = virtualBuffer2->GetSize();
+
+		AM_VkDescriptorSetWriter writter2{ mySimpleGPUParticleSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool };
+		writter2.WriteBuffer(0, &bufferInfo);
+		writter2.WriteBuffer(1, &storageBufferInfoLastFrame);
+		writter2.WriteBuffer(2, &storageBufferInfoCurrentFrame);
+		writter2.Update(myComputeDescriptorSets[i]);
 	}
 }
 
@@ -586,6 +608,7 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 		++lightIndex;
 	}
 	ubo.numLights = lightIndex;
+	//ubo.deltaTime = 0.f;
 
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
 	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
@@ -620,7 +643,7 @@ void AM_VkRenderCore::CreateShaderStorageBuffers()
 	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)particles.data(), static_cast<size_t>(bufferSize));
 
-	for (AM_Buffer* SSBO : myVirtualShaderStorageBuffers)
+	for (auto& SSBO : myVirtualShaderStorageBuffers)
 	{
 		SSBO = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		CopyBuffer(*stagingBuffer, *SSBO, bufferSize);
@@ -786,9 +809,11 @@ void AM_VkRenderCore::InitVulkan()
 	// load 3d models
 	LoadEntities();
 	CreateUniformBuffers();
+	CreateShaderStorageBuffers();
 
 	myRenderSystem = new AM_SimpleRenderSystem(myVkContext, myRenderer->GetRenderPass());
 	myPointLightRenderSystem = new AM_PointLightRenderSystem(myVkContext, myRenderer->GetRenderPass());
+	mySimpleGPUParticleSystem = new AM_SimpleGPUParticleSystem(myVkContext, myRenderer->GetRenderPass());
 	
 	CreateDescriptorPool();
 	CreateDescriptorSets();

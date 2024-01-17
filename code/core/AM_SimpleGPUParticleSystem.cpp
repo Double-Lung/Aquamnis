@@ -3,17 +3,21 @@
 
 AM_SimpleGPUParticleSystem::AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
 	: myVkContext{ aVkContext }
-	//, myGraphicsPipeline{}
+	, myComputePipeline{}
 	, myPipelineLayout{}
 	, myDescriptorSetLayout{ aVkContext }
 {
 	CreateDescriptorSetLayout();
-	//CreateGraphicsPipeline(aRenderPass);
+	CreateComputePipeline(aRenderPass);
+
+	myMaxComputeWorkGroupCount = myVkContext.deviceProperties.limits.maxComputeWorkGroupCount;
+	myMaxComputeWorkGroupInvocations = myVkContext.deviceProperties.limits.maxComputeWorkGroupInvocations;
+	myMaxComputeWorkGroupSize = myVkContext.deviceProperties.limits.maxComputeWorkGroupSize;
 }
 
 void AM_SimpleGPUParticleSystem::CreateComputePipeline(VkRenderPass aRenderPass)
 {
-	auto computeShaderCode = ReadFile("../data/shader_bytecode/compute.spv");
+	auto computeShaderCode = ReadFile("../data/shader_bytecode/particle.comp.spv");
 #ifdef _DEBUG
 	std::cout << "compute shader file size: " << computeShaderCode.size() << '\n';
 #endif
@@ -25,6 +29,21 @@ void AM_SimpleGPUParticleSystem::CreateComputePipeline(VkRenderPass aRenderPass)
 	computeShaderStageInfo.module = computeShaderModule;
 	computeShaderStageInfo.pName = "main";
 
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 1; // Optional
+	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.GetDescriptorSetLayout();
+
+	myPipelineLayout.CreateLayout(pipelineLayoutInfo);
+
+	VkComputePipelineCreateInfo pipelineInfo{};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	pipelineInfo.layout = myPipelineLayout.myLayout;
+	pipelineInfo.stage = computeShaderStageInfo;
+
+	myComputePipeline.CreatePipeline(pipelineInfo);
+
+	vkDestroyShaderModule(AM_VkContext::device, computeShaderModule, nullptr);
 }
 
 std::vector<char> AM_SimpleGPUParticleSystem::ReadFile(const std::string& filename)

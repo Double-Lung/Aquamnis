@@ -32,6 +32,7 @@ uniform UniformBufferObject
     vec4 ambientColor;
     PointLight pointLights[8];
     int numLights;
+    float deltaTime;
 } ubo;
 
 void main() 

@@ -73,11 +73,17 @@ struct AM_VkPipeline
 	{
 		vkDestroyPipeline(AM_VkContext::device, myPipeline, nullptr);
 	}
-
+	
 	void CreatePipeline(const VkGraphicsPipelineCreateInfo& aCreateInfo)
 	{
 		if (vkCreateGraphicsPipelines(AM_VkContext::device, VK_NULL_HANDLE, 1, &aCreateInfo, nullptr, &myPipeline) != VK_SUCCESS)
 			throw std::runtime_error("failed to create graphics pipeline!");
+	}
+
+	void CreatePipeline(const VkComputePipelineCreateInfo& aCreateInfo)
+	{
+		if (vkCreateComputePipelines(AM_VkContext::device, VK_NULL_HANDLE, 1, &aCreateInfo, nullptr, &myPipeline) != VK_SUCCESS)
+			throw std::runtime_error("failed to create compute pipeline!");
 	}
 
 	VkPipeline myPipeline;

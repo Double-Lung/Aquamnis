@@ -38,10 +38,13 @@ private:
 	void CreateDescriptorSetLayout();
 
 	AM_VkContext& myVkContext;
-	//AM_VkPipeline myGraphicsPipeline;
+	AM_VkPipeline myComputePipeline;
 	AM_VkPipelineLayout myPipelineLayout;
 
 	// for pipeline and descriptor set
 	AM_VkDescriptorSetLayout myDescriptorSetLayout;
+	uint32_t* myMaxComputeWorkGroupCount;
+	uint32_t myMaxComputeWorkGroupInvocations;
+	uint32_t* myMaxComputeWorkGroupSize;
 };
 

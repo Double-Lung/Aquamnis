@@ -41,6 +41,7 @@ private:
 		glm::vec4 ambientColor;
 		PointLightInstanceData pointLightData[8];
 		int numLights;
+		float deltaTime;
 	};
 
 	struct Particle
