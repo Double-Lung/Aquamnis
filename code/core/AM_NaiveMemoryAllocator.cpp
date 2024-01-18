@@ -60,9 +60,10 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBuffer(const uint64_t aSize, const V
 
 	if (memReq)
 	{
-		if (AM_Buffer* buffer = AllocateFast<AM_Buffer>(aSize, *memReq, myBufferMemoryPool, shouldMap))
+		if (AM_Buffer* buffer = AllocateFast<AM_Buffer>(aSize, aUsage, *memReq, myBufferMemoryPool, shouldMap))
 			return buffer;
-		if (AM_Buffer* buffer = AllocateSlow<AM_Buffer>(aSize, *memReq, myBufferMemoryPool, shouldMap))
+
+		if (AM_Buffer* buffer = AllocateSlow<AM_Buffer>(aSize, aUsage, *memReq, myBufferMemoryPool, shouldMap))
 			return buffer;
 	}
 
@@ -80,12 +81,12 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBuffer(const uint64_t aSize, const V
 	req.myAlignment = memRequirements.alignment;
 	req.myMemoryTypeIndex = memoryTypeIndex;
 
-	AM_Buffer* buffer = AllocateWithNewBlock<AM_Buffer>(aSize, req, myBufferMemoryPool, shouldMap);
+	AM_Buffer* buffer = AllocateWithNewBlock<AM_Buffer>(aSize, aUsage, req, myBufferMemoryPool, shouldMap);
 	assert(buffer != nullptr && "failed to allocate!");
 	buffer->myBuffer = vkBuffer.myBuffer;
 	vkBindBufferMemory(AM_VkContext::device, vkBuffer.myBuffer, buffer->GetMemoryHandle(), buffer->GetOffset());
 	myBufferMemoryPool[memoryTypeIndex].back().myBuffer = std::move(vkBuffer);
-	
+
 	return buffer;
 }
 
@@ -97,11 +98,11 @@ AM_Image* AM_NaiveMemoryAllocator::AllocateImage(const VkImageCreateInfo& aCreat
 	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memReq.memoryTypeBits, aProperty);
 	MemoryRequirements req{ memReq.alignment, memoryTypeIndex };
 
-	AM_Image* imagePtr = AllocateFast<AM_Image>(memReq.size, req, myImageMemoryPool);
+	AM_Image* imagePtr = AllocateFast<AM_Image>(memReq.size, aProperty, req, myImageMemoryPool);
 	if (!imagePtr)
-		imagePtr = AllocateSlow<AM_Image>(memReq.size, req, myImageMemoryPool);
+		imagePtr = AllocateSlow<AM_Image>(memReq.size, aProperty, req, myImageMemoryPool);
 	if (!imagePtr)
-		imagePtr = AllocateWithNewBlock<AM_Image>(memReq.size, req, myImageMemoryPool);
+		imagePtr = AllocateWithNewBlock<AM_Image>(memReq.size, aProperty, req, myImageMemoryPool);
 	assert(imagePtr!=nullptr && "failed to allocate!");
 	imagePtr->SetImage(std::move(image));
 	vkBindImageMemory(AM_VkContext::device, imagePtr->GetImage(), imagePtr->GetMemoryHandle(), imagePtr->GetOffset());

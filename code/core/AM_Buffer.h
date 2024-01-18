@@ -19,6 +19,7 @@ public:
 	~AM_Buffer() = default;
 
 	VkBuffer myBuffer;
+
 private:
 	AM_Buffer& operator=(AM_Buffer&& aBuffer) noexcept
 	{

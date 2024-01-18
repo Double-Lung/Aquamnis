@@ -36,13 +36,13 @@ private:
 	};
 
 	template <typename T, typename M>
-	[[nodiscard]] T* AllocateFast(const uint64_t aSize, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap = false);
+	[[nodiscard]] T* AllocateFast(const uint64_t aSize, uint32_t aUsage, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap = false);
 
 	template <typename T, typename M>
-	[[nodiscard]] T* AllocateSlow(const uint64_t aSize, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap = false);
+	[[nodiscard]] T* AllocateSlow(const uint64_t aSize, uint32_t aUsage, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap = false);
 
 	template <typename T, typename M>
-	[[nodiscard]] T* AllocateWithNewBlock(const uint64_t aSize, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap = false);
+	[[nodiscard]] T* AllocateWithNewBlock(const uint64_t aSize, uint32_t aUsage, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap = false);
 
 	uint32_t FindMemoryTypeIndex(const uint32_t someMemoryTypeBits, const VkMemoryPropertyFlags someProperties) const;
 	uint64_t GetPaddedSize(const uint64_t aSize, const uint64_t& anAlignmentSize) const;
@@ -54,11 +54,14 @@ private:
 };
 
 template <typename T, typename M>
-[[nodiscard]] T* AM_NaiveMemoryAllocator::AllocateFast(const uint64_t aSize, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap)
+[[nodiscard]] T* AM_NaiveMemoryAllocator::AllocateFast(const uint64_t aSize, uint32_t aUsage, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap)
 {
 	std::vector<M>& memArray = aMemoryPool[aRequirement.myMemoryTypeIndex];
 	for (M& block : memArray)
 	{
+		if (block.myUsage != aUsage)
+			continue;
+
 		if (block.myAlignment != aRequirement.myAlignment)
 			continue;
 
@@ -83,11 +86,14 @@ template <typename T, typename M>
 }
 
 template <typename T, typename M>
-[[nodiscard]] T* AM_NaiveMemoryAllocator::AllocateSlow(const uint64_t aSize, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap)
+[[nodiscard]] T* AM_NaiveMemoryAllocator::AllocateSlow(const uint64_t aSize, uint32_t aUsage, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap)
 {
 	std::vector<M>& memArray = aMemoryPool[aRequirement.myMemoryTypeIndex];
 	for (M& block : memArray)
 	{
+		if (block.myUsage != aUsage)
+			continue;
+
 		if (block.myAlignment != aRequirement.myAlignment)
 			continue;
 
@@ -112,11 +118,12 @@ template <typename T, typename M>
 }
 
 template <typename T, typename M>
-[[nodiscard]] T* AM_NaiveMemoryAllocator::AllocateWithNewBlock(const uint64_t aSize, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap)
+[[nodiscard]] T* AM_NaiveMemoryAllocator::AllocateWithNewBlock(const uint64_t aSize, uint32_t aUsage, const MemoryRequirements& aRequirement, std::vector<std::vector<M>>& aMemoryPool, bool aShouldMap)
 {
 	std::vector<M>& memArray = aMemoryPool[aRequirement.myMemoryTypeIndex];
 	M& newBlock = memArray.emplace_back();
 	newBlock.Init(aRequirement.myMemoryTypeIndex, aRequirement.myAlignment);
+	newBlock.myUsage = aUsage;
 
 	T* obj = newBlock.Allocate(GetPaddedSize(aSize, aRequirement.myAlignment), newBlock.myAllocationList);
 

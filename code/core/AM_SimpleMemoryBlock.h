@@ -16,6 +16,7 @@ public:
 	AM_SimpleMemoryBlock(const ResourceType aType)
 		: myExtent(0)
 		, myAlignment(0)
+		, myUsage(0)
 		, myType(aType)
 		, myMemory(VK_NULL_HANDLE)
 		, myMappedMemory(nullptr)
@@ -26,6 +27,7 @@ public:
 	AM_SimpleMemoryBlock(AM_SimpleMemoryBlock&& aMemoryBlock) noexcept
 		: myExtent(0)
 		, myAlignment(0)
+		, myUsage(0)
 		, myType(NOTSET)
 		, myMemory(VK_NULL_HANDLE)
 		, myMappedMemory(nullptr)
@@ -55,6 +57,7 @@ public:
 
 	uint64_t myExtent;
 	uint64_t myAlignment;
+	uint32_t myUsage;
 	ResourceType myType;
 	VkDeviceMemory myMemory;
 	void* myMappedMemory;
@@ -74,6 +77,7 @@ private:
 			return *this;
 		myExtent = std::exchange(aMemoryBlock.myExtent, 0);
 		myAlignment = std::exchange(aMemoryBlock.myAlignment, 0);
+		myUsage = std::exchange(aMemoryBlock.myUsage, 0);
 		myType = std::exchange(aMemoryBlock.myType, NOTSET);
 		myMemory = std::exchange(aMemoryBlock.myMemory, nullptr);
 		myMappedMemory = std::exchange(aMemoryBlock.myMappedMemory, nullptr);

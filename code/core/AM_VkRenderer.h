@@ -19,6 +19,12 @@ public:
 		return myCommandBuffers[myCurrentFrame];
 	}
 
+	inline VkCommandBuffer GetCurrentComputeCommandBuffer() const
+	{
+		assert(myIsFrameStarted && "Cannot get command buffer when frame not in progress");
+		return myComputeCommandBuffers[myCurrentFrame];
+	}
+
 	inline uint32_t GetFrameIndex() const
 	{
 		assert(myIsFrameStarted && "Cannot get frame index when frame not in progress");
@@ -65,11 +71,14 @@ private:
 
 	AM_VkSwapChain mySwapChain;
 	std::vector<VkCommandBuffer> myCommandBuffers;
+	std::vector<VkCommandBuffer> myComputeCommandBuffers;
 
 	// for swapchain
 	std::vector<AM_VkSemaphore> myImageAvailableSemaphores;
 	std::vector<AM_VkSemaphore> myRenderFinishedSemaphores;
+	std::vector<AM_VkSemaphore> myComputeFinishedSemaphores;
 	std::vector<AM_VkFence> myInFlightFences;
+	std::vector<AM_VkFence> myComputeInFlightFences;
 	std::vector<AM_VkFramebuffer> myFramebuffers;
 	AM_VkRenderPass myRenderPass;
 	AM_VkImageView myColorImageView;

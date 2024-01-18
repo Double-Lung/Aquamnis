@@ -70,7 +70,7 @@ private:
 	void CreateVertexBuffer(AM_Entity& anEntity);
 	void CreateIndexBuffer(AM_Entity& anEntity);
 	void CreateUniformBuffers();
-	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites);
+	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime);
 
 	void CreateShaderStorageBuffers();
 
@@ -97,7 +97,6 @@ private:
 	AM_NaiveMemoryAllocator myMemoryAllocator;
 
 	std::vector<AM_VkSemaphore> myTransferSemaphores;
-	std::vector<AM_VkFence> mySyncFences;
 	std::vector<AM_Buffer*> myVirtualShaderStorageBuffers;
 
 	AM_VkDescriptorPool myDescriptorPool;

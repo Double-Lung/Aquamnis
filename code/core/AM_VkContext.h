@@ -78,6 +78,7 @@ public:
 	std::vector<VkExtensionProperties> availableInstanceExtensions;
 	std::vector<VkLayerProperties> availableInstanceLayers;
 	std::vector<AM_VkCommandPool> myCommandPools;
+	std::vector<AM_VkCommandPool> myComputeCommandPools;
 	AM_VkCommandPool myTransferCommandPool;
 
 	static VkInstance instance;

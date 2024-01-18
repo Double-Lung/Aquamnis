@@ -15,6 +15,23 @@ AM_SimpleGPUParticleSystem::AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext,
 	myMaxComputeWorkGroupSize = myVkContext.deviceProperties.limits.maxComputeWorkGroupSize;
 }
 
+void AM_SimpleGPUParticleSystem::Render(VkCommandBuffer /*aCommandBuffer*/, VkDescriptorSet& /*aDescriptorSet*/)
+{
+	
+}
+
+void AM_SimpleGPUParticleSystem::DispatchWork(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet)
+{
+	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myComputePipeline.myPipeline);
+	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
+
+	static constexpr int PARTICLE_COUNT = 100;
+	vkCmdDispatch(aCommandBuffer, (PARTICLE_COUNT - 1) / 256 + 1, 1, 1);
+
+	if (vkEndCommandBuffer(aCommandBuffer) != VK_SUCCESS)
+		throw std::runtime_error("failed to record compute command buffer!");
+}
+
 void AM_SimpleGPUParticleSystem::CreateComputePipeline(VkRenderPass aRenderPass)
 {
 	auto computeShaderCode = ReadFile("../data/shader_bytecode/particle.comp.spv");

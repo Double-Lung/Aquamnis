@@ -186,9 +186,9 @@ void AM_VkRenderCore::CreateDescriptorSets()
 
 		VkDescriptorBufferInfo storageBufferInfoCurrentFrame{};
 		auto* virtualBuffer2 = myVirtualShaderStorageBuffers[i];
-		storageBufferInfoLastFrame.buffer = virtualBuffer2->myBuffer;
-		storageBufferInfoLastFrame.offset = virtualBuffer2->GetOffset();
-		storageBufferInfoLastFrame.range = virtualBuffer2->GetSize();
+		storageBufferInfoCurrentFrame.buffer = virtualBuffer2->myBuffer;
+		storageBufferInfoCurrentFrame.offset = virtualBuffer2->GetOffset();
+		storageBufferInfoCurrentFrame.range = virtualBuffer2->GetSize();
 
 		AM_VkDescriptorSetWriter writter2{ mySimpleGPUParticleSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool };
 		writter2.WriteBuffer(0, &bufferInfo);
@@ -588,7 +588,7 @@ void AM_VkRenderCore::CreateUniformBuffers()
 	myVirtualUniformBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
-void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites)
+void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime)
 {
 	UniformBufferObject ubo{};
 	ubo.view = aCamera.GetViewMatrix();
@@ -608,7 +608,7 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 		++lightIndex;
 	}
 	ubo.numLights = lightIndex;
-	//ubo.deltaTime = 0.f;
+	ubo.deltaTime = aDeltaTime;
 
 	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
 	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
@@ -717,7 +717,6 @@ void AM_VkRenderCore::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue 
 
 void AM_VkRenderCore::CreateSyncObjects()
 {
-	mySyncFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myTransferSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 }
 
@@ -833,12 +832,15 @@ void AM_VkRenderCore::MainLoop()
 		float deltaTime = AM_SimpleTimer::GetInstance().GetDeltaTime();
 		if (auto commandBufer = myRenderer->BeginFrame())
 		{
-			myRenderer->BeginRenderPass(commandBufer);
 			UpdateCameraTransform(deltaTime, camera);
-			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera, myEntities);
+			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera, myEntities, deltaTime);
+			mySimpleGPUParticleSystem->DispatchWork(myRenderer->GetCurrentComputeCommandBuffer(), myComputeDescriptorSets[myRenderer->GetFrameIndex()]);
+
+			myRenderer->BeginRenderPass(commandBufer);
 
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
+			//mySimpleGPUParticleSystem->Render(commandBufer, myComputeDescriptorSets[myRenderer->GetFrameIndex()]);
 
 			myRenderer->EndRenderPass(commandBufer);
 			myRenderer->EndFrame();

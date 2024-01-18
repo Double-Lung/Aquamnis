@@ -43,6 +43,11 @@ AM_VkContext::AM_VkContext()
 
 AM_VkContext::~AM_VkContext()
 {
+	for (auto& commandPool : myComputeCommandPools)
+	{
+		vkDestroyCommandPool(AM_VkContext::device, commandPool.myPool, nullptr);
+	}
+
 	for (auto& commandPool : myCommandPools)
 	{
 		vkDestroyCommandPool(AM_VkContext::device, commandPool.myPool, nullptr);
@@ -347,6 +352,11 @@ void AM_VkContext::CreateCommandPools()
 
 	myCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	for (auto& commandPool : myCommandPools)
+		commandPool.CreatePool(poolInfo);
+
+	poolInfo.queueFamilyIndex = computeFamilyIndex;
+	myComputeCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	for (auto& commandPool : myComputeCommandPools)
 		commandPool.CreatePool(poolInfo);
 
 	VkCommandPoolCreateInfo transferPoolInfo{};
