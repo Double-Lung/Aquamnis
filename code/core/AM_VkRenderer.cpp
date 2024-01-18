@@ -55,7 +55,6 @@ VkCommandBuffer AM_VkRenderer::BeginFrame()
 
 	myIsFrameStarted = true;
 	VkCommandBuffer commandBuffer = GetCurrentCommandBuffer();
-	VkCommandBuffer computeCommandBuffer = GetCurrentComputeCommandBuffer();
 
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -64,9 +63,6 @@ VkCommandBuffer AM_VkRenderer::BeginFrame()
 
 	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to begin recording command buffer!");
-
-	if (vkBeginCommandBuffer(computeCommandBuffer, &beginInfo) != VK_SUCCESS)
-		throw std::runtime_error("failed to begin recording compute command buffer!");
 
 	return commandBuffer;
 }
@@ -78,20 +74,9 @@ void AM_VkRenderer::EndFrame()
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		throw std::runtime_error("failed to record command buffer!");
 
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &myComputeCommandBuffers[myCurrentFrame];
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &myComputeFinishedSemaphores[myCurrentFrame].mySemaphore;
-
-	if (vkQueueSubmit(myVkContext.computeQueue, 1, &submitInfo, myComputeInFlightFences[myCurrentFrame].myFence) != VK_SUCCESS)
-		throw std::runtime_error("failed to submit compute command buffer!");
-
 	std::array<VkSemaphore, 2> waitSemaphores = { myComputeFinishedSemaphores[myCurrentFrame].mySemaphore, myImageAvailableSemaphores[myCurrentFrame].mySemaphore };
 	std::array<VkPipelineStageFlags, 2> waitStages = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	submitInfo = {};
+	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
 	submitInfo.pWaitSemaphores = waitSemaphores.data();
@@ -169,6 +154,20 @@ void AM_VkRenderer::EndRenderPass(VkCommandBuffer commandBuffer)
 	assert(myIsFrameStarted && "Can't call endSwapChainRenderPass if frame is not in progress");
 	assert(commandBuffer == GetCurrentCommandBuffer() && "Can't end render pass on command buffer from a different frame");
 	vkCmdEndRenderPass(commandBuffer);
+}
+
+void AM_VkRenderer::SubmitComputeQueue()
+{
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &myComputeCommandBuffers[myCurrentFrame];
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &myComputeFinishedSemaphores[myCurrentFrame].mySemaphore;
+
+	if (vkQueueSubmit(myVkContext.computeQueue, 1, &submitInfo, myComputeInFlightFences[myCurrentFrame].myFence) != VK_SUCCESS)
+		throw std::runtime_error("failed to submit compute command buffer!");
 }
 
 void AM_VkRenderer::CreateReusableCommandBuffers()

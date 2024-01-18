@@ -34,16 +34,23 @@ void AM_SimpleGPUParticleSystem::Render(VkCommandBuffer aCommandBuffer, VkDescri
 	VkDeviceSize offsets[] = { anSSBO->GetOffset() };
 	VkDeviceSize sizes[] = { anSSBO->GetSize() };
 	vkCmdBindVertexBuffers2(aCommandBuffer, 0, 1, &anSSBO->myBuffer, offsets, sizes, nullptr);
-	static constexpr int PARTICLE_COUNT = 100;
+	static constexpr int PARTICLE_COUNT = 2000;
 	vkCmdDraw(aCommandBuffer, PARTICLE_COUNT, 1, 0, 0);
 }
 
 void AM_SimpleGPUParticleSystem::DispatchWork(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet)
 {
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = 0; // Optional
+	beginInfo.pInheritanceInfo = nullptr; // Optional
+	if (vkBeginCommandBuffer(aCommandBuffer, &beginInfo) != VK_SUCCESS)
+		throw std::runtime_error("failed to begin recording compute command buffer!");
+
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myComputePipeline.myPipeline);
 	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 
-	static constexpr int PARTICLE_COUNT = 100;
+	static constexpr int PARTICLE_COUNT = 2000;
 	vkCmdDispatch(aCommandBuffer, (PARTICLE_COUNT - 1) / 256 + 1, 1, 1);
 
 	if (vkEndCommandBuffer(aCommandBuffer) != VK_SUCCESS)

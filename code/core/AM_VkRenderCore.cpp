@@ -626,9 +626,10 @@ void AM_VkRenderCore::CreateShaderStorageBuffers()
 
 	std::default_random_engine rndEngine((unsigned)time(nullptr));
 	std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
+	std::uniform_real_distribution<float> rndDist2(0.005f, 0.5f);
 
 	// Initial particle positions on a circle
-	static constexpr int PARTICLE_COUNT = 100;
+	static constexpr int PARTICLE_COUNT = 2000;
 	std::vector<Particle> particles(PARTICLE_COUNT);
 	for (Particle& particle : particles)
 	{
@@ -637,7 +638,7 @@ void AM_VkRenderCore::CreateShaderStorageBuffers()
 		float x = r * cos(theta) * (600.f / 800.f); 
 		float y = r * sin(theta);
 		particle.position = glm::vec2(x, y);
-		particle.velocity = glm::normalize(glm::vec2(x, y)) * 0.00025f;
+		particle.velocity = glm::normalize(glm::vec2(x, y)) * rndDist2(rndEngine);
 		particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
 	}
 
@@ -836,7 +837,10 @@ void AM_VkRenderCore::MainLoop()
 		{
 			UpdateCameraTransform(deltaTime, camera);
 			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera, myEntities, deltaTime);
+
+			// Compute work
 			mySimpleGPUParticleSystem->DispatchWork(myRenderer->GetCurrentComputeCommandBuffer(), myComputeDescriptorSets[myRenderer->GetFrameIndex()]);
+			myRenderer->SubmitComputeQueue();
 
 			myRenderer->BeginRenderPass(commandBufer);
 

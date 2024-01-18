@@ -35,6 +35,7 @@ public:
 	void EndFrame();
 	void BeginRenderPass(VkCommandBuffer commandBuffer);
 	void EndRenderPass(VkCommandBuffer commandBuffer);
+	void SubmitComputeQueue();
 
 	uint32_t GetWidth() const { return mySwapChain.GetWidth(); }
 	uint32_t GetHeight() const { return mySwapChain.GetHeight(); }
