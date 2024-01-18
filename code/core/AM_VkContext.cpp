@@ -43,6 +43,8 @@ AM_VkContext::AM_VkContext()
 
 AM_VkContext::~AM_VkContext()
 {
+	vkDestroyCommandPool(AM_VkContext::device, myTransferCommandPool.myPool, nullptr);
+
 	for (auto& commandPool : myComputeCommandPools)
 	{
 		vkDestroyCommandPool(AM_VkContext::device, commandPool.myPool, nullptr);

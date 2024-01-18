@@ -21,8 +21,6 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
 
 	PushConstantData push;
-	const float time = AM_SimpleTimer::GetInstance().GetTimeElapsed();
-
 	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 	for (auto& entry : someEntites)
 	{
@@ -70,15 +68,13 @@ void AM_SimpleRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = { vertShaderStageInfo, fragShaderStageInfo };
 
-	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-
-	auto bindingDescription = Vertex::GetBindingDescription();
+	auto bindingDescriptions = Vertex::GetBindingDescription();
 	auto attributeDescriptions = Vertex::GetAttributeDescriptions();
-
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
 	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescriptions;
 	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};

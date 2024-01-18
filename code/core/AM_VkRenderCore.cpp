@@ -6,6 +6,8 @@
 #include "AM_SimpleGPUParticleSystem.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
+#include "AM_Particle.h"
+
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -840,7 +842,7 @@ void AM_VkRenderCore::MainLoop()
 
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
-			//mySimpleGPUParticleSystem->Render(commandBufer, myComputeDescriptorSets[myRenderer->GetFrameIndex()]);
+			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myVirtualShaderStorageBuffers[myRenderer->GetFrameIndex()]);
 
 			myRenderer->EndRenderPass(commandBufer);
 			myRenderer->EndFrame();
@@ -930,4 +932,3 @@ void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera
 	if (translateChanged || rotationChanged)
 		aCamera.SetRotation(aCamera.myTransformComp.myTranslation, aCamera.myTransformComp.myRotation);
 }
-
