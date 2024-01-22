@@ -10,7 +10,7 @@
 - [x] Queue ownership transfer
 - [x] Simple push constants usage
 - [x] Basic scene with multiple objects
-- [ ] Simple compute shader
+- [x] Simple compute shader
 - [ ] Integrate GPU Open VMA
 - [ ] Pregenerated mipmap
 - [ ] Instanced rendering
