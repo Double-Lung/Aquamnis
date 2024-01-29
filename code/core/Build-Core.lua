@@ -11,7 +11,8 @@ project("AMRenderCore")
 		"$(VULKAN_SDK)/Include",
 	    "../extern/glm",
 	    "../extern/stb",
-  	    "../extern/tinyobjloader"
+  	    "../extern/tinyobjloader",
+		"../extern/VMA"
     }
    
     targetdir ("../../bin/" .. OutputDir .. "/%{prj.name}")

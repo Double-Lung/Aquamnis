@@ -1,4 +1,9 @@
 #define STB_IMAGE_IMPLEMENTATION
+#ifndef VMA_IMPLEMENTATION
+#define VMA_IMPLEMENTATION
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+#endif
 #include "AM_VkRenderCore.h"
 #include "AM_VkRenderer.h"
 #include "AM_SimpleRenderSystem.h"
@@ -7,6 +12,8 @@
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
+
+#include "vk_mem_alloc.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -35,6 +42,7 @@ AM_VkRenderCore::~AM_VkRenderCore()
 	delete myPointLightRenderSystem;
 	delete myRenderSystem;
 	delete myRenderer;
+	vmaDestroyAllocator(myVMA);
 }
 
 bool AM_VkRenderCore::CheckExtensionSupport()
@@ -798,10 +806,24 @@ void AM_VkRenderCore::InitVulkan()
 	myWindowInstance.Init();
 	CreateInstance();
 	myVkContext.Init();
+
+	VmaAllocatorCreateInfo vmaCreateInfo{};
+	vmaCreateInfo.instance = myVkContext.instance;
+	vmaCreateInfo.physicalDevice = myVkContext.physicalDevice;
+	vmaCreateInfo.device = myVkContext.device;
+	
+	vmaCreateInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+	static VmaVulkanFunctions vulkanFunctions = {};
+	vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+	vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+	vmaCreateInfo.pVulkanFunctions = &vulkanFunctions;
+	vmaCreateInfo.flags = 0; 
+	vmaCreateAllocator(&vmaCreateInfo, &myVMA);
+
 	myMemoryAllocator.Init(myVkContext.memoryProperties);
 	CreateSyncObjects();
 
-	myRenderer = new AM_VkRenderer(myVkContext, myWindowInstance, myMemoryAllocator);
+	myRenderer = new AM_VkRenderer(myVkContext, myWindowInstance, myMemoryAllocator, myVMA);
 
 	// load textures
 	CreateTextureImage();

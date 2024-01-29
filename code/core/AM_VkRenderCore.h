@@ -2,6 +2,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+
 #include "AM_Entity.h"
 #include "AM_NaiveMemoryAllocator.h"
 #include "AM_VkBuffer.h"
@@ -18,6 +19,10 @@ class AM_SimpleRenderSystem;
 class AM_PointLightRenderSystem;
 class AM_SimpleGPUParticleSystem;
 class AM_Camera;
+
+struct VmaAllocator_T;
+typedef VmaAllocator_T* VmaAllocator;
+
 class AM_VkRenderCore
 {
 public:
@@ -88,6 +93,7 @@ private:
 	AM_Window myWindowInstance;
 	AM_VkContext myVkContext;
 	AM_NaiveMemoryAllocator myMemoryAllocator;
+	VmaAllocator myVMA;
 
 	std::vector<AM_VkSemaphore> myTransferSemaphores;
 	std::vector<AM_Buffer*> myVirtualShaderStorageBuffers;

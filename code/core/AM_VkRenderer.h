@@ -5,10 +5,12 @@
 #include "AM_Window.h"
 
 class AM_Image;
+struct VmaAllocator_T;
+typedef VmaAllocator_T* VmaAllocator;
 class AM_VkRenderer
 {
 public:
-	explicit AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_NaiveMemoryAllocator& aMemoryAllocator);
+	explicit AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_NaiveMemoryAllocator& aMemoryAllocator, VmaAllocator& aVMA);
 	~AM_VkRenderer();
 
 	VkRenderPass GetRenderPass() const { return myRenderPass.myPass; }
@@ -69,6 +71,7 @@ private:
 	AM_VkContext& myVkContext;
 	AM_Window& myWindow;
 	AM_NaiveMemoryAllocator& myMemoryAllocator;
+	VmaAllocator& myVMA;
 
 	AM_VkSwapChain mySwapChain;
 	std::vector<VkCommandBuffer> myCommandBuffers;

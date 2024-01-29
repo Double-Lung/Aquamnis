@@ -1,11 +1,13 @@
 #include "AM_Image.h"
 #include "AM_VkRenderer.h"
+#include "vk_mem_alloc.h"
 #include <array>
 
-AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_NaiveMemoryAllocator& aMemoryAllocator)
+AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_NaiveMemoryAllocator& aMemoryAllocator, VmaAllocator& aVMA)
 	: myVkContext(aVkContext)
 	, myWindow(aWindow)
 	, myMemoryAllocator(aMemoryAllocator)
+	, myVMA(aVMA)
 	, mySwapChain{}
 	, myRenderPass{}
 	, myColorImageView{}
