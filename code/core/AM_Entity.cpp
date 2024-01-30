@@ -88,6 +88,16 @@ void AM_Entity::LoadModel(const char* aFilePath)
 	}
 }
 
+AM_Entity::AM_Entity(uint64_t anId) 
+	: myTempVertexBuffer{}
+	, myTempIndexBuffer{}
+	, myId(anId)
+	, myTransform{}
+	, myColor{ 1.f, 1.f, 1.f }
+	, myPointLightComponent{ nullptr }
+{
+}
+
 glm::mat4 TransformComponent::GetNormalMatrix()
 {
 	const float c3 = glm::cos(myRotation.z);

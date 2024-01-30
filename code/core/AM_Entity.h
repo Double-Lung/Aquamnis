@@ -8,6 +8,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <memory>
+#include "TempBuffer.h"
 
 struct Vertex
 {
@@ -57,7 +58,6 @@ struct PointLightComponent
 	float myIntensity;
 };
 
-class AM_Buffer;
 class AM_Entity
 {
 public:
@@ -84,8 +84,8 @@ public:
 
 	const std::vector<Vertex>& GetVertices() const { return myVertices; }
 	const std::vector<uint32_t>& GetIndices() const { return myIndices; }
-	AM_Buffer* GetVertexBuffer() const { return myVirtualVertexBuffer; }
-	AM_Buffer* GetIndexBuffer() const { return myVirtualIndexBuffer; }
+	const TempBuffer* GetTempVertexBuffer() const { return &myTempVertexBuffer; }
+	const TempBuffer* GetTempIndexBuffer() const { return &myTempIndexBuffer; }
 	
 	void SetColor(const glm::vec3& aColor) { myColor = aColor; }
 	const glm::vec3& GetColor() const { return myColor; }
@@ -93,27 +93,21 @@ public:
 	void LoadModel(const char* aFilePath);
 	void SetVertexData(std::vector<Vertex>&& someVertices) { myVertices = std::move(someVertices); }
 	void SetIndexData(std::vector<uint32_t>&& someIndices) { myIndices = std::move(someIndices); }
-	void SetVertexBuffer(AM_Buffer* aVertexBuffer) { myVirtualVertexBuffer = aVertexBuffer; }
-	void SetIndexBuffer(AM_Buffer* anIndexBuffer) { myVirtualIndexBuffer = anIndexBuffer; }
+
+	void SetVertexBuffer(TempBuffer aVertexBuffer) { myTempVertexBuffer = aVertexBuffer; }
+	void SetIndexBuffer(TempBuffer anIndexBuffer) { myTempIndexBuffer = anIndexBuffer; }
 
 private:
-	explicit AM_Entity(uint64_t anId)
-		: myVirtualVertexBuffer{nullptr}
-		, myVirtualIndexBuffer{nullptr}
-		, myId(anId)
-		, myTransform{}
-		, myColor{1.f, 1.f, 1.f}
-		, myPointLightComponent{nullptr}
-	{
-	}
+	explicit AM_Entity(uint64_t anId);
 
 	AM_Entity(const AM_Entity& anEntity) = delete;
 	AM_Entity& operator=(const AM_Entity& anEntity) = delete;
 
 	std::vector<Vertex> myVertices;
 	std::vector<uint32_t> myIndices;
-	AM_Buffer* myVirtualVertexBuffer;
-	AM_Buffer* myVirtualIndexBuffer;
+	TempBuffer myTempVertexBuffer;
+	TempBuffer myTempIndexBuffer;
+
 	uint64_t myId;
 	TransformComponent myTransform;
 	glm::vec3 myColor;

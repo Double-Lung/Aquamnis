@@ -5,16 +5,16 @@
 #include "AM_VkContext.h"
 #include "AM_VkPrimitives.h"
 #include "AM_VkDescriptorUtils.h"
+#include "TempBuffer.h"
 #include <glm/glm.hpp>
 
-class AM_Buffer;
 class AM_SimpleGPUParticleSystem
 {
 public:
 	AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass);
 	~AM_SimpleGPUParticleSystem(){}
 
-	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, AM_Buffer* anSSBO);
+	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, const TempBuffer* anSSBO);
 	// need to run outside of any render pass
 	void DispatchWork(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet);
 	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout.GetDescriptorSetLayout(); }

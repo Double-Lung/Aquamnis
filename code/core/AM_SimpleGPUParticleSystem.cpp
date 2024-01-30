@@ -1,9 +1,9 @@
 #include "AM_SimpleGPUParticleSystem.h"
-#include "AM_Buffer.h"
 #include "AM_Entity.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
+#include "vk_mem_alloc.h"
 #include <array>
 #include <fstream>
 #include <algorithm>
@@ -26,14 +26,13 @@ AM_SimpleGPUParticleSystem::AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext,
 	myMaxComputeWorkGroupSize = myVkContext.deviceProperties.limits.maxComputeWorkGroupSize;
 }
 
-void AM_SimpleGPUParticleSystem::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, AM_Buffer* anSSBO)
+void AM_SimpleGPUParticleSystem::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, const TempBuffer* anSSBO)
 {
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
 	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGfxPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 
-	VkDeviceSize offsets[] = { anSSBO->GetOffset() };
-	VkDeviceSize sizes[] = { anSSBO->GetSize() };
-	vkCmdBindVertexBuffers2(aCommandBuffer, 0, 1, &anSSBO->myBuffer, offsets, sizes, nullptr);
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(aCommandBuffer, 0, 1, &anSSBO->myBuffer, offsets);
 	static constexpr int PARTICLE_COUNT = 2000;
 	vkCmdDraw(aCommandBuffer, PARTICLE_COUNT, 1, 0, 0);
 }

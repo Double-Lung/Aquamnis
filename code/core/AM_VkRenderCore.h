@@ -10,6 +10,7 @@
 #include "AM_VkSwapChain.h"
 #include "AM_Window.h"
 #include "AM_VkDescriptorUtils.h"
+#include "TempBuffer.h"
 #include <array>
 #include <glm/glm.hpp>
 #include <string>
@@ -19,10 +20,6 @@ class AM_SimpleRenderSystem;
 class AM_PointLightRenderSystem;
 class AM_SimpleGPUParticleSystem;
 class AM_Camera;
-
-struct VmaAllocator_T;
-typedef VmaAllocator_T* VmaAllocator;
-
 class AM_VkRenderCore
 {
 public:
@@ -59,12 +56,16 @@ private:
 	AM_Image* CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 
 	void CreateTextureImage();
-	void CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight, VkCommandBuffer aCommandBuffer);
+	//void CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight, VkCommandBuffer aCommandBuffer);
+	void CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer);
 
-	void CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize);
+	//void CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize);
+	void CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocation, const TempBuffer* aDestinationBuffer);
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer);
 	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
 
+	void CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, void* aSource);
+	void UploadToBuffer(uint64_t aBufferSize, void* aSource, const TempBuffer* aBuffer);
 	void CreateVertexBuffer(AM_Entity& anEntity);
 	void CreateIndexBuffer(AM_Entity& anEntity);
 	void CreateUniformBuffers();
@@ -93,10 +94,10 @@ private:
 	AM_Window myWindowInstance;
 	AM_VkContext myVkContext;
 	AM_NaiveMemoryAllocator myMemoryAllocator;
-	VmaAllocator myVMA;
+	VmaAllocator myVMA = nullptr;
 
 	std::vector<AM_VkSemaphore> myTransferSemaphores;
-	std::vector<AM_Buffer*> myVirtualShaderStorageBuffers;
+	std::vector<TempBuffer> myVirtualShaderStorageBuffers;
 
 	AM_VkDescriptorPool myDescriptorPool;
 
@@ -106,7 +107,7 @@ private:
 
 	std::unordered_map<uint64_t, AM_Entity> myEntities;
 
-	AM_Buffer* myVirtualUniformBuffer = nullptr;
+	TempBuffer myUniformBuffer;
 
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	std::vector<VkDescriptorSet> myComputeDescriptorSets;

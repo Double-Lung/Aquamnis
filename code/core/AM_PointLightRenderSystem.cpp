@@ -1,5 +1,4 @@
 #include "AM_PointLightRenderSystem.h"
-#include "AM_Buffer.h"
 #include "AM_Entity.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"

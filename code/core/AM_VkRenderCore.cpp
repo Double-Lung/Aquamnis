@@ -42,6 +42,20 @@ AM_VkRenderCore::~AM_VkRenderCore()
 	delete myPointLightRenderSystem;
 	delete myRenderSystem;
 	delete myRenderer;
+
+	for (auto& entity : myEntities)
+	{
+		if (auto* indexBuffer = entity.second.GetTempIndexBuffer())
+			vmaDestroyBuffer(myVMA, indexBuffer->myBuffer, indexBuffer->myAllocation);
+		if (auto* vertexBuffer = entity.second.GetTempVertexBuffer())
+			vmaDestroyBuffer(myVMA, vertexBuffer->myBuffer, vertexBuffer->myAllocation);
+	}
+
+	for (auto& SSBO : myVirtualShaderStorageBuffers)
+		vmaDestroyBuffer(myVMA, SSBO.myBuffer, SSBO.myAllocation);
+	vmaDestroyBuffer(myVMA, myUniformBuffer.myBuffer, myUniformBuffer.myAllocation);
+	
+
 	vmaDestroyAllocator(myVMA);
 }
 
@@ -174,7 +188,7 @@ void AM_VkRenderCore::CreateDescriptorSets()
 	for (size_t i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = myVirtualUniformBuffer->myBuffer;
+		bufferInfo.buffer = myUniformBuffer.myBuffer;
 		bufferInfo.offset = i * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
 		bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE
 		VkDescriptorImageInfo imageInfo{};
@@ -189,16 +203,16 @@ void AM_VkRenderCore::CreateDescriptorSets()
 
 		// for compute shader
 		VkDescriptorBufferInfo storageBufferInfoLastFrame{};
-		auto* virtualBuffer = myVirtualShaderStorageBuffers[(i - 1) % AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT];
-		storageBufferInfoLastFrame.buffer = virtualBuffer->myBuffer;
-		storageBufferInfoLastFrame.offset = virtualBuffer->GetOffset();
-		storageBufferInfoLastFrame.range = virtualBuffer->GetSize();
+		TempBuffer virtualBuffer = myVirtualShaderStorageBuffers[(i - 1) % AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT];
+		storageBufferInfoLastFrame.buffer = virtualBuffer.myBuffer;
+		storageBufferInfoLastFrame.offset = 0;
+		storageBufferInfoLastFrame.range = virtualBuffer.myAllocation->GetSize();
 
 		VkDescriptorBufferInfo storageBufferInfoCurrentFrame{};
-		auto* virtualBuffer2 = myVirtualShaderStorageBuffers[i];
-		storageBufferInfoCurrentFrame.buffer = virtualBuffer2->myBuffer;
-		storageBufferInfoCurrentFrame.offset = virtualBuffer2->GetOffset();
-		storageBufferInfoCurrentFrame.range = virtualBuffer2->GetSize();
+		TempBuffer virtualBuffer2 = myVirtualShaderStorageBuffers[i];
+		storageBufferInfoCurrentFrame.buffer = virtualBuffer2.myBuffer;
+		storageBufferInfoCurrentFrame.offset = 0;
+		storageBufferInfoCurrentFrame.range = virtualBuffer2.myAllocation->GetSize();
 
 		AM_VkDescriptorSetWriter writter2{ mySimpleGPUParticleSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool };
 		writter2.WriteBuffer(0, &bufferInfo);
@@ -241,20 +255,19 @@ void AM_VkRenderCore::CreateTextureImage()
 	if (!pixels)
 		throw std::runtime_error("failed to load texture image!");
 
-	myMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
-	VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4;
-
-	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)pixels, static_cast<size_t>(imageSize));
+	uint64_t bufferSize = (uint64_t)texWidth * (uint64_t)texHeight * 4;
+	TempBuffer stagingBuffer;
+	CreateFilledStagingBuffer(stagingBuffer, bufferSize, (void*)pixels);
 	stbi_image_free(pixels);
 
+	myMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 	myTextureImage = CreateImage({ (uint32_t)texWidth, (uint32_t)texHeight }, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	VkCommandBuffer commandBuffer;
 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
 	TransitionImageLayout(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, commandBuffer);
-	CopyBufferToImage(*stagingBuffer, myTextureImage->GetImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), commandBuffer);
-
+	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage->GetImage(), texWidth, texHeight, commandBuffer);
+	
 	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
 	postCopyTransferMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	postCopyTransferMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -321,13 +334,38 @@ void AM_VkRenderCore::CreateTextureImage()
 	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
 
 	GenerateMipmaps(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
-	stagingBuffer->SetIsEmpty(true);
+	vmaDestroyBuffer(myVMA, stagingBuffer.myBuffer, stagingBuffer.myAllocation);
 }
 
-void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight, VkCommandBuffer aCommandBuffer)
+// void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight, VkCommandBuffer aCommandBuffer)
+// {
+// 	VkBufferImageCopy region{};
+// 	region.bufferOffset = aBuffer.GetOffset();
+// 	region.bufferRowLength = 0;
+// 	region.bufferImageHeight = 0;
+// 
+// 	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+// 	region.imageSubresource.mipLevel = 0;
+// 	region.imageSubresource.baseArrayLayer = 0;
+// 	region.imageSubresource.layerCount = 1;
+// 
+// 	region.imageOffset = { 0, 0, 0 };
+// 	region.imageExtent = { aWidth, aHeight, 1 };
+// 
+// 	vkCmdCopyBufferToImage(
+// 		aCommandBuffer,
+// 		aBuffer.myBuffer,
+// 		anImage,
+// 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+// 		1,
+// 		&region
+// 	);
+// }
+
+void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer)
 {
 	VkBufferImageCopy region{};
-	region.bufferOffset = aBuffer.GetOffset();
+	region.bufferOffset = 0;
 	region.bufferRowLength = 0;
 	region.bufferImageHeight = 0;
 
@@ -341,7 +379,7 @@ void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, con
 
 	vkCmdCopyBufferToImage(
 		aCommandBuffer,
-		aBuffer.myBuffer,
+		aSourceBuffer,
 		anImage,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1,
@@ -349,13 +387,68 @@ void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, con
 	);
 }
 
-void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
+// void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
+// {
+// 	VkCommandBuffer commandBuffer;
+// 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
+// 
+// 	VkBufferCopy copyRegion{ aSourceBuffer.GetOffset(), aDestinationBuffer.GetOffset(), aSize };
+// 	vkCmdCopyBuffer(commandBuffer, aSourceBuffer.myBuffer, aDestinationBuffer.myBuffer, 1, &copyRegion);
+// 
+// 	VkBufferMemoryBarrier bufferMemoryBarrier{};
+// 	bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+// 	bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+// 	bufferMemoryBarrier.dstAccessMask = 0;
+// 	bufferMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
+// 	bufferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
+// 	bufferMemoryBarrier.buffer = aDestinationBuffer.myBuffer;
+// 	bufferMemoryBarrier.offset = aDestinationBuffer.GetOffset();
+// 	bufferMemoryBarrier.size = aSize;
+// 
+// 	vkCmdPipelineBarrier(
+// 		commandBuffer,
+// 		VK_PIPELINE_STAGE_TRANSFER_BIT,      // srcStageMask
+// 		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
+// 		0,
+// 		0, nullptr,  
+// 		1, &bufferMemoryBarrier,
+// 		0, nullptr
+// 	);
+// 
+// 	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0].mySemaphore);
+// 
+// 	VkCommandBuffer graphicsCommandBuffer;
+// 	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0].myPool);
+// 
+// 	bufferMemoryBarrier.srcAccessMask = 0;
+// 	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+// 
+// 	vkCmdPipelineBarrier(
+// 		graphicsCommandBuffer, 
+// 		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+// 		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+// 		0,
+// 		0, nullptr,
+// 		1, &bufferMemoryBarrier,               
+// 		0, nullptr
+// 	);
+// 
+// 	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0].mySemaphore);
+// 
+// 	vkQueueWaitIdle(myVkContext.transferQueue);
+// 	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myTransferCommandPool.myPool, 1, &commandBuffer);
+// 
+// 	vkQueueWaitIdle(myVkContext.graphicsQueue);
+// 	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
+// }
+
+void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocation, const TempBuffer* aDestinationBuffer)
 {
 	VkCommandBuffer commandBuffer;
 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
 
-	VkBufferCopy copyRegion{ aSourceBuffer.GetOffset(), aDestinationBuffer.GetOffset(), aSize };
-	vkCmdCopyBuffer(commandBuffer, aSourceBuffer.myBuffer, aDestinationBuffer.myBuffer, 1, &copyRegion);
+	VkBufferCopy copyRegion{ 0, 0, anAllocation->GetSize() };
+	vkCmdCopyBuffer(commandBuffer, aSourceBuffer, aDestinationBuffer->myBuffer, 1, &copyRegion);
 
 	VkBufferMemoryBarrier bufferMemoryBarrier{};
 	bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -363,16 +456,16 @@ void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinati
 	bufferMemoryBarrier.dstAccessMask = 0;
 	bufferMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
 	bufferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
-	bufferMemoryBarrier.buffer = aDestinationBuffer.myBuffer;
-	bufferMemoryBarrier.offset = aDestinationBuffer.GetOffset();
-	bufferMemoryBarrier.size = aSize;
+	bufferMemoryBarrier.buffer = aDestinationBuffer->myBuffer;
+	bufferMemoryBarrier.offset = aDestinationBuffer->myAllocation->GetOffset();
+	bufferMemoryBarrier.size = anAllocation->GetSize();
 
 	vkCmdPipelineBarrier(
 		commandBuffer,
 		VK_PIPELINE_STAGE_TRANSFER_BIT,      // srcStageMask
 		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
 		0,
-		0, nullptr,  
+		0, nullptr,
 		1, &bufferMemoryBarrier,
 		0, nullptr
 	);
@@ -386,12 +479,12 @@ void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinati
 	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
 
 	vkCmdPipelineBarrier(
-		graphicsCommandBuffer, 
+		graphicsCommandBuffer,
 		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
 		0,
 		0, nullptr,
-		1, &bufferMemoryBarrier,               
+		1, &bufferMemoryBarrier,
 		0, nullptr
 	);
 
@@ -570,32 +663,91 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[0].myPool);
 }
 
+void AM_VkRenderCore::CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, void* aSource)
+{
+	VkBufferCreateInfo stagingBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	stagingBufferInfo.size = aBufferSize;
+	stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+	VmaAllocationCreateInfo stagingAllocInfo = {};
+	stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &outBuffer.myBuffer, &outBuffer.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create staging buffer!");
+
+	vmaCopyMemoryToAllocation(myVMA, aSource, outBuffer.myAllocation, outBuffer.myAllocation->GetOffset(), aBufferSize);
+}
+
+void AM_VkRenderCore::UploadToBuffer(uint64_t aBufferSize, void* aSource, const TempBuffer* aBuffer)
+{
+	VkBufferCreateInfo stagingBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	stagingBufferInfo.size = aBufferSize;
+	stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+	VmaAllocationCreateInfo stagingAllocInfo = {};
+	stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	VkBuffer stagingBuffer;
+	VmaAllocation stagingAllocation;
+	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer, &stagingAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create staging buffer!");
+
+	vmaCopyMemoryToAllocation(myVMA, aSource, stagingAllocation, stagingAllocation->GetOffset(), aBufferSize);
+	CopyBuffer(stagingBuffer, stagingAllocation, aBuffer);
+	vmaDestroyBuffer(myVMA, stagingBuffer, stagingAllocation);
+}
+
 void AM_VkRenderCore::CreateVertexBuffer(AM_Entity& anEntity)
 {
 	VkDeviceSize bufferSize = sizeof(anEntity.GetVertices()[0]) * anEntity.GetVertices().size();
-	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)anEntity.GetVertices().data(), static_cast<size_t>(bufferSize));
-	anEntity.SetVertexBuffer(myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	VkBufferCreateInfo vertexBufferCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	vertexBufferCreateInfo.size = bufferSize;
+	vertexBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
-	CopyBuffer(*stagingBuffer, *anEntity.GetVertexBuffer(), bufferSize);
-	stagingBuffer->SetIsEmpty(true);
+	VmaAllocationCreateInfo vertexBufferAllocInfo = {};
+	vertexBufferAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	TempBuffer vertexBuffer;
+	VkResult result = vmaCreateBuffer(myVMA, &vertexBufferCreateInfo, &vertexBufferAllocInfo, &vertexBuffer.myBuffer, &vertexBuffer.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create vertex buffer!");
+	anEntity.SetVertexBuffer(vertexBuffer);
+	UploadToBuffer(bufferSize, (void*)anEntity.GetVertices().data(), anEntity.GetTempVertexBuffer());
 }
 
 void AM_VkRenderCore::CreateIndexBuffer(AM_Entity& anEntity)
 {
 	VkDeviceSize bufferSize = sizeof(anEntity.GetIndices()[0]) * anEntity.GetIndices().size();
-	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)anEntity.GetIndices().data(), static_cast<size_t>(bufferSize));
-	anEntity.SetIndexBuffer(myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	VkBufferCreateInfo indexBufferCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	indexBufferCreateInfo.size = bufferSize;
+	indexBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 
-	CopyBuffer(*stagingBuffer, *anEntity.GetIndexBuffer(), bufferSize);
-	stagingBuffer->SetIsEmpty(true);
+	VmaAllocationCreateInfo indexBufferAllocInfo = {};
+	indexBufferAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	TempBuffer indexBuffer;
+	VkResult result = vmaCreateBuffer(myVMA, &indexBufferCreateInfo, &indexBufferAllocInfo, &indexBuffer.myBuffer, &indexBuffer.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create vertex buffer!");
+	anEntity.SetIndexBuffer(indexBuffer);
+	UploadToBuffer(bufferSize, (void*)anEntity.GetIndices().data(), anEntity.GetTempIndexBuffer());
 }
 
 void AM_VkRenderCore::CreateUniformBuffers()
 {
 	static constexpr uint64_t bufferSize = AM_VkRenderCoreConstants::UBO_ALIGNMENT * AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
-	myVirtualUniformBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	bufferInfo.size = bufferSize;
+	bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+	VkResult result = vmaCreateBuffer(myVMA, &bufferInfo, &allocInfo, &myUniformBuffer.myBuffer, &myUniformBuffer.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create uniform buffer!");
+	assert(myUniformBuffer.myAllocation->GetMappedData() != nullptr && "Uniform buffer is not mapped!");
 }
 
 void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime)
@@ -620,12 +772,8 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 	ubo.numLights = lightIndex;
 	ubo.deltaTime = aDeltaTime;
 
-	char* mappedUniformBuffers = (char*) myVirtualUniformBuffer->GetMappedMemory();
-	assert(mappedUniformBuffers != nullptr&& "Uniform buffer is not mapped!");
-
-	char* destination = mappedUniformBuffers + currentImage * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
 	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
-	memcpy((void*)destination, &ubo, sizeof(ubo));
+	vmaCopyMemoryToAllocation(myVMA, &ubo, myUniformBuffer.myAllocation, currentImage * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
 }
 
 void AM_VkRenderCore::CreateShaderStorageBuffers()
@@ -651,16 +799,22 @@ void AM_VkRenderCore::CreateShaderStorageBuffers()
 	}
 
 	VkDeviceSize bufferSize = sizeof(Particle) * PARTICLE_COUNT;
-	AM_Buffer* stagingBuffer = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	myMemoryAllocator.CopyToMappedMemory(*stagingBuffer, (void*)particles.data(), static_cast<size_t>(bufferSize));
-
+	TempBuffer stagingBufer{};
+	CreateFilledStagingBuffer(stagingBufer, bufferSize, particles.data());
 	for (auto& SSBO : myVirtualShaderStorageBuffers)
 	{
-		SSBO = myMemoryAllocator.AllocateBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		CopyBuffer(*stagingBuffer, *SSBO, bufferSize);
+		VkBufferCreateInfo SSBOBufferCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+		SSBOBufferCreateInfo.size = bufferSize;
+		SSBOBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+		VmaAllocationCreateInfo SSBOBufferAllocInfo = {};
+		SSBOBufferAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+		VkResult result = vmaCreateBuffer(myVMA, &SSBOBufferCreateInfo, &SSBOBufferAllocInfo, &SSBO.myBuffer, &SSBO.myAllocation, nullptr);
+		assert(result == VK_SUCCESS && "failed to create SSBO!");
+		CopyBuffer(stagingBufer.myBuffer, stagingBufer.myAllocation, &SSBO);
 	}
 
-	stagingBuffer->SetIsEmpty(true);
+	vmaDestroyBuffer(myVMA, stagingBufer.myBuffer, stagingBufer.myAllocation);
 }
 
 void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
@@ -868,7 +1022,7 @@ void AM_VkRenderCore::MainLoop()
 
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
-			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myVirtualShaderStorageBuffers[myRenderer->GetFrameIndex()]);
+			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderer->GetFrameIndex()]);
 
 			myRenderer->EndRenderPass(commandBufer);
 			myRenderer->EndFrame();

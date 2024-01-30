@@ -1,8 +1,9 @@
 #include "AM_SimpleRenderSystem.h"
-#include "AM_Buffer.h"
 #include "AM_Entity.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
+#include "vk_mem_alloc.h"
+#include "TempBuffer.h"
 #include <array>
 #include <fstream>
 
@@ -27,13 +28,12 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 		auto& entity = entry.second;
 		if (entity.HasPointLightComponent())
 			continue;
-		AM_Buffer* vertexBuffer = entity.GetVertexBuffer();
-		AM_Buffer* indexBuffer = entity.GetIndexBuffer();
+		const TempBuffer* vertexBuffer = entity.GetTempVertexBuffer();
+		const TempBuffer* indexBuffer = entity.GetTempIndexBuffer();
 		VkBuffer vertexBuffers[] = { vertexBuffer->myBuffer };
-		VkDeviceSize offsets[] = { vertexBuffer->GetOffset() };
-		VkDeviceSize sizes[] = { vertexBuffer->GetSize() };
-		vkCmdBindVertexBuffers2(aCommandBuffer, 0, 1, vertexBuffers, offsets, sizes, nullptr);
-		vkCmdBindIndexBuffer(aCommandBuffer, indexBuffer->myBuffer, indexBuffer->GetOffset(), VK_INDEX_TYPE_UINT32);
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(aCommandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(aCommandBuffer, indexBuffer->myBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 		push.normalMat = entity.GetTransformComponent().GetNormalMatrix();
 		push.transform = entity.GetTransformComponent().GetMatrix();

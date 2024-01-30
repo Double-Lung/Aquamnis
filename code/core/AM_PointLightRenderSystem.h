@@ -7,7 +7,6 @@
 #include "AM_VkDescriptorUtils.h"
 #include <glm/glm.hpp>
 
-class AM_Buffer;
 class AM_Entity;
 class AM_Camera;
 class AM_PointLightRenderSystem
