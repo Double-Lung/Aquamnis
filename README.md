@@ -11,7 +11,7 @@
 - [x] Simple push constants usage
 - [x] Basic scene with multiple objects
 - [x] Simple compute shader
-- [ ] Integrate GPU Open VMA
+- [x] Integrate GPU Open VMA
 - [ ] Some refactoring & adding cube map
 - [ ] Pregenerated mipmap
 - [ ] Instanced rendering
