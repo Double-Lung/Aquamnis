@@ -1,19 +1,15 @@
-#include "AM_Image.h"
 #include "AM_VkRenderer.h"
 #include "vk_mem_alloc.h"
 #include <array>
 
-AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_NaiveMemoryAllocator& aMemoryAllocator, VmaAllocator& aVMA)
+AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAllocator& aVMA)
 	: myVkContext(aVkContext)
 	, myWindow(aWindow)
-	, myMemoryAllocator(aMemoryAllocator)
 	, myVMA(aVMA)
 	, mySwapChain{}
 	, myRenderPass{}
 	, myColorImageView{}
 	, myDepthImageView{}
-	, myColorImage(nullptr)
-	, myDepthImage(nullptr)
 	, myCurrentFrame(0)
 	, myImageIndex(0)
 	, myIsFrameStarted(false)
@@ -30,6 +26,8 @@ AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_Na
 AM_VkRenderer::~AM_VkRenderer()
 {
 	FreeCommandBuffers();
+	vmaDestroyImage(myVMA, myDepthImage.myImage, myDepthImage.myAllocation);
+	vmaDestroyImage(myVMA, myColorImage.myImage, myColorImage.myAllocation);
 }
 
 VkCommandBuffer AM_VkRenderer::BeginFrame()
@@ -346,29 +344,71 @@ void AM_VkRenderer::CreateSwapChain()
 void AM_VkRenderer::CleanupSwapChain()
 {
 	myColorImageView.DestroyView();
-	myColorImage->Release();
-	myColorImage->SetIsEmpty(true);
+	vmaDestroyImage(myVMA, myColorImage.myImage, myColorImage.myAllocation);
+
 	myDepthImageView.DestroyView();
-	myDepthImage->Release();
-	myDepthImage->SetIsEmpty(true);
+	vmaDestroyImage(myVMA, myDepthImage.myImage, myDepthImage.myAllocation);
+
 	myFramebuffers.clear();
 	mySwapChain.Destroy();
 }
 
 void AM_VkRenderer::CreateColorResources()
 {
-	myColorImage = CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.surfaceFormat.format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	CreateImageView(myColorImageView, myColorImage->GetImage(), myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = mySwapChain.GetExtent().width;
+	imageInfo.extent.height = mySwapChain.GetExtent().height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = myVkContext.surfaceFormat.format;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	imageInfo.samples = myVkContext.maxMSAASamples;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.flags = 0; // Optional
+
+	VmaAllocationCreateInfo allocationInfo{};
+	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myColorImage.myImage, &myColorImage.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create image!");
+
+	CreateImageView(myColorImageView, myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
 void AM_VkRenderer::CreateDepthResources()
 {
-	myDepthImage = CreateImage(mySwapChain.GetExtent(), 1, myVkContext.maxMSAASamples, myVkContext.depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	CreateImageView(myDepthImageView, myDepthImage->GetImage(), myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = mySwapChain.GetExtent().width;
+	imageInfo.extent.height = mySwapChain.GetExtent().height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = myVkContext.depthFormat;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	imageInfo.samples = myVkContext.maxMSAASamples;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.flags = 0; // Optional
+
+	VmaAllocationCreateInfo allocationInfo{};
+	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myDepthImage.myImage, &myDepthImage.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create image!");
+
+	CreateImageView(myDepthImageView, myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
 	VkCommandBuffer commandBuffer;
 	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[myCurrentFrame].myPool);
-	TransitionImageLayout(myDepthImage->GetImage(), myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, commandBuffer);
+	TransitionImageLayout(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, commandBuffer);
 	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[myCurrentFrame].myPool);
 }
 
@@ -402,27 +442,6 @@ void AM_VkRenderer::CreateSyncObjects()
 
 	myComputeInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myComputeFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-}
-
-AM_Image* AM_VkRenderer::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
-{
-	VkImageCreateInfo imageInfo{};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = anExtent.width;
-	imageInfo.extent.height = anExtent.height;
-	imageInfo.extent.depth = 1;
-	imageInfo.mipLevels = aMipLevels;
-	imageInfo.arrayLayers = 1;
-	imageInfo.format = format;
-	imageInfo.tiling = tiling;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageInfo.usage = usage;
-	imageInfo.samples = numSamples;
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	imageInfo.flags = 0; // Optional
-
-	return myMemoryAllocator.AllocateImage(imageInfo, properties);
 }
 
 void AM_VkRenderer::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)

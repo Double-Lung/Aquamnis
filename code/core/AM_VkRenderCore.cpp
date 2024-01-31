@@ -54,8 +54,7 @@ AM_VkRenderCore::~AM_VkRenderCore()
 	for (auto& SSBO : myVirtualShaderStorageBuffers)
 		vmaDestroyBuffer(myVMA, SSBO.myBuffer, SSBO.myAllocation);
 	vmaDestroyBuffer(myVMA, myUniformBuffer.myBuffer, myUniformBuffer.myAllocation);
-	
-
+	vmaDestroyImage(myVMA, myTextureImage.myImage, myTextureImage.myAllocation);
 	vmaDestroyAllocator(myVMA);
 }
 
@@ -224,28 +223,7 @@ void AM_VkRenderCore::CreateDescriptorSets()
 
 void AM_VkRenderCore::CreateTextureImageView()
 {
-	CreateImageView(myTextureImageView, myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
-}
-
-AM_Image* AM_VkRenderCore::CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
-{
-	VkImageCreateInfo imageInfo{};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = anExtent.width;
-	imageInfo.extent.height = anExtent.height;
-	imageInfo.extent.depth = 1;
-	imageInfo.mipLevels = aMipLevels;
-	imageInfo.arrayLayers = 1;
-	imageInfo.format = format;
-	imageInfo.tiling = tiling;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageInfo.usage = usage;
-	imageInfo.samples = numSamples;
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	imageInfo.flags = 0; // Optional
-
-	return myMemoryAllocator.AllocateImage(imageInfo, properties);
+	CreateImageView(myTextureImageView, myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
 }
 
 void AM_VkRenderCore::CreateTextureImage()
@@ -261,12 +239,33 @@ void AM_VkRenderCore::CreateTextureImage()
 	stbi_image_free(pixels);
 
 	myMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
-	myTextureImage = CreateImage({ (uint32_t)texWidth, (uint32_t)texHeight }, myMipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = (uint32_t)texWidth;
+	imageInfo.extent.height = (uint32_t)texHeight;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = myMipLevels;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.flags = 0; // Optional
+
+	VmaAllocationCreateInfo allocationInfo{};
+	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myTextureImage.myImage, &myTextureImage.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create image!");
 
 	VkCommandBuffer commandBuffer;
 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
-	TransitionImageLayout(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, commandBuffer);
-	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage->GetImage(), texWidth, texHeight, commandBuffer);
+	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, commandBuffer);
+	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage.myImage, texWidth, texHeight, commandBuffer);
 	
 	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
 	postCopyTransferMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -276,7 +275,7 @@ void AM_VkRenderCore::CreateTextureImage()
 	postCopyTransferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
 	postCopyTransferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 	postCopyTransferMemoryBarrier.dstAccessMask = 0;
-	postCopyTransferMemoryBarrier.image = myTextureImage->GetImage();
+	postCopyTransferMemoryBarrier.image = myTextureImage.myImage;
 	postCopyTransferMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	postCopyTransferMemoryBarrier.subresourceRange.levelCount = myMipLevels;
 	postCopyTransferMemoryBarrier.subresourceRange.baseArrayLayer = 0;
@@ -306,7 +305,7 @@ void AM_VkRenderCore::CreateTextureImage()
 	postCopyGraphicsMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
 	postCopyGraphicsMemoryBarrier.srcAccessMask = 0;
 	postCopyGraphicsMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	postCopyGraphicsMemoryBarrier.image = myTextureImage->GetImage();
+	postCopyGraphicsMemoryBarrier.image = myTextureImage.myImage;
 	postCopyGraphicsMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	postCopyGraphicsMemoryBarrier.subresourceRange.levelCount = myMipLevels;
 	postCopyGraphicsMemoryBarrier.subresourceRange.baseArrayLayer = 0;
@@ -333,34 +332,9 @@ void AM_VkRenderCore::CreateTextureImage()
 	vkQueueWaitIdle(myVkContext.graphicsQueue);
 	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
 
-	GenerateMipmaps(myTextureImage->GetImage(), VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
+	GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	vmaDestroyBuffer(myVMA, stagingBuffer.myBuffer, stagingBuffer.myAllocation);
 }
-
-// void AM_VkRenderCore::CopyBufferToImage(AM_Buffer& aBuffer, VkImage anImage, const uint32_t aWidth, const uint32_t aHeight, VkCommandBuffer aCommandBuffer)
-// {
-// 	VkBufferImageCopy region{};
-// 	region.bufferOffset = aBuffer.GetOffset();
-// 	region.bufferRowLength = 0;
-// 	region.bufferImageHeight = 0;
-// 
-// 	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-// 	region.imageSubresource.mipLevel = 0;
-// 	region.imageSubresource.baseArrayLayer = 0;
-// 	region.imageSubresource.layerCount = 1;
-// 
-// 	region.imageOffset = { 0, 0, 0 };
-// 	region.imageExtent = { aWidth, aHeight, 1 };
-// 
-// 	vkCmdCopyBufferToImage(
-// 		aCommandBuffer,
-// 		aBuffer.myBuffer,
-// 		anImage,
-// 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-// 		1,
-// 		&region
-// 	);
-// }
 
 void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer)
 {
@@ -387,61 +361,6 @@ void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage,
 	);
 }
 
-// void AM_VkRenderCore::CopyBuffer(AM_Buffer& aSourceBuffer, AM_Buffer& aDestinationBuffer, const VkDeviceSize aSize)
-// {
-// 	VkCommandBuffer commandBuffer;
-// 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
-// 
-// 	VkBufferCopy copyRegion{ aSourceBuffer.GetOffset(), aDestinationBuffer.GetOffset(), aSize };
-// 	vkCmdCopyBuffer(commandBuffer, aSourceBuffer.myBuffer, aDestinationBuffer.myBuffer, 1, &copyRegion);
-// 
-// 	VkBufferMemoryBarrier bufferMemoryBarrier{};
-// 	bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-// 	bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-// 	bufferMemoryBarrier.dstAccessMask = 0;
-// 	bufferMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
-// 	bufferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
-// 	bufferMemoryBarrier.buffer = aDestinationBuffer.myBuffer;
-// 	bufferMemoryBarrier.offset = aDestinationBuffer.GetOffset();
-// 	bufferMemoryBarrier.size = aSize;
-// 
-// 	vkCmdPipelineBarrier(
-// 		commandBuffer,
-// 		VK_PIPELINE_STAGE_TRANSFER_BIT,      // srcStageMask
-// 		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
-// 		0,
-// 		0, nullptr,  
-// 		1, &bufferMemoryBarrier,
-// 		0, nullptr
-// 	);
-// 
-// 	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0].mySemaphore);
-// 
-// 	VkCommandBuffer graphicsCommandBuffer;
-// 	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0].myPool);
-// 
-// 	bufferMemoryBarrier.srcAccessMask = 0;
-// 	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-// 
-// 	vkCmdPipelineBarrier(
-// 		graphicsCommandBuffer, 
-// 		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-// 		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-// 		0,
-// 		0, nullptr,
-// 		1, &bufferMemoryBarrier,               
-// 		0, nullptr
-// 	);
-// 
-// 	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0].mySemaphore);
-// 
-// 	vkQueueWaitIdle(myVkContext.transferQueue);
-// 	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myTransferCommandPool.myPool, 1, &commandBuffer);
-// 
-// 	vkQueueWaitIdle(myVkContext.graphicsQueue);
-// 	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
-// }
-
 void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocation, const TempBuffer* aDestinationBuffer)
 {
 	VkCommandBuffer commandBuffer;
@@ -457,7 +376,7 @@ void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocat
 	bufferMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
 	bufferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
 	bufferMemoryBarrier.buffer = aDestinationBuffer->myBuffer;
-	bufferMemoryBarrier.offset = aDestinationBuffer->myAllocation->GetOffset();
+	bufferMemoryBarrier.offset = 0;
 	bufferMemoryBarrier.size = anAllocation->GetSize();
 
 	vkCmdPipelineBarrier(
@@ -973,11 +892,9 @@ void AM_VkRenderCore::InitVulkan()
 	vmaCreateInfo.pVulkanFunctions = &vulkanFunctions;
 	vmaCreateInfo.flags = 0; 
 	vmaCreateAllocator(&vmaCreateInfo, &myVMA);
-
-	myMemoryAllocator.Init(myVkContext.memoryProperties);
 	CreateSyncObjects();
 
-	myRenderer = new AM_VkRenderer(myVkContext, myWindowInstance, myMemoryAllocator, myVMA);
+	myRenderer = new AM_VkRenderer(myVkContext, myWindowInstance, myVMA);
 
 	// load textures
 	CreateTextureImage();

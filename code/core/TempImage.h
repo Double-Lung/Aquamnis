@@ -4,8 +4,8 @@
 struct VmaAllocation_T;
 typedef VmaAllocation_T* VmaAllocation;
 
-struct TempBuffer
+struct TempImage
 {
-	VkBuffer myBuffer{ nullptr };
+	VkImage myImage{ nullptr };
 	VmaAllocation myAllocation{ nullptr };
 };

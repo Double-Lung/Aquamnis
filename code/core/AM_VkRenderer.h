@@ -1,16 +1,16 @@
 #pragma once
 
-#include "AM_NaiveMemoryAllocator.h"
 #include "AM_VkSwapChain.h"
 #include "AM_Window.h"
+#include "TempImage.h"
+#include <cassert>
 
-class AM_Image;
 struct VmaAllocator_T;
 typedef VmaAllocator_T* VmaAllocator;
 class AM_VkRenderer
 {
 public:
-	explicit AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, AM_NaiveMemoryAllocator& aMemoryAllocator, VmaAllocator& aVMA);
+	explicit AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAllocator& aVMA);
 	~AM_VkRenderer();
 
 	VkRenderPass GetRenderPass() const { return myRenderPass.myPass; }
@@ -61,7 +61,6 @@ private:
 	void CreateSyncObjects();
 
 	// temp utils
-	AM_Image* CreateImage(const VkExtent2D& anExtent, uint32_t aMipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 	void CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels);
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
 	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
@@ -70,7 +69,6 @@ private:
 
 	AM_VkContext& myVkContext;
 	AM_Window& myWindow;
-	AM_NaiveMemoryAllocator& myMemoryAllocator;
 	VmaAllocator& myVMA;
 
 	AM_VkSwapChain mySwapChain;
@@ -87,8 +85,9 @@ private:
 	AM_VkRenderPass myRenderPass;
 	AM_VkImageView myColorImageView;
 	AM_VkImageView myDepthImageView;
-	AM_Image* myColorImage;
-	AM_Image* myDepthImage;
+
+	TempImage myColorImage;
+	TempImage myDepthImage;
 
 	uint32_t myCurrentFrame;
 	uint32_t myImageIndex;
