@@ -9,6 +9,7 @@
 #include "AM_SimpleRenderSystem.h"
 #include "AM_PointLightRenderSystem.h"
 #include "AM_SimpleGPUParticleSystem.h"
+#include "AM_CubeMapRenderSystem.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
@@ -55,6 +56,7 @@ AM_VkRenderCore::~AM_VkRenderCore()
 		vmaDestroyBuffer(myVMA, SSBO.myBuffer, SSBO.myAllocation);
 	vmaDestroyBuffer(myVMA, myUniformBuffer.myBuffer, myUniformBuffer.myAllocation);
 	vmaDestroyImage(myVMA, myTextureImage.myImage, myTextureImage.myAllocation);
+	vmaDestroyImage(myVMA, myCubeMapImage.myImage, myCubeMapImage.myAllocation);
 	vmaDestroyAllocator(myVMA);
 }
 
@@ -142,12 +144,12 @@ void AM_VkRenderCore::CreateInstance()
 		throw std::runtime_error("failed to create window surface!");
 }
 
-void AM_VkRenderCore::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
+void AM_VkRenderCore::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount)
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	viewInfo.image = image;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.viewType = aViewType;
 	viewInfo.format = format;
 	viewInfo.subresourceRange.aspectMask = aspectFlags;
 	viewInfo.subresourceRange.baseMipLevel = 0;
@@ -165,7 +167,7 @@ void AM_VkRenderCore::CreateDescriptorPool()
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	poolSizes[2].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
 
@@ -183,6 +185,9 @@ void AM_VkRenderCore::CreateDescriptorSets()
 
 	myComputeDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myDescriptorPool.AllocateDescriptorSets(computeLayouts, myComputeDescriptorSets);
+
+	myCubeMapDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myDescriptorPool.AllocateDescriptorSets(layouts, myCubeMapDescriptorSets);
 	
 	for (size_t i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
@@ -199,6 +204,13 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		writter.WriteBuffer(0, &bufferInfo);
 		writter.WriteImage(1, &imageInfo);
 		writter.Update(myDescriptorSets[i]);
+
+		AM_VkDescriptorSetWriter writterCube{ myRenderSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool }; // same layout as before
+		imageInfo.imageView = myCubeMapImageView.myView;
+		imageInfo.sampler = myCubeMapSampler.mySampler;
+		writterCube.WriteBuffer(0, &bufferInfo);
+		writterCube.WriteImage(1, &imageInfo); // updated
+		writterCube.Update(myCubeMapDescriptorSets[i]);
 
 		// for compute shader
 		VkDescriptorBufferInfo storageBufferInfoLastFrame{};
@@ -223,7 +235,7 @@ void AM_VkRenderCore::CreateDescriptorSets()
 
 void AM_VkRenderCore::CreateTextureImageView()
 {
-	CreateImageView(myTextureImageView, myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels);
+	CreateImageView(myTextureImageView, myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
 }
 
 void AM_VkRenderCore::CreateTextureImage()
@@ -264,7 +276,7 @@ void AM_VkRenderCore::CreateTextureImage()
 
 	VkCommandBuffer commandBuffer;
 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
-	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, commandBuffer);
+	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, 1, commandBuffer);
 	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage.myImage, texWidth, texHeight, commandBuffer);
 	
 	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
@@ -334,6 +346,163 @@ void AM_VkRenderCore::CreateTextureImage()
 
 	GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	vmaDestroyBuffer(myVMA, stagingBuffer.myBuffer, stagingBuffer.myAllocation);
+}
+
+void AM_VkRenderCore::CreateCubeMapImage()
+{
+	int texWidth = 0, texHeight = 0, texChannels = 0;
+	stbi_uc* images[6];
+	for (int i = 0; i < 6; ++i)
+	{
+		images[i] = stbi_load(AM_VkRenderCoreConstants::CUBEMAP_TEXTURE_PATH[i], &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		if (!images[i])
+			throw std::runtime_error("failed to load texture image!");
+	}
+
+	uint64_t stride = (uint64_t)texWidth * (uint64_t)texHeight * 4;
+	uint64_t bufferSize = stride * 6;
+	TempBuffer stagingBuffer;
+
+	VkBufferCreateInfo stagingBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	stagingBufferInfo.size = bufferSize;
+	stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+	VmaAllocationCreateInfo stagingAllocInfo = {};
+	stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer.myBuffer, &stagingBuffer.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create staging buffer!");
+
+	void* mappedData;
+	vmaMapMemory(myVMA, stagingBuffer.myAllocation, &mappedData);
+	for (uint64_t i = 0; i < 6; ++i)
+	{
+		void* dst = (char*)mappedData + i * stride;
+		memcpy(dst, images[i], stride);
+		stbi_image_free(images[i]);
+	}
+	vmaUnmapMemory(myVMA, stagingBuffer.myAllocation);
+
+	myCubeMapMipLevels = 1;  // keep it simple for now
+
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent = { (uint32_t)texWidth, (uint32_t)texHeight, 1 };
+	imageInfo.mipLevels = myCubeMapMipLevels;
+	imageInfo.arrayLayers = 6; // Cube faces count as array layers in Vulkan
+	imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; // Cube map flag
+
+	VmaAllocationCreateInfo allocationInfo{};
+	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myCubeMapImage.myImage, &myCubeMapImage.myAllocation, nullptr);
+	assert(result == VK_SUCCESS && "failed to create image!");
+
+	VkCommandBuffer commandBuffer;
+	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
+	TransitionImageLayout(myCubeMapImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myCubeMapMipLevels, 6, commandBuffer);
+
+	std::vector<VkBufferImageCopy> bufferCopyRegions;
+	for (uint32_t face = 0; face < 6; ++face)
+	{
+		VkBufferImageCopy bufferCopyRegion = {};
+		bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		bufferCopyRegion.imageSubresource.mipLevel = 1;
+		bufferCopyRegion.imageSubresource.baseArrayLayer = face;
+		bufferCopyRegion.imageSubresource.layerCount = 1;
+		bufferCopyRegion.imageExtent = { (uint32_t)texWidth, (uint32_t)texHeight, 1 };
+
+		bufferCopyRegion.bufferOffset = face * stride;
+		bufferCopyRegions.push_back(bufferCopyRegion);
+	}
+
+	vkCmdCopyBufferToImage(
+		commandBuffer,
+		stagingBuffer.myBuffer,
+		myCubeMapImage.myImage,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		static_cast<uint32_t>(bufferCopyRegions.size()),
+		bufferCopyRegions.data()
+	);
+
+	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
+	postCopyTransferMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	postCopyTransferMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	postCopyTransferMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	postCopyTransferMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
+	postCopyTransferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
+	postCopyTransferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	postCopyTransferMemoryBarrier.dstAccessMask = 0;
+	postCopyTransferMemoryBarrier.image = myCubeMapImage.myImage;
+	postCopyTransferMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	postCopyTransferMemoryBarrier.subresourceRange.levelCount = myCubeMapMipLevels;
+	postCopyTransferMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	postCopyTransferMemoryBarrier.subresourceRange.layerCount = 6;
+	postCopyTransferMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	vkCmdPipelineBarrier(
+		commandBuffer,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &postCopyTransferMemoryBarrier
+	);
+
+	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0].mySemaphore);
+
+	VkCommandBuffer graphicsCommandBuffer;
+	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0].myPool);
+
+	VkImageMemoryBarrier postCopyGraphicsMemoryBarrier{};
+	postCopyGraphicsMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	postCopyGraphicsMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	postCopyGraphicsMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	postCopyGraphicsMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
+	postCopyGraphicsMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
+	postCopyGraphicsMemoryBarrier.srcAccessMask = 0;
+	postCopyGraphicsMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	postCopyGraphicsMemoryBarrier.image = myCubeMapImage.myImage;
+	postCopyGraphicsMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	postCopyGraphicsMemoryBarrier.subresourceRange.levelCount = myCubeMapMipLevels;
+	postCopyGraphicsMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	postCopyGraphicsMemoryBarrier.subresourceRange.layerCount = 6;
+	postCopyGraphicsMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	vkCmdPipelineBarrier(
+		graphicsCommandBuffer,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &postCopyGraphicsMemoryBarrier
+	);
+
+	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0].mySemaphore);
+
+	// this is good for now
+	// use fence for async submission
+	vkQueueWaitIdle(myVkContext.transferQueue);
+	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myTransferCommandPool.myPool, 1, &commandBuffer);
+
+	vkQueueWaitIdle(myVkContext.graphicsQueue);
+	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
+	vmaDestroyBuffer(myVMA, stagingBuffer.myBuffer, stagingBuffer.myAllocation);
+}
+
+void AM_VkRenderCore::CreateCubeMapImageView()
+{
+	CreateImageView(myCubeMapImageView, myCubeMapImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 6);
 }
 
 void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer)
@@ -416,7 +585,7 @@ void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocat
 	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
 }
 
-void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer)
+void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer)
 {
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -869,6 +1038,29 @@ void AM_VkRenderCore::CreateTextureSampler()
 	myTextureSampler.CreateSampler(samplerInfo);
 }
 
+void AM_VkRenderCore::CreateCubeMapSampler()
+{
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.anisotropyEnable = VK_TRUE;
+	samplerInfo.maxAnisotropy = myVkContext.deviceProperties.limits.maxSamplerAnisotropy;
+	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.f;
+	samplerInfo.maxLod = static_cast<float>(myCubeMapMipLevels); // or VK_LOD_CLAMP_NONE
+
+	myCubeMapSampler.CreateSampler(samplerInfo);
+}
+
 bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
 {
 	return !((format ^ VK_FORMAT_D32_SFLOAT_S8_UINT) && (format ^ VK_FORMAT_D24_UNORM_S8_UINT));
@@ -901,6 +1093,11 @@ void AM_VkRenderCore::InitVulkan()
 	CreateTextureImageView();
 	CreateTextureSampler();
 
+	// #FIX_ME too much copy pasting
+	CreateCubeMapImage();
+	CreateCubeMapImageView();
+	CreateCubeMapSampler();
+
 	// load 3d models
 	LoadEntities();
 	CreateUniformBuffers();
@@ -909,6 +1106,7 @@ void AM_VkRenderCore::InitVulkan()
 	myRenderSystem = new AM_SimpleRenderSystem(myVkContext, myRenderer->GetRenderPass());
 	myPointLightRenderSystem = new AM_PointLightRenderSystem(myVkContext, myRenderer->GetRenderPass());
 	mySimpleGPUParticleSystem = new AM_SimpleGPUParticleSystem(myVkContext, myRenderer->GetRenderPass());
+	myCubeMapRenderSystem = new AM_CubeMapRenderSystem(myVkContext, myRenderer->GetRenderPass());
 	
 	CreateDescriptorPool();
 	CreateDescriptorSets();
@@ -937,6 +1135,7 @@ void AM_VkRenderCore::MainLoop()
 
 			myRenderer->BeginRenderPass(commandBufer);
 
+			//myCubeMapRenderSystem->RenderEntities(commandBufer, myCubeMapDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderer->GetFrameIndex()]);

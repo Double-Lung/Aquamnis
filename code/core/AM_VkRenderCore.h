@@ -17,6 +17,7 @@ class AM_VkRenderer;
 class AM_SimpleRenderSystem;
 class AM_PointLightRenderSystem;
 class AM_SimpleGPUParticleSystem;
+class AM_CubeMapRenderSystem;
 class AM_Camera;
 struct VmaAllocator_T;
 typedef VmaAllocator_T* VmaAllocator;
@@ -49,16 +50,18 @@ private:
 	bool CheckExtensionSupport();
 	bool CheckInstanceLayerSupport();
 	void CreateInstance();
-	void CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels);
+	void CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImageView();
-
 	void CreateTextureImage();
-	void CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer);
 
+	void CreateCubeMapImage();
+	void CreateCubeMapImageView();
+
+	void CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer);
 	void CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocation, const TempBuffer* aDestinationBuffer);
-	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer);
+	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer);
 	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
 
 	void CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, void* aSource);
@@ -82,6 +85,7 @@ private:
 	void LoadEntities();
 
 	void CreateTextureSampler();
+	void CreateCubeMapSampler();
 	bool HasStencilComponent(VkFormat format);
 	void InitVulkan();
 	void MainLoop();
@@ -100,18 +104,25 @@ private:
 	AM_VkImageView myTextureImageView;
 	AM_VkSampler myTextureSampler;
 
+	TempImage myCubeMapImage;
+	AM_VkImageView myCubeMapImageView;
+	AM_VkSampler myCubeMapSampler;
+
 	std::unordered_map<uint64_t, AM_Entity> myEntities;
 
 	TempBuffer myUniformBuffer;
 
 	std::vector<VkDescriptorSet> myDescriptorSets;
+	std::vector<VkDescriptorSet> myCubeMapDescriptorSets;
 	std::vector<VkDescriptorSet> myComputeDescriptorSets;
 	
 	uint32_t myMipLevels;
+	uint32_t myCubeMapMipLevels;
 	VmaAllocator myVMA = nullptr;
 	AM_VkRenderer* myRenderer = nullptr;
 	AM_SimpleRenderSystem* myRenderSystem = nullptr;
 	AM_PointLightRenderSystem* myPointLightRenderSystem = nullptr;
 	AM_SimpleGPUParticleSystem* mySimpleGPUParticleSystem = nullptr;
+	AM_CubeMapRenderSystem* myCubeMapRenderSystem = nullptr;
 };
 
