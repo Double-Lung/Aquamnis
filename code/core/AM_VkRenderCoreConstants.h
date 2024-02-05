@@ -10,10 +10,10 @@ namespace AM_VkRenderCoreConstants
 	constexpr static const char* CUBEMAP_TEXTURE_PATH[6] =
 	{
 		"../data/textures/cubemaps/Yokohama/posx.jpg",
-		"../data/textures/cubemaps/Yokohama/posy.jpg",
-		"../data/textures/cubemaps/Yokohama/posz.jpg",
 		"../data/textures/cubemaps/Yokohama/negx.jpg",
+		"../data/textures/cubemaps/Yokohama/posy.jpg",
 		"../data/textures/cubemaps/Yokohama/negy.jpg",
+		"../data/textures/cubemaps/Yokohama/posz.jpg",
 		"../data/textures/cubemaps/Yokohama/negz.jpg"
 	};
 }

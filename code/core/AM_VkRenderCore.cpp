@@ -34,11 +34,13 @@ AM_VkRenderCore::AM_VkRenderCore()
 	: myVkContext{}
 	, myDescriptorPool{myVkContext}
 	, myMipLevels(0)
+	, myCubeMapMipLevels(0)
 {
 }
 
 AM_VkRenderCore::~AM_VkRenderCore()
 {
+	delete myCubeMapRenderSystem;
 	delete mySimpleGPUParticleSystem;
 	delete myPointLightRenderSystem;
 	delete myRenderSystem;
@@ -155,7 +157,7 @@ void AM_VkRenderCore::CreateImageView(AM_VkImageView& outImageView, VkImage imag
 	viewInfo.subresourceRange.baseMipLevel = 0;
 	viewInfo.subresourceRange.levelCount = aMipLevels;
 	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = 1;
+	viewInfo.subresourceRange.layerCount = aLayerCount;
 
 	outImageView.CreateView(viewInfo);
 }
@@ -167,12 +169,12 @@ void AM_VkRenderCore::CreateDescriptorPool()
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	poolSizes[2].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
 
 	// compute set * MAX_FRAMES_IN_FLIGHT + graphics set * MAX_FRAMES_IN_FLIGHT
-	myDescriptorPool.CreatePool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2, 0, poolSizes);
+	myDescriptorPool.CreatePool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 3, 0, poolSizes);
 }
 
 void AM_VkRenderCore::CreateDescriptorSets()
@@ -403,34 +405,31 @@ void AM_VkRenderCore::CreateCubeMapImage()
 	VmaAllocationCreateInfo allocationInfo{};
 	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myCubeMapImage.myImage, &myCubeMapImage.myAllocation, nullptr);
+	result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myCubeMapImage.myImage, &myCubeMapImage.myAllocation, nullptr);
 	assert(result == VK_SUCCESS && "failed to create image!");
 
 	VkCommandBuffer commandBuffer;
 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
 	TransitionImageLayout(myCubeMapImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myCubeMapMipLevels, 6, commandBuffer);
 
-	std::vector<VkBufferImageCopy> bufferCopyRegions;
-	for (uint32_t face = 0; face < 6; ++face)
-	{
-		VkBufferImageCopy bufferCopyRegion = {};
-		bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		bufferCopyRegion.imageSubresource.mipLevel = 1;
-		bufferCopyRegion.imageSubresource.baseArrayLayer = face;
-		bufferCopyRegion.imageSubresource.layerCount = 1;
-		bufferCopyRegion.imageExtent = { (uint32_t)texWidth, (uint32_t)texHeight, 1 };
-
-		bufferCopyRegion.bufferOffset = face * stride;
-		bufferCopyRegions.push_back(bufferCopyRegion);
-	}
+	VkBufferImageCopy bufferCopyRegion = {};
+	bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	bufferCopyRegion.imageSubresource.mipLevel = 0;
+	bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
+	bufferCopyRegion.imageSubresource.layerCount = 6;
+	bufferCopyRegion.imageExtent = { (uint32_t)texWidth, (uint32_t)texHeight, 1 };
+	bufferCopyRegion.imageOffset = { 0, 0, 0 };
+	bufferCopyRegion.bufferOffset = 0;
+	bufferCopyRegion.bufferRowLength = 0;
+	bufferCopyRegion.bufferImageHeight = 0;
 
 	vkCmdCopyBufferToImage(
 		commandBuffer,
 		stagingBuffer.myBuffer,
 		myCubeMapImage.myImage,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		static_cast<uint32_t>(bufferCopyRegions.size()),
-		bufferCopyRegions.data()
+		1,
+		&bufferCopyRegion
 	);
 
 	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
@@ -502,7 +501,7 @@ void AM_VkRenderCore::CreateCubeMapImage()
 
 void AM_VkRenderCore::CreateCubeMapImageView()
 {
-	CreateImageView(myCubeMapImageView, myCubeMapImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 6);
+	CreateImageView(myCubeMapImageView, myCubeMapImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, myCubeMapMipLevels, 6);
 }
 
 void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer)
@@ -597,7 +596,7 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.levelCount = aMipLevels;
 	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
+	barrier.subresourceRange.layerCount = aLayerCount;
 
 	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | (HasStencilComponent(format) ? VK_IMAGE_ASPECT_STENCIL_BIT : 0);
@@ -1002,6 +1001,16 @@ void AM_VkRenderCore::LoadEntities()
 	CreateIndexBuffer(quadEntity);
 	myEntities.emplace(quadEntity.GetId(), std::move(quadEntity));
 
+	AM_Entity cubeEntity = AM_Entity::CreateEntity();
+	auto& transform4 = cubeEntity.GetTransformComponent();
+	transform4.myTranslation = { 0.f, 0.f, 0.f };
+	transform4.myScale = { 1.f, 1.f, 1.f };
+	cubeEntity.SetIsCube(true);
+	cubeEntity.LoadModel("../data/models/cube.obj");
+	CreateVertexBuffer(cubeEntity);
+	CreateIndexBuffer(cubeEntity);
+	myEntities.emplace(cubeEntity.GetId(), std::move(cubeEntity));
+
 	AM_Entity pointLight1 = AM_Entity::CreateEntity();
 	pointLight1.InitLightComponent();
 	pointLight1.GetTransformComponent().myTranslation = { -5.f, 2.f, -.7f };
@@ -1135,7 +1144,7 @@ void AM_VkRenderCore::MainLoop()
 
 			myRenderer->BeginRenderPass(commandBufer);
 
-			//myCubeMapRenderSystem->RenderEntities(commandBufer, myCubeMapDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
+			myCubeMapRenderSystem->RenderEntities(commandBufer, myCubeMapDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
 			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderer->GetFrameIndex()]);

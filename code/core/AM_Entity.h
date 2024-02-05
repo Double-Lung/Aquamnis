@@ -82,6 +82,9 @@ public:
 	bool HasPointLightComponent() { return myPointLightComponent != nullptr; }
 	float GetPointLightIntensity(){ return myPointLightComponent->myIntensity; }
 
+	void SetIsCube(bool anIsCube) { myIsCube = anIsCube; }
+	bool GetIsCube() { return myIsCube; }
+
 	const std::vector<Vertex>& GetVertices() const { return myVertices; }
 	const std::vector<uint32_t>& GetIndices() const { return myIndices; }
 	const TempBuffer* GetTempVertexBuffer() const { return &myTempVertexBuffer; }
@@ -112,5 +115,7 @@ private:
 	TransformComponent myTransform;
 	glm::vec3 myColor;
 	std::unique_ptr<PointLightComponent> myPointLightComponent;
+
+	bool myIsCube;
 };
 

@@ -20,13 +20,11 @@ AM_CubeMapRenderSystem::AM_CubeMapRenderSystem(AM_VkContext& aVkContext, VkRende
 void AM_CubeMapRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera&/* aCamera*/)
 {
 	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
-
-	PushConstantData push;
 	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 	for (auto& entry : someEntites)
 	{
 		auto& entity = entry.second;
-		if (entity.HasPointLightComponent())
+		if (!entity.GetIsCube())
 			continue;
 		const TempBuffer* vertexBuffer = entity.GetTempVertexBuffer();
 		const TempBuffer* indexBuffer = entity.GetTempIndexBuffer();
@@ -34,18 +32,14 @@ void AM_CubeMapRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDe
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(aCommandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(aCommandBuffer, indexBuffer->myBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-		push.normalMat = entity.GetTransformComponent().GetNormalMatrix();
-		push.transform = entity.GetTransformComponent().GetMatrix();
-		vkCmdPushConstants(aCommandBuffer, myPipelineLayout.myLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
 		vkCmdDrawIndexed(aCommandBuffer, static_cast<uint32_t>(entity.GetIndices().size()), 1, 0, 0, 0);
 	}
 }
 
 void AM_CubeMapRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 {
-	auto vertShaderCode = ReadFile("../data/shader_bytecode/cubemap.vert.spv");
-	auto fragShaderCode = ReadFile("../data/shader_bytecode/cubemap.frag.spv");
+	auto vertShaderCode = ReadFile("../data/shader_bytecode/skybox.vert.spv");
+	auto fragShaderCode = ReadFile("../data/shader_bytecode/skybox.frag.spv");
 #ifdef _DEBUG
 	std::cout << "vert file size: " << vertShaderCode.size() << '\n';
 	std::cout << "frag file size: " << fragShaderCode.size() << '\n';
@@ -96,8 +90,8 @@ void AM_CubeMapRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 	rasterizer.rasterizerDiscardEnable = VK_FALSE;
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizer.lineWidth = 1.0f;
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f; // Optional
 	rasterizer.depthBiasClamp = 0.0f; // Optional

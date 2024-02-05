@@ -26,7 +26,7 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 	for (auto& entry : someEntites)
 	{
 		auto& entity = entry.second;
-		if (entity.HasPointLightComponent())
+		if (entity.HasPointLightComponent() || entity.GetIsCube())
 			continue;
 		const TempBuffer* vertexBuffer = entity.GetTempVertexBuffer();
 		const TempBuffer* indexBuffer = entity.GetTempIndexBuffer();

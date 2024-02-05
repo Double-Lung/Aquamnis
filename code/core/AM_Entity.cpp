@@ -95,6 +95,7 @@ AM_Entity::AM_Entity(uint64_t anId)
 	, myTransform{}
 	, myColor{ 1.f, 1.f, 1.f }
 	, myPointLightComponent{ nullptr }
+	, myIsCube{false}
 {
 }
 

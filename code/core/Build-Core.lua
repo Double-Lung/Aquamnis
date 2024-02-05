@@ -5,6 +5,7 @@ project("AMRenderCore")
     staticruntime "off"
 
     files { "**.h", "**.cpp", "**.cxx", "**.hpp", "**.inl" }
+    removefiles { "*_DEPRECATED/**" }
    
     includedirs 
     { 

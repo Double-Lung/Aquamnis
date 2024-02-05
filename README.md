@@ -12,7 +12,8 @@
 - [x] Basic scene with multiple objects
 - [x] Simple compute shader
 - [x] Integrate GPU Open VMA
-- [ ] Some refactoring & adding cube map
+- [x] Adding basic cubemap
+- [ ] Refactor into Core & App structure
 - [ ] Pregenerated mipmap
 - [ ] Instanced rendering
 - [ ] Dynamic uniforms
