@@ -87,6 +87,8 @@ private:
 	void CreateTextureSampler();
 	void CreateCubeMapSampler();
 	bool HasStencilComponent(VkFormat format);
+
+	void Setup();
 	void InitVulkan();
 	void MainLoop();
 
