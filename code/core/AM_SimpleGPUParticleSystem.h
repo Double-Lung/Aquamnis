@@ -3,7 +3,6 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_VkContext.h"
-#include "AM_VkPrimitives.h"
 #include "AM_VkDescriptorUtils.h"
 #include "TempBuffer.h"
 #include <glm/glm.hpp>
@@ -12,7 +11,13 @@ class AM_SimpleGPUParticleSystem
 {
 public:
 	AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass);
-	~AM_SimpleGPUParticleSystem(){}
+	~AM_SimpleGPUParticleSystem()
+	{
+		myVkContext.DestroyPipelineLayout(myPipelineLayout);
+		myVkContext.DestroyPipelineLayout(myGfxPipelineLayout);
+		myVkContext.DestroyPipeline(myGraphicsPipeline);
+		myVkContext.DestroyPipeline(myComputePipeline);
+	}
 
 	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, const TempBuffer* anSSBO);
 	// need to run outside of any render pass
@@ -42,12 +47,12 @@ private:
 	void CreateDescriptorSetLayout();
 
 	AM_VkContext& myVkContext;
-	AM_VkPipeline myComputePipeline;
-	AM_VkPipelineLayout myPipelineLayout;
+	VkPipeline myComputePipeline;
+	VkPipelineLayout myPipelineLayout;
 	AM_VkDescriptorSetLayout myDescriptorSetLayout;
 
-	AM_VkPipeline myGraphicsPipeline;
-	AM_VkPipelineLayout myGfxPipelineLayout;
+	VkPipeline myGraphicsPipeline;
+	VkPipelineLayout myGfxPipelineLayout;
 	AM_VkDescriptorSetLayout myGfxDescriptorSetLayout;
 	
 	uint32_t* myMaxComputeWorkGroupCount;

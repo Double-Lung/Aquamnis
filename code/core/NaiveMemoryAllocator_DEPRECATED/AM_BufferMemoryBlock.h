@@ -23,7 +23,7 @@ public:
 		myBuffer.Release();
 		if (myMemory)
 		{
-			vkFreeMemory(AM_VkContext::device, myMemory, nullptr);
+			vkFreeMemory(myVkContext.device, myMemory, nullptr);
 			myMemory = nullptr;
 		}	
 	}

@@ -13,7 +13,7 @@ struct AM_VkBuffer
 	AM_VkBuffer(const VkBufferCreateInfo& someInfo)
 		: myBuffer(nullptr)
 	{
-		if (vkCreateBuffer(AM_VkContext::device, &someInfo, nullptr, &myBuffer) != VK_SUCCESS)
+		if (vkCreateBuffer(myVkContext.device, &someInfo, nullptr, &myBuffer) != VK_SUCCESS)
 			throw std::runtime_error("failed to create buffer!");
 	}
 
@@ -40,7 +40,7 @@ struct AM_VkBuffer
 	{
 		if (myBuffer)
 		{
-			vkDestroyBuffer(AM_VkContext::device, myBuffer, nullptr);
+			vkDestroyBuffer(myVkContext.device, myBuffer, nullptr);
 			myBuffer = nullptr;
 		}
 	}

@@ -1,8 +1,8 @@
 #pragma once
-#include <GLFW/glfw3.h>
-
 
 class Cafe
 {
-
+public:
+	Cafe() = default;
+	void Engage();
 };

@@ -1,8 +1,10 @@
-#include "AM_VkRenderCore.h"
+#include "Cafe.h"
+#include <exception>
+#include <iostream>
 
 int main() 
 {
-	AM_VkRenderCore app;
+	Cafe app;
 
 	try {
 		app.Engage();

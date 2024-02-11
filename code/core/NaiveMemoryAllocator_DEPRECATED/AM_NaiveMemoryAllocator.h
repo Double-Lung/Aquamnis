@@ -74,7 +74,7 @@ template <typename T, typename M>
 		{
 			if (!block.myIsMapped)
 			{
-				vkMapMemory(AM_VkContext::device, block.myMemory, 0, AM_VkRenderCoreConstants::SINGLEALLOCSIZE, 0, &block.myMappedMemory);
+				vkMapMemory(myVkContext.device, block.myMemory, 0, AM_VkRenderCoreConstants::SINGLEALLOCSIZE, 0, &block.myMappedMemory);
 				block.myIsMapped = true;
 			}
 			obj->SetMappedMemory(block.myMappedMemory);
@@ -105,7 +105,7 @@ template <typename T, typename M>
 		{
 			if (!block.myIsMapped)
 			{
-				vkMapMemory(AM_VkContext::device, block.myMemory, 0, AM_VkRenderCoreConstants::SINGLEALLOCSIZE, 0, &block.myMappedMemory);
+				vkMapMemory(myVkContext.device, block.myMemory, 0, AM_VkRenderCoreConstants::SINGLEALLOCSIZE, 0, &block.myMappedMemory);
 				block.myIsMapped = true;
 			}
 			obj->SetMappedMemory(block.myMappedMemory);
@@ -129,7 +129,7 @@ template <typename T, typename M>
 
 	if (aShouldMap)
 	{
-		vkMapMemory(AM_VkContext::device, newBlock.myMemory, 0, AM_VkRenderCoreConstants::SINGLEALLOCSIZE, 0, &newBlock.myMappedMemory);
+		vkMapMemory(myVkContext.device, newBlock.myMemory, 0, AM_VkRenderCoreConstants::SINGLEALLOCSIZE, 0, &newBlock.myMappedMemory);
 		newBlock.myIsMapped = true;
 		obj->SetMappedMemory(newBlock.myMappedMemory);
 	}

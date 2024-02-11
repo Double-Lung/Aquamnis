@@ -28,8 +28,8 @@ AM_SimpleGPUParticleSystem::AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext,
 
 void AM_SimpleGPUParticleSystem::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, const TempBuffer* anSSBO)
 {
-	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGfxPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
+	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline);
+	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGfxPipelineLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(aCommandBuffer, 0, 1, &anSSBO->myBuffer, offsets);
@@ -46,8 +46,8 @@ void AM_SimpleGPUParticleSystem::DispatchWork(VkCommandBuffer aCommandBuffer, Vk
 	if (vkBeginCommandBuffer(aCommandBuffer, &beginInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to begin recording compute command buffer!");
 
-	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myComputePipeline.myPipeline);
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
+	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myComputePipeline);
+	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myPipelineLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 
 	static constexpr int PARTICLE_COUNT = 2000;
 	vkCmdDispatch(aCommandBuffer, (PARTICLE_COUNT - 1) / 256 + 1, 1, 1);
@@ -75,16 +75,16 @@ void AM_SimpleGPUParticleSystem::CreateComputePipeline()
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional
 	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.GetDescriptorSetLayout();
 
-	myPipelineLayout.CreateLayout(pipelineLayoutInfo);
+	myPipelineLayout = myVkContext.CreatePipelineLayout(pipelineLayoutInfo);
 
 	VkComputePipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-	pipelineInfo.layout = myPipelineLayout.myLayout;
+	pipelineInfo.layout = myPipelineLayout;
 	pipelineInfo.stage = computeShaderStageInfo;
 
-	myComputePipeline.CreatePipeline(pipelineInfo);
+	myComputePipeline = myVkContext.CreateComputePipeline(pipelineInfo);
 
-	vkDestroyShaderModule(AM_VkContext::device, computeShaderModule, nullptr);
+	vkDestroyShaderModule(myVkContext.device, computeShaderModule, nullptr);
 }
 
 void AM_SimpleGPUParticleSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
@@ -196,7 +196,7 @@ void AM_SimpleGPUParticleSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-	myGfxPipelineLayout.CreateLayout(pipelineLayoutInfo);
+	myGfxPipelineLayout = myVkContext.CreatePipelineLayout(pipelineLayoutInfo);
 
 	VkPipelineDepthStencilStateCreateInfo depthStencil{};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -222,16 +222,16 @@ void AM_SimpleGPUParticleSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = myGfxPipelineLayout.myLayout;
+	pipelineInfo.layout = myGfxPipelineLayout;
 	pipelineInfo.renderPass = aRenderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
-	myGraphicsPipeline.CreatePipeline(pipelineInfo);
+	myGraphicsPipeline = myVkContext.CreateGraphicsPipeline(pipelineInfo);
 
-	vkDestroyShaderModule(AM_VkContext::device, fragShaderModule, nullptr);
-	vkDestroyShaderModule(AM_VkContext::device, vertShaderModule, nullptr);
+	vkDestroyShaderModule(myVkContext.device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(myVkContext.device, vertShaderModule, nullptr);
 }
 
 std::vector<char> AM_SimpleGPUParticleSystem::ReadFile(const std::string& filename)
@@ -258,7 +258,7 @@ VkShaderModule AM_SimpleGPUParticleSystem::CreateShaderModule(const std::vector<
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
 	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(AM_VkContext::device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+	if (vkCreateShaderModule(myVkContext.device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
 		throw std::runtime_error("failed to create shader module!");
 
 	return shaderModule;

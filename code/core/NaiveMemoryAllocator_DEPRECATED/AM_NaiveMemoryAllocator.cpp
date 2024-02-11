@@ -75,7 +75,7 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBuffer(const uint64_t aSize, const V
 
 	AM_VkBuffer vkBuffer(bufferInfo);
 	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(AM_VkContext::device, vkBuffer.myBuffer, &memRequirements);
+	vkGetBufferMemoryRequirements(myVkContext.device, vkBuffer.myBuffer, &memRequirements);
 	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memRequirements.memoryTypeBits, aProperty);
 	MemoryRequirements& req = it->myMemReqByBufferUsage[aUsage];
 	req.myAlignment = memRequirements.alignment;
@@ -84,7 +84,7 @@ AM_Buffer* AM_NaiveMemoryAllocator::AllocateBuffer(const uint64_t aSize, const V
 	AM_Buffer* buffer = AllocateWithNewBlock<AM_Buffer>(aSize, aUsage, req, myBufferMemoryPool, shouldMap);
 	assert(buffer != nullptr && "failed to allocate!");
 	buffer->myBuffer = vkBuffer.myBuffer;
-	vkBindBufferMemory(AM_VkContext::device, vkBuffer.myBuffer, buffer->GetMemoryHandle(), buffer->GetOffset());
+	vkBindBufferMemory(myVkContext.device, vkBuffer.myBuffer, buffer->GetMemoryHandle(), buffer->GetOffset());
 	myBufferMemoryPool[memoryTypeIndex].back().myBuffer = std::move(vkBuffer);
 
 	return buffer;
@@ -94,7 +94,7 @@ AM_Image* AM_NaiveMemoryAllocator::AllocateImage(const VkImageCreateInfo& aCreat
 {
 	AM_VkImage image(aCreateInfo);
 	VkMemoryRequirements memReq;
-	vkGetImageMemoryRequirements(AM_VkContext::device, image.GetImage(), &memReq);
+	vkGetImageMemoryRequirements(myVkContext.device, image.GetImage(), &memReq);
 	uint32_t memoryTypeIndex = FindMemoryTypeIndex(memReq.memoryTypeBits, aProperty);
 	MemoryRequirements req{ memReq.alignment, memoryTypeIndex };
 
@@ -105,7 +105,7 @@ AM_Image* AM_NaiveMemoryAllocator::AllocateImage(const VkImageCreateInfo& aCreat
 		imagePtr = AllocateWithNewBlock<AM_Image>(memReq.size, aProperty, req, myImageMemoryPool);
 	assert(imagePtr!=nullptr && "failed to allocate!");
 	imagePtr->SetImage(std::move(image));
-	vkBindImageMemory(AM_VkContext::device, imagePtr->GetImage(), imagePtr->GetMemoryHandle(), imagePtr->GetOffset());
+	vkBindImageMemory(myVkContext.device, imagePtr->GetImage(), imagePtr->GetMemoryHandle(), imagePtr->GetOffset());
 	return imagePtr;
 }
 

@@ -13,7 +13,7 @@ public:
 	explicit AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAllocator& aVMA);
 	~AM_VkRenderer();
 
-	VkRenderPass GetRenderPass() const { return myRenderPass.myPass; }
+	VkRenderPass GetRenderPass() const { return myRenderPass; }
 	bool isFrameInProgress() const { return myIsFrameStarted; }
 	inline VkCommandBuffer GetCurrentCommandBuffer() const
 	{
@@ -61,7 +61,7 @@ private:
 	void CreateSyncObjects();
 
 	// temp utils
-	void CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels);
+	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels);
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
 	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer);
@@ -76,15 +76,15 @@ private:
 	std::vector<VkCommandBuffer> myComputeCommandBuffers;
 
 	// for swapchain
-	std::vector<AM_VkSemaphore> myImageAvailableSemaphores;
-	std::vector<AM_VkSemaphore> myRenderFinishedSemaphores;
-	std::vector<AM_VkSemaphore> myComputeFinishedSemaphores;
-	std::vector<AM_VkFence> myInFlightFences;
-	std::vector<AM_VkFence> myComputeInFlightFences;
-	std::vector<AM_VkFramebuffer> myFramebuffers;
-	AM_VkRenderPass myRenderPass;
-	AM_VkImageView myColorImageView;
-	AM_VkImageView myDepthImageView;
+	std::vector<VkSemaphore> myImageAvailableSemaphores;
+	std::vector<VkSemaphore> myRenderFinishedSemaphores;
+	std::vector<VkSemaphore> myComputeFinishedSemaphores;
+	std::vector<VkFence> myInFlightFences;
+	std::vector<VkFence> myComputeInFlightFences;
+	std::vector<VkFramebuffer> myFramebuffers;
+	VkRenderPass myRenderPass;
+	VkImageView myColorImageView;
+	VkImageView myDepthImageView;
 
 	TempImage myColorImage;
 	TempImage myDepthImage;

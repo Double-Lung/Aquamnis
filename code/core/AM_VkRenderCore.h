@@ -24,8 +24,8 @@ typedef VmaAllocator_T* VmaAllocator;
 class AM_VkRenderCore
 {
 public:
-	// Create window and Vulkan instance
-	void Engage();
+	void Setup();
+	void MainLoop();
 	AM_VkRenderCore();
 	~AM_VkRenderCore();
 	
@@ -49,8 +49,7 @@ private:
 
 	bool CheckExtensionSupport();
 	bool CheckInstanceLayerSupport();
-	void CreateInstance();
-	void CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
+	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImageView();
@@ -80,35 +79,30 @@ private:
 	void BeginOwnershipTransfer(VkCommandBuffer& aSrcCommandBuffer, VkQueue& aSrcQueue, VkSemaphore& aSignalSemaphore);
 	// also submit commands in destination queue
 	void EndOwnershipTransfer(VkCommandBuffer& aDstCommandBuffer, VkQueue& aDstQueue, VkSemaphore& aWaitSemaphore);
-
-	void CreateSyncObjects();
 	void LoadEntities();
 
 	void CreateTextureSampler();
 	void CreateCubeMapSampler();
 	bool HasStencilComponent(VkFormat format);
-
-	void Setup();
-	void InitVulkan();
-	void MainLoop();
+	void LoadDefaultResources(); // #FIX_ME need to get rid of this
 
 	void UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera);
 
 	AM_Window myWindowInstance;
 	AM_VkContext myVkContext;
 
-	std::vector<AM_VkSemaphore> myTransferSemaphores;
+	std::vector<VkSemaphore> myTransferSemaphores;
 	std::vector<TempBuffer> myVirtualShaderStorageBuffers;
 
 	AM_VkDescriptorPool myDescriptorPool;
 
 	TempImage myTextureImage;
-	AM_VkImageView myTextureImageView;
-	AM_VkSampler myTextureSampler;
+	VkImageView myTextureImageView;
+	VkSampler myTextureSampler;
 
 	TempImage myCubeMapImage;
-	AM_VkImageView myCubeMapImageView;
-	AM_VkSampler myCubeMapSampler;
+	VkImageView myCubeMapImageView;
+	VkSampler myCubeMapSampler;
 
 	std::unordered_map<uint64_t, AM_Entity> myEntities;
 

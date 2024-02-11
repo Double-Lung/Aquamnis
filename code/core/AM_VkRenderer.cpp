@@ -6,7 +6,7 @@ AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAl
 	: myVkContext(aVkContext)
 	, myWindow(aWindow)
 	, myVMA(aVMA)
-	, mySwapChain{}
+	, mySwapChain(aVkContext)
 	, myRenderPass{}
 	, myColorImageView{}
 	, myDepthImageView{}
@@ -26,17 +26,36 @@ AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAl
 AM_VkRenderer::~AM_VkRenderer()
 {
 	FreeCommandBuffers();
+
+	myVkContext.DestroyImageView(myColorImageView);
+	myVkContext.DestroyImageView(myDepthImageView);
+
 	vmaDestroyImage(myVMA, myDepthImage.myImage, myDepthImage.myAllocation);
 	vmaDestroyImage(myVMA, myColorImage.myImage, myColorImage.myAllocation);
+
+	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		myVkContext.DestroyFence(myInFlightFences[i]);
+		myVkContext.DestroyFence(myComputeInFlightFences[i]);
+
+		myVkContext.DestroySemaphore(myImageAvailableSemaphores[i]);
+		myVkContext.DestroySemaphore(myRenderFinishedSemaphores[i]);
+		myVkContext.DestroySemaphore(myComputeFinishedSemaphores[i]);
+	}
+
+	for (VkFramebuffer frameBuffer : myFramebuffers)
+		myVkContext.DestroyFrameBuffer(frameBuffer);
+
+	myVkContext.DestroyRenderPass(myRenderPass);
 }
 
 VkCommandBuffer AM_VkRenderer::BeginFrame()
 {
 	assert(!myIsFrameStarted && "Can't call beginFrame while already in progress");
-	vkWaitForFences(myVkContext.device, 1, &myComputeInFlightFences[myCurrentFrame].myFence, VK_TRUE, UINT64_MAX);
-	vkWaitForFences(myVkContext.device, 1, &myInFlightFences[myCurrentFrame].myFence, VK_TRUE, UINT64_MAX);
+	vkWaitForFences(myVkContext.device, 1, &myComputeInFlightFences[myCurrentFrame], VK_TRUE, UINT64_MAX);
+	vkWaitForFences(myVkContext.device, 1, &myInFlightFences[myCurrentFrame], VK_TRUE, UINT64_MAX);
 
-	VkResult result = vkAcquireNextImageKHR(AM_VkContext::device, mySwapChain.GetSwapChain(), UINT64_MAX, myImageAvailableSemaphores[myCurrentFrame].mySemaphore, VK_NULL_HANDLE, &myImageIndex);
+	VkResult result = vkAcquireNextImageKHR(myVkContext.device, mySwapChain.GetSwapChain(), UINT64_MAX, myImageAvailableSemaphores[myCurrentFrame], VK_NULL_HANDLE, &myImageIndex);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
@@ -47,11 +66,11 @@ VkCommandBuffer AM_VkRenderer::BeginFrame()
 	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		throw std::runtime_error("failed to acquire swap chain image!");
 
-	vkResetFences(AM_VkContext::device, 1, &myComputeInFlightFences[myCurrentFrame].myFence);
-	vkResetCommandPool(AM_VkContext::device, myVkContext.myComputeCommandPools[myCurrentFrame].myPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+	vkResetFences(myVkContext.device, 1, &myComputeInFlightFences[myCurrentFrame]);
+	vkResetCommandPool(myVkContext.device, myVkContext.myComputeCommandPools[myCurrentFrame], VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 	
-	vkResetFences(AM_VkContext::device, 1, &myInFlightFences[myCurrentFrame].myFence);
-	vkResetCommandPool(AM_VkContext::device, myVkContext.myCommandPools[myCurrentFrame].myPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+	vkResetFences(myVkContext.device, 1, &myInFlightFences[myCurrentFrame]);
+	vkResetCommandPool(myVkContext.device, myVkContext.myCommandPools[myCurrentFrame], VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 
 	myIsFrameStarted = true;
 	VkCommandBuffer commandBuffer = GetCurrentCommandBuffer();
@@ -74,7 +93,7 @@ void AM_VkRenderer::EndFrame()
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		throw std::runtime_error("failed to record command buffer!");
 
-	std::array<VkSemaphore, 2> waitSemaphores = { myComputeFinishedSemaphores[myCurrentFrame].mySemaphore, myImageAvailableSemaphores[myCurrentFrame].mySemaphore };
+	std::array<VkSemaphore, 2> waitSemaphores = { myComputeFinishedSemaphores[myCurrentFrame], myImageAvailableSemaphores[myCurrentFrame] };
 	std::array<VkPipelineStageFlags, 2> waitStages = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -84,11 +103,11 @@ void AM_VkRenderer::EndFrame()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &myCommandBuffers[myCurrentFrame];
 
-	std::array<VkSemaphore, 1> signalSemaphores = { myRenderFinishedSemaphores[myCurrentFrame].mySemaphore };
+	std::array<VkSemaphore, 1> signalSemaphores = { myRenderFinishedSemaphores[myCurrentFrame]};
 	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size());
 	submitInfo.pSignalSemaphores = signalSemaphores.data();
 
-	if (vkQueueSubmit(myVkContext.graphicsQueue, 1, &submitInfo, myInFlightFences[myCurrentFrame].myFence) != VK_SUCCESS)
+	if (vkQueueSubmit(myVkContext.graphicsQueue, 1, &submitInfo, myInFlightFences[myCurrentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("failed to submit draw command buffer!");
 
 	VkPresentInfoKHR presentInfo{};
@@ -122,8 +141,8 @@ void AM_VkRenderer::BeginRenderPass(VkCommandBuffer commandBuffer)
 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = myRenderPass.myPass;
-	renderPassInfo.framebuffer = myFramebuffers[myImageIndex].myFramebuffer;
+	renderPassInfo.renderPass = myRenderPass;
+	renderPassInfo.framebuffer = myFramebuffers[myImageIndex];
 
 	renderPassInfo.renderArea.offset = { 0, 0 };
 	renderPassInfo.renderArea.extent = mySwapChain.GetExtent();
@@ -164,9 +183,9 @@ void AM_VkRenderer::SubmitComputeQueue()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &myComputeCommandBuffers[myCurrentFrame];
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &myComputeFinishedSemaphores[myCurrentFrame].mySemaphore;
+	submitInfo.pSignalSemaphores = &myComputeFinishedSemaphores[myCurrentFrame];
 
-	if (vkQueueSubmit(myVkContext.computeQueue, 1, &submitInfo, myComputeInFlightFences[myCurrentFrame].myFence) != VK_SUCCESS)
+	if (vkQueueSubmit(myVkContext.computeQueue, 1, &submitInfo, myComputeInFlightFences[myCurrentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("failed to submit compute command buffer!");
 }
 
@@ -181,13 +200,11 @@ void AM_VkRenderer::CreateReusableCommandBuffers()
 	myComputeCommandBuffers.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		allocInfo.commandPool = myVkContext.myCommandPools[i].myPool;
-		if (vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &myCommandBuffers[i]) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate command buffer!");
+		allocInfo.commandPool = myVkContext.myCommandPools[i];
+		myCommandBuffers[i] = myVkContext.AllocateCommandBuffer(allocInfo);
 
-		allocInfo.commandPool = myVkContext.myComputeCommandPools[i].myPool;
-		if (vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &myComputeCommandBuffers[i]) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate command buffer!");
+		allocInfo.commandPool = myVkContext.myComputeCommandPools[i];
+		myComputeCommandBuffers[i] = myVkContext.AllocateCommandBuffer(allocInfo);
 	}
 }
 
@@ -197,7 +214,7 @@ void AM_VkRenderer::FreeCommandBuffers()
 	{
 		vkFreeCommandBuffers(
 			myVkContext.device,
-			myVkContext.myCommandPools[i].myPool,
+			myVkContext.myCommandPools[i],
 			1,
 			&myCommandBuffers[i]);
 	}
@@ -207,7 +224,7 @@ void AM_VkRenderer::FreeCommandBuffers()
 	{
 		vkFreeCommandBuffers(
 			myVkContext.device,
-			myVkContext.myComputeCommandPools[i].myPool,
+			myVkContext.myComputeCommandPools[i],
 			1,
 			&myComputeCommandBuffers[i]);
 	}
@@ -218,7 +235,7 @@ void AM_VkRenderer::RecreateSwapChain()
 {
 	int width = 0, height = 0;
 	myWindow.WaitForFramebufferSize(width, height);
-	vkDeviceWaitIdle(AM_VkContext::device);
+	vkDeviceWaitIdle(myVkContext.device);
 
 	CleanupSwapChain();
 	CreateSwapChain();
@@ -296,7 +313,7 @@ void AM_VkRenderer::CreateRenderPass()
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
-	myRenderPass.CreateRenderPass(renderPassInfo);
+	myRenderPass = myVkContext.CreateRenderPass(renderPassInfo);
 }
 
 void AM_VkRenderer::CreateSwapChain()
@@ -343,13 +360,15 @@ void AM_VkRenderer::CreateSwapChain()
 
 void AM_VkRenderer::CleanupSwapChain()
 {
-	myColorImageView.DestroyView();
+	myVkContext.DestroyImageView(myColorImageView);
 	vmaDestroyImage(myVMA, myColorImage.myImage, myColorImage.myAllocation);
 
-	myDepthImageView.DestroyView();
+	myVkContext.DestroyImageView(myDepthImageView);
 	vmaDestroyImage(myVMA, myDepthImage.myImage, myDepthImage.myAllocation);
 
-	myFramebuffers.clear();
+	for (VkFramebuffer frameBuffer : myFramebuffers)
+		myVkContext.DestroyFrameBuffer(frameBuffer);
+
 	mySwapChain.Destroy();
 }
 
@@ -407,9 +426,9 @@ void AM_VkRenderer::CreateDepthResources()
 	CreateImageView(myDepthImageView, myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[myCurrentFrame].myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[myCurrentFrame]);
 	TransitionImageLayout(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, commandBuffer);
-	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[myCurrentFrame].myPool);
+	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[myCurrentFrame]);
 }
 
 void AM_VkRenderer::CreateFramebuffers()
@@ -419,32 +438,42 @@ void AM_VkRenderer::CreateFramebuffers()
 
 	for (size_t i = 0; i != swapChainImageViews.size(); ++i)
 	{
-		std::array<VkImageView, 3> attachments = { myColorImageView.myView, myDepthImageView.myView, swapChainImageViews[i].myView };
+		std::array<VkImageView, 3> attachments = { myColorImageView, myDepthImageView, swapChainImageViews[i] };
 
 		VkFramebufferCreateInfo framebufferInfo{};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = myRenderPass.myPass;
+		framebufferInfo.renderPass = myRenderPass;
 		framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
 		framebufferInfo.pAttachments = attachments.data();
 		framebufferInfo.width = mySwapChain.GetWidth();
 		framebufferInfo.height = mySwapChain.GetHeight();
 		framebufferInfo.layers = 1;
 
-		myFramebuffers[i].CreateFrameBuffer(framebufferInfo);
+		myFramebuffers[i] = myVkContext.CreateFrameBuffer(framebufferInfo);
 	}
 }
 
 void AM_VkRenderer::CreateSyncObjects()
 {
 	myInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myComputeInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+
 	myImageAvailableSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myRenderFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-
-	myComputeInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myComputeFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+
+	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		myInFlightFences[i] = myVkContext.CreateFence();
+		myComputeInFlightFences[i] = myVkContext.CreateFence();
+
+		myImageAvailableSemaphores[i] = myVkContext.CreateSemaphore();
+		myRenderFinishedSemaphores[i] = myVkContext.CreateSemaphore();
+		myComputeFinishedSemaphores[i] = myVkContext.CreateSemaphore();
+	}
 }
 
-void AM_VkRenderer::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
+void AM_VkRenderer::CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -457,7 +486,7 @@ void AM_VkRenderer::CreateImageView(AM_VkImageView& outImageView, VkImage image,
 	viewInfo.subresourceRange.baseArrayLayer = 0;
 	viewInfo.subresourceRange.layerCount = 1;
 
-	outImageView.CreateView(viewInfo);
+	outImageView = myVkContext.CreateImageView(viewInfo);
 }
 
 void AM_VkRenderer::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
@@ -468,7 +497,7 @@ void AM_VkRenderer::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkComm
 	allocInfo.commandPool = aCommandPool;
 	allocInfo.commandBufferCount = 1;
 
-	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &aCommandBuffer);
+	vkAllocateCommandBuffers(myVkContext.device, &allocInfo, &aCommandBuffer);
 
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -489,7 +518,7 @@ void AM_VkRenderer::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aV
 	vkQueueSubmit(aVkQueue, 1, &submitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(aVkQueue);
 
-	vkFreeCommandBuffers(AM_VkContext::device, aCommandPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(myVkContext.device, aCommandPool, 1, &commandBuffer);
 }
 
 void AM_VkRenderer::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer)

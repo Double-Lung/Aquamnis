@@ -12,7 +12,7 @@ struct AM_VkImage
 	AM_VkImage(const VkImageCreateInfo& someInfo)
 		: myImage(VK_NULL_HANDLE)
 	{
-		if (vkCreateImage(AM_VkContext::device, &someInfo, nullptr, &myImage) != VK_SUCCESS)
+		if (vkCreateImage(myVkContext.device, &someInfo, nullptr, &myImage) != VK_SUCCESS)
 			throw std::runtime_error("failed to create image!");
 	}
 
@@ -39,7 +39,7 @@ struct AM_VkImage
 	{
 		if (myImage)
 		{
-			vkDestroyImage(AM_VkContext::device, myImage, nullptr);
+			vkDestroyImage(myVkContext.device, myImage, nullptr);
 			myImage = nullptr;
 		}
 	}

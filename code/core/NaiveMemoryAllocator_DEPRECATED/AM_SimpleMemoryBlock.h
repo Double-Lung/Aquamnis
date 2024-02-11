@@ -45,7 +45,7 @@ public:
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = AM_VkRenderCoreConstants::SINGLEALLOCSIZE;
 		allocInfo.memoryTypeIndex = aMemoryTypeIndex;
-		if (vkAllocateMemory(AM_VkContext::device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
+		if (vkAllocateMemory(myVkContext.device, &allocInfo, nullptr, &myMemory) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate memory of type ??? !");
 	}
 

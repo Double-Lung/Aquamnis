@@ -24,13 +24,7 @@
 #include <random>
 #include <unordered_map>
 
-void AM_VkRenderCore::Engage()
-{
-	InitVulkan();
-	MainLoop();
-}
-
-AM_VkRenderCore::AM_VkRenderCore() 
+AM_VkRenderCore::AM_VkRenderCore()
 	: myVkContext{}
 	, myDescriptorPool{myVkContext}
 	, myMipLevels(0)
@@ -60,6 +54,15 @@ AM_VkRenderCore::~AM_VkRenderCore()
 	vmaDestroyImage(myVMA, myTextureImage.myImage, myTextureImage.myAllocation);
 	vmaDestroyImage(myVMA, myCubeMapImage.myImage, myCubeMapImage.myAllocation);
 	vmaDestroyAllocator(myVMA);
+
+	for (VkSemaphore semaphore : myTransferSemaphores)
+		myVkContext.DestroySemaphore(semaphore);
+
+	myVkContext.DestroyImageView(myCubeMapImageView);
+	myVkContext.DestroyImageView(myTextureImageView);
+
+	myVkContext.DestroySampler(myTextureSampler);
+	myVkContext.DestroySampler(myCubeMapSampler);
 }
 
 bool AM_VkRenderCore::CheckExtensionSupport()
@@ -100,53 +103,7 @@ bool AM_VkRenderCore::CheckInstanceLayerSupport()
 	return true;
 }
 
-void AM_VkRenderCore::CreateInstance()
-{
-	if (!CheckExtensionSupport())
-		throw std::runtime_error("extensions requested by GLFW, but not available!");
-
-	if (!CheckInstanceLayerSupport())
-		throw std::runtime_error("layers requested by application, but not available!");
-
-	VkApplicationInfo appInfo{};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = ApplicationConstants::WINDOWNAME;
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = ApplicationConstants::WINDOWNAME;
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_3;
-
-	VkInstanceCreateInfo createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pApplicationInfo = &appInfo;
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(myVkContext.requiredInstanceExtensions.size());
-	createInfo.ppEnabledExtensionNames = myVkContext.requiredInstanceExtensions.data();
-	createInfo.enabledLayerCount = static_cast<uint32_t>(myVkContext.enabledInstanceLayers.size());
-	createInfo.ppEnabledLayerNames = myVkContext.enabledInstanceLayers.data();
-
-#ifdef _DEBUG
-	std::vector<VkValidationFeatureEnableEXT> enables =
-	{ VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT };
-
-	VkValidationFeaturesEXT features = {};
-	features.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
-	features.enabledValidationFeatureCount = static_cast<uint32_t>(enables.size());
-	features.pEnabledValidationFeatures = enables.data();
-
-	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-	myVkContext.PopulateDebugMessengerCreateInfo(debugCreateInfo);
-	debugCreateInfo.pNext = &features;
-	createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
-#endif
-
-	if (vkCreateInstance(&createInfo, nullptr, &AM_VkContext::instance) != VK_SUCCESS)
-		throw std::runtime_error("failed to create Vulkan instance!");
-
-	if (glfwCreateWindowSurface(AM_VkContext::instance, myWindowInstance.GetWindow(), nullptr, &AM_VkContext::surface) != VK_SUCCESS)
-		throw std::runtime_error("failed to create window surface!");
-}
-
-void AM_VkRenderCore::CreateImageView(AM_VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount)
+void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount)
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -159,7 +116,7 @@ void AM_VkRenderCore::CreateImageView(AM_VkImageView& outImageView, VkImage imag
 	viewInfo.subresourceRange.baseArrayLayer = 0;
 	viewInfo.subresourceRange.layerCount = aLayerCount;
 
-	outImageView.CreateView(viewInfo);
+	outImageView = myVkContext.CreateImageView(viewInfo);
 }
 
 void AM_VkRenderCore::CreateDescriptorPool()
@@ -199,8 +156,8 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = myTextureImageView.myView;
-		imageInfo.sampler = myTextureSampler.mySampler;
+		imageInfo.imageView = myTextureImageView;
+		imageInfo.sampler = myTextureSampler;
 
 		AM_VkDescriptorSetWriter writter{ myRenderSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool };
 		writter.WriteBuffer(0, &bufferInfo);
@@ -208,8 +165,8 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		writter.Update(myDescriptorSets[i]);
 
 		AM_VkDescriptorSetWriter writterCube{ myRenderSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool }; // same layout as before
-		imageInfo.imageView = myCubeMapImageView.myView;
-		imageInfo.sampler = myCubeMapSampler.mySampler;
+		imageInfo.imageView = myCubeMapImageView;
+		imageInfo.sampler = myCubeMapSampler;
 		writterCube.WriteBuffer(0, &bufferInfo);
 		writterCube.WriteImage(1, &imageInfo); // updated
 		writterCube.Update(myCubeMapDescriptorSets[i]);
@@ -277,7 +234,7 @@ void AM_VkRenderCore::CreateTextureImage()
 	assert(result == VK_SUCCESS && "failed to create image!");
 
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool);
 	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, 1, commandBuffer);
 	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage.myImage, texWidth, texHeight, commandBuffer);
 	
@@ -306,10 +263,10 @@ void AM_VkRenderCore::CreateTextureImage()
 		1, &postCopyTransferMemoryBarrier
 	);
 
-	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0].mySemaphore);
+	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0]);
 
 	VkCommandBuffer graphicsCommandBuffer;
-	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0].myPool);
+	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0]);
 
 	VkImageMemoryBarrier postCopyGraphicsMemoryBarrier{};
 	postCopyGraphicsMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -336,15 +293,15 @@ void AM_VkRenderCore::CreateTextureImage()
 		1, &postCopyGraphicsMemoryBarrier
 	);
 
-	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0].mySemaphore);
+	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0]);
 
 	// this is good for now
 	// use fence for async submission
 	vkQueueWaitIdle(myVkContext.transferQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myTransferCommandPool.myPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(myVkContext.device, myVkContext.myTransferCommandPool, 1, &commandBuffer);
 
 	vkQueueWaitIdle(myVkContext.graphicsQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
+	vkFreeCommandBuffers(myVkContext.device, myVkContext.myCommandPools[0], 1, &graphicsCommandBuffer);
 
 	GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	vmaDestroyBuffer(myVMA, stagingBuffer.myBuffer, stagingBuffer.myAllocation);
@@ -409,7 +366,7 @@ void AM_VkRenderCore::CreateCubeMapImage()
 	assert(result == VK_SUCCESS && "failed to create image!");
 
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool);
 	TransitionImageLayout(myCubeMapImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myCubeMapMipLevels, 6, commandBuffer);
 
 	VkBufferImageCopy bufferCopyRegion = {};
@@ -457,10 +414,10 @@ void AM_VkRenderCore::CreateCubeMapImage()
 		1, &postCopyTransferMemoryBarrier
 	);
 
-	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0].mySemaphore);
+	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0]);
 
 	VkCommandBuffer graphicsCommandBuffer;
-	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0].myPool);
+	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0]);
 
 	VkImageMemoryBarrier postCopyGraphicsMemoryBarrier{};
 	postCopyGraphicsMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -487,15 +444,15 @@ void AM_VkRenderCore::CreateCubeMapImage()
 		1, &postCopyGraphicsMemoryBarrier
 	);
 
-	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0].mySemaphore);
+	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0]);
 
 	// this is good for now
 	// use fence for async submission
 	vkQueueWaitIdle(myVkContext.transferQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myTransferCommandPool.myPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(myVkContext.device, myVkContext.myTransferCommandPool, 1, &commandBuffer);
 
 	vkQueueWaitIdle(myVkContext.graphicsQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
+	vkFreeCommandBuffers(myVkContext.device, myVkContext.myCommandPools[0], 1, &graphicsCommandBuffer);
 	vmaDestroyBuffer(myVMA, stagingBuffer.myBuffer, stagingBuffer.myAllocation);
 }
 
@@ -532,7 +489,7 @@ void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage,
 void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocation, const TempBuffer* aDestinationBuffer)
 {
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool.myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool);
 
 	VkBufferCopy copyRegion{ 0, 0, anAllocation->GetSize() };
 	vkCmdCopyBuffer(commandBuffer, aSourceBuffer, aDestinationBuffer->myBuffer, 1, &copyRegion);
@@ -557,10 +514,10 @@ void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocat
 		0, nullptr
 	);
 
-	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0].mySemaphore);
+	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0]);
 
 	VkCommandBuffer graphicsCommandBuffer;
-	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0].myPool);
+	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0]);
 
 	bufferMemoryBarrier.srcAccessMask = 0;
 	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
@@ -575,13 +532,13 @@ void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocat
 		0, nullptr
 	);
 
-	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0].mySemaphore);
+	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0]);
 
 	vkQueueWaitIdle(myVkContext.transferQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myTransferCommandPool.myPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(myVkContext.device, myVkContext.myTransferCommandPool, 1, &commandBuffer);
 
 	vkQueueWaitIdle(myVkContext.graphicsQueue);
-	vkFreeCommandBuffers(AM_VkContext::device, myVkContext.myCommandPools[0].myPool, 1, &graphicsCommandBuffer);
+	vkFreeCommandBuffers(myVkContext.device, myVkContext.myCommandPools[0], 1, &graphicsCommandBuffer);
 }
 
 void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer)
@@ -647,7 +604,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 {
 	// Check if image format supports linear blitting
 	VkFormatProperties formatProperties;
-	vkGetPhysicalDeviceFormatProperties(AM_VkContext::physicalDevice, imageFormat, &formatProperties);
+	vkGetPhysicalDeviceFormatProperties(myVkContext.physicalDevice, imageFormat, &formatProperties);
 	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
 		throw std::runtime_error("texture image format does not support linear blitting!");
 
@@ -656,7 +613,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 	// Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
 
 	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[0].myPool);
+	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[0]);
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -747,7 +704,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 		0, nullptr,
 		1, &barrier);
 
-	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[0].myPool);
+	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[0]);
 }
 
 void AM_VkRenderCore::CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, void* aSource)
@@ -912,7 +869,7 @@ void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCo
 	allocInfo.commandPool = aCommandPool;
 	allocInfo.commandBufferCount = 1;
 
-	vkAllocateCommandBuffers(AM_VkContext::device, &allocInfo, &aCommandBuffer);
+	aCommandBuffer = myVkContext.AllocateCommandBuffer(allocInfo);
 
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -964,12 +921,7 @@ void AM_VkRenderCore::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue 
 	vkQueueSubmit(aVkQueue, 1, &submitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(aVkQueue);
 
-	vkFreeCommandBuffers(AM_VkContext::device, aCommandPool, 1, &commandBuffer);
-}
-
-void AM_VkRenderCore::CreateSyncObjects()
-{
-	myTransferSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	vkFreeCommandBuffers(myVkContext.device, aCommandPool, 1, &commandBuffer);
 }
 
 void AM_VkRenderCore::LoadEntities()
@@ -1044,7 +996,7 @@ void AM_VkRenderCore::CreateTextureSampler()
 	samplerInfo.minLod = 0.f;
 	samplerInfo.maxLod = static_cast<float>(myMipLevels); // or VK_LOD_CLAMP_NONE
 
-	myTextureSampler.CreateSampler(samplerInfo);
+	myTextureSampler = myVkContext.CreateSampler(samplerInfo);
 }
 
 void AM_VkRenderCore::CreateCubeMapSampler()
@@ -1067,7 +1019,7 @@ void AM_VkRenderCore::CreateCubeMapSampler()
 	samplerInfo.minLod = 0.f;
 	samplerInfo.maxLod = static_cast<float>(myCubeMapMipLevels); // or VK_LOD_CLAMP_NONE
 
-	myCubeMapSampler.CreateSampler(samplerInfo);
+	myCubeMapSampler = myVkContext.CreateSampler(samplerInfo);
 }
 
 bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
@@ -1075,33 +1027,8 @@ bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
 	return !((format ^ VK_FORMAT_D32_SFLOAT_S8_UINT) && (format ^ VK_FORMAT_D24_UNORM_S8_UINT));
 }
 
-void AM_VkRenderCore::Setup()
+void AM_VkRenderCore::LoadDefaultResources()
 {
-
-}
-
-void AM_VkRenderCore::InitVulkan()
-{
-	myWindowInstance.Init();
-	CreateInstance();
-	myVkContext.Init();
-
-	VmaAllocatorCreateInfo vmaCreateInfo{};
-	vmaCreateInfo.instance = myVkContext.instance;
-	vmaCreateInfo.physicalDevice = myVkContext.physicalDevice;
-	vmaCreateInfo.device = myVkContext.device;
-	
-	vmaCreateInfo.vulkanApiVersion = VK_API_VERSION_1_3;
-	static VmaVulkanFunctions vulkanFunctions = {};
-	vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
-	vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
-	vmaCreateInfo.pVulkanFunctions = &vulkanFunctions;
-	vmaCreateInfo.flags = 0; 
-	vmaCreateAllocator(&vmaCreateInfo, &myVMA);
-	CreateSyncObjects();
-
-	myRenderer = new AM_VkRenderer(myVkContext, myWindowInstance, myVMA);
-
 	// load textures
 	CreateTextureImage();
 	CreateTextureImageView();
@@ -1117,13 +1044,85 @@ void AM_VkRenderCore::InitVulkan()
 	CreateUniformBuffers();
 	CreateShaderStorageBuffers();
 
+	CreateDescriptorSets();
+}
+
+void AM_VkRenderCore::Setup()
+{
+	// need a window layer in the future
+	myWindowInstance.Init();
+
+	if (!CheckExtensionSupport())
+		throw std::runtime_error("extensions requested by GLFW, but not available!");
+
+	if (!CheckInstanceLayerSupport())
+		throw std::runtime_error("layers requested by application, but not available!");
+
+	VkApplicationInfo appInfo{};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = ApplicationConstants::WINDOWNAME;
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.pEngineName = ApplicationConstants::WINDOWNAME;
+	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.apiVersion = VK_API_VERSION_1_3;
+
+	VkInstanceCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	createInfo.pApplicationInfo = &appInfo;
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(myVkContext.requiredInstanceExtensions.size());
+	createInfo.ppEnabledExtensionNames = myVkContext.requiredInstanceExtensions.data();
+	createInfo.enabledLayerCount = static_cast<uint32_t>(myVkContext.enabledInstanceLayers.size());
+	createInfo.ppEnabledLayerNames = myVkContext.enabledInstanceLayers.data();
+
+#ifdef _DEBUG
+	std::vector<VkValidationFeatureEnableEXT> enables =
+	{ VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT };
+
+	VkValidationFeaturesEXT features = {};
+	features.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+	features.enabledValidationFeatureCount = static_cast<uint32_t>(enables.size());
+	features.pEnabledValidationFeatures = enables.data();
+
+	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+	myVkContext.PopulateDebugMessengerCreateInfo(debugCreateInfo);
+	debugCreateInfo.pNext = &features;
+	createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+#endif
+
+	if (vkCreateInstance(&createInfo, nullptr, &myVkContext.instance) != VK_SUCCESS)
+		throw std::runtime_error("failed to create Vulkan instance!");
+
+	if (glfwCreateWindowSurface(myVkContext.instance, myWindowInstance.GetWindow(), nullptr, &myVkContext.surface) != VK_SUCCESS)
+		throw std::runtime_error("failed to create window surface!");
+
+	myVkContext.Init();
+
+	VmaAllocatorCreateInfo vmaCreateInfo{};
+	vmaCreateInfo.instance = myVkContext.instance;
+	vmaCreateInfo.physicalDevice = myVkContext.physicalDevice;
+	vmaCreateInfo.device = myVkContext.device;
+
+	vmaCreateInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+	static VmaVulkanFunctions vulkanFunctions = {};
+	vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+	vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+	vmaCreateInfo.pVulkanFunctions = &vulkanFunctions;
+	vmaCreateInfo.flags = 0;
+	vmaCreateAllocator(&vmaCreateInfo, &myVMA);
+
+	CreateDescriptorPool();
+	myRenderer = new AM_VkRenderer(myVkContext, myWindowInstance, myVMA);  // #FIX_ME should rename to render context
+
 	myRenderSystem = new AM_SimpleRenderSystem(myVkContext, myRenderer->GetRenderPass());
 	myPointLightRenderSystem = new AM_PointLightRenderSystem(myVkContext, myRenderer->GetRenderPass());
 	mySimpleGPUParticleSystem = new AM_SimpleGPUParticleSystem(myVkContext, myRenderer->GetRenderPass());
 	myCubeMapRenderSystem = new AM_CubeMapRenderSystem(myVkContext, myRenderer->GetRenderPass());
-	
-	CreateDescriptorPool();
-	CreateDescriptorSets();
+
+	myTransferSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	for (VkSemaphore& semaphore : myTransferSemaphores)
+		semaphore = myVkContext.CreateSemaphore();
+
+	LoadDefaultResources();
 }
 
 void AM_VkRenderCore::MainLoop()
@@ -1165,7 +1164,7 @@ void AM_VkRenderCore::MainLoop()
 		}
 	}
 
-	vkDeviceWaitIdle(AM_VkContext::device);
+	vkDeviceWaitIdle(myVkContext.device);
 }
 
 void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera)

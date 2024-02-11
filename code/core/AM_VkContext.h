@@ -14,9 +14,8 @@
 #include "AM_VkRenderCoreConstants.h"
 #include <vulkan/vulkan.h>
 
-class AM_VkContext
+struct AM_VkContext
 {
-public:
 	AM_VkContext();
 	~AM_VkContext();
 
@@ -36,6 +35,38 @@ public:
 
 	void CreateCommandPools();
 
+	// vk object creation functions;
+
+	VkSemaphore CreateSemaphore();
+	void DestroySemaphore(VkSemaphore aSemaphore) { vkDestroySemaphore(device, aSemaphore, nullptr); }
+
+	VkFence CreateFence();
+	void DestroyFence(VkFence aFence){ vkDestroyFence(device, aFence, nullptr); }
+
+	VkPipelineLayout CreatePipelineLayout(const VkPipelineLayoutCreateInfo& aCreateInfo);
+	void DestroyPipelineLayout(VkPipelineLayout aLayout){ vkDestroyPipelineLayout(device, aLayout, nullptr); }
+
+	VkPipeline CreateGraphicsPipeline(const VkGraphicsPipelineCreateInfo& aCreateInfo);
+	VkPipeline CreateComputePipeline(const VkComputePipelineCreateInfo& aCreateInfo);
+	void DestroyPipeline(VkPipeline aPipeline) { vkDestroyPipeline(device, aPipeline, nullptr); }
+
+	VkFramebuffer CreateFrameBuffer(const VkFramebufferCreateInfo& aCreateInfo);
+	void DestroyFrameBuffer(VkFramebuffer aFrameBuffer) { vkDestroyFramebuffer(device, aFrameBuffer, nullptr); }
+
+	VkCommandBuffer AllocateCommandBuffer(const VkCommandBufferAllocateInfo& aCreateInfo);
+
+	VkSampler CreateSampler(const VkSamplerCreateInfo& aCreateInfo);
+	void DestroySampler(VkSampler aSampler);
+
+	VkImageView CreateImageView(const VkImageViewCreateInfo& aCreateInfo);
+	void DestroyImageView(VkImageView anImageView) { vkDestroyImageView(device, anImageView, nullptr); }
+
+	VkRenderPass CreateRenderPass(const VkRenderPassCreateInfo& aCreateInfo);
+	void DestroyRenderPass(VkRenderPass aRenderPass) { vkDestroyRenderPass(device, aRenderPass, nullptr); }
+
+	VkCommandPool CreateCommandPool(const VkCommandPoolCreateInfo& aCreateInfo);
+	void DestroyCommandPool(VkCommandPool aCommandPool) { vkDestroyCommandPool(device, aCommandPool, nullptr); }
+
 #ifdef _DEBUG
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -45,24 +76,6 @@ public:
 	void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	void SetupDebugMessenger();
 #endif
-
-	struct AM_VkCommandPool
-	{
-		AM_VkCommandPool()
-			: myPool(nullptr)
-		{
-		}
-
-		~AM_VkCommandPool(){}
-
-		void CreatePool(const VkCommandPoolCreateInfo& aCreateInfo)
-		{
-			if (vkCreateCommandPool(AM_VkContext::device, &aCreateInfo, nullptr, &myPool) != VK_SUCCESS)
-				throw std::runtime_error("failed to create command pool!");
-		}
-
-		VkCommandPool myPool;
-	};
 
 	VkPhysicalDeviceProperties deviceProperties;
 	VkPhysicalDeviceFeatures deviceFeatures;
@@ -77,14 +90,14 @@ public:
 	std::vector<const char*> requiredInstanceExtensions;
 	std::vector<VkExtensionProperties> availableInstanceExtensions;
 	std::vector<VkLayerProperties> availableInstanceLayers;
-	std::vector<AM_VkCommandPool> myCommandPools;
-	std::vector<AM_VkCommandPool> myComputeCommandPools;
-	AM_VkCommandPool myTransferCommandPool;
+	std::vector<VkCommandPool> myCommandPools;
+	std::vector<VkCommandPool> myComputeCommandPools;
+	VkCommandPool myTransferCommandPool;
 
-	static VkInstance instance;
-	static VkSurfaceKHR surface;
-	static VkPhysicalDevice physicalDevice;
-	static VkDevice device;
+	VkInstance instance;
+	VkSurfaceKHR surface;
+	VkPhysicalDevice physicalDevice;
+	VkDevice device;
 
 #if _DEBUG
 	VkDebugUtilsMessengerEXT myDebugMessenger;

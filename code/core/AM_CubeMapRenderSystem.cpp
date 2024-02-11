@@ -10,7 +10,7 @@
 AM_CubeMapRenderSystem::AM_CubeMapRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
 	: myVkContext{aVkContext}
 	, myGraphicsPipeline{}
-	, myPipelineLayout{}
+	, myPipelineLayout{nullptr}
 	, myDescriptorSetLayout{aVkContext}
 {
 	CreateDescriptorSetLayout();
@@ -19,8 +19,8 @@ AM_CubeMapRenderSystem::AM_CubeMapRenderSystem(AM_VkContext& aVkContext, VkRende
 
 void AM_CubeMapRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera&/* aCamera*/)
 {
-	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.myPipeline);
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout.myLayout, 0, 1, &aDescriptorSet, 0, nullptr);
+	vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline);
+	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout, 0, 1, &aDescriptorSet, 0, nullptr);
 	for (auto& entry : someEntites)
 	{
 		auto& entity = entry.second;
@@ -145,7 +145,7 @@ void AM_CubeMapRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-	myPipelineLayout.CreateLayout(pipelineLayoutInfo);
+	myPipelineLayout = myVkContext.CreatePipelineLayout(pipelineLayoutInfo);
 
 	VkPipelineDepthStencilStateCreateInfo depthStencil{};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -171,16 +171,16 @@ void AM_CubeMapRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = myPipelineLayout.myLayout;
+	pipelineInfo.layout = myPipelineLayout;
 	pipelineInfo.renderPass = aRenderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
-	myGraphicsPipeline.CreatePipeline(pipelineInfo);
+	myGraphicsPipeline = myVkContext.CreateGraphicsPipeline(pipelineInfo);
 
-	vkDestroyShaderModule(AM_VkContext::device, fragShaderModule, nullptr);
-	vkDestroyShaderModule(AM_VkContext::device, vertShaderModule, nullptr);
+	vkDestroyShaderModule(myVkContext.device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(myVkContext.device, vertShaderModule, nullptr);
 }
 
 std::vector<char> AM_CubeMapRenderSystem::ReadFile(const std::string& filename)
@@ -207,7 +207,7 @@ VkShaderModule AM_CubeMapRenderSystem::CreateShaderModule(const std::vector<char
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
 	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(AM_VkContext::device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+	if (vkCreateShaderModule(myVkContext.device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
 		throw std::runtime_error("failed to create shader module!");
 
 	return shaderModule;

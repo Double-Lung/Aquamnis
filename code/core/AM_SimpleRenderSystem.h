@@ -3,7 +3,6 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_VkContext.h"
-#include "AM_VkPrimitives.h"
 #include "AM_VkDescriptorUtils.h"
 #include <glm/glm.hpp>
 
@@ -13,7 +12,11 @@ class AM_SimpleRenderSystem
 {
 public:
 	AM_SimpleRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass);
-	~AM_SimpleRenderSystem(){}
+	~AM_SimpleRenderSystem()
+	{
+		myVkContext.DestroyPipelineLayout(myPipelineLayout);
+		myVkContext.DestroyPipeline(myGraphicsPipeline);
+	}
 
 	void RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera);
 	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout.GetDescriptorSetLayout(); }
@@ -40,8 +43,8 @@ private:
 	void CreateDescriptorSetLayout();
 
 	AM_VkContext& myVkContext;
-	AM_VkPipeline myGraphicsPipeline;
-	AM_VkPipelineLayout myPipelineLayout;
+	VkPipeline myGraphicsPipeline;
+	VkPipelineLayout myPipelineLayout;
 
 	// for pipeline and descriptor set
 	AM_VkDescriptorSetLayout myDescriptorSetLayout;

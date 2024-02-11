@@ -1,10 +1,5 @@
 #include "AM_VkContext.h"
 
-VkInstance AM_VkContext::instance = VK_NULL_HANDLE;
-VkSurfaceKHR AM_VkContext::surface = VK_NULL_HANDLE;
-VkPhysicalDevice AM_VkContext::physicalDevice = VK_NULL_HANDLE;
-VkDevice AM_VkContext::device = VK_NULL_HANDLE;
-
 AM_VkContext::AM_VkContext() 
 	: deviceProperties{}
 	, deviceFeatures{}
@@ -21,6 +16,10 @@ AM_VkContext::AM_VkContext()
 #if _DEBUG
 	, myDebugMessenger(VK_NULL_HANDLE)
 #endif
+	, instance(VK_NULL_HANDLE)
+	, surface(VK_NULL_HANDLE)
+	, physicalDevice(VK_NULL_HANDLE)
+	, device(VK_NULL_HANDLE)
 	, graphicsQueue(VK_NULL_HANDLE)
 	, presentQueue(VK_NULL_HANDLE)
 	, transferQueue(VK_NULL_HANDLE)
@@ -43,24 +42,19 @@ AM_VkContext::AM_VkContext()
 
 AM_VkContext::~AM_VkContext()
 {
-	vkDestroyCommandPool(AM_VkContext::device, myTransferCommandPool.myPool, nullptr);
+	DestroyCommandPool(myTransferCommandPool);
+	for (VkCommandPool commandPool : myComputeCommandPools)
+		DestroyCommandPool(commandPool);
 
-	for (auto& commandPool : myComputeCommandPools)
-	{
-		vkDestroyCommandPool(AM_VkContext::device, commandPool.myPool, nullptr);
-	}
+	for (VkCommandPool commandPool : myCommandPools)
+		DestroyCommandPool(commandPool);
 
-	for (auto& commandPool : myCommandPools)
-	{
-		vkDestroyCommandPool(AM_VkContext::device, commandPool.myPool, nullptr);
-	}
-
-	vkDestroyDevice(AM_VkContext::device, nullptr);
-	vkDestroySurfaceKHR(AM_VkContext::instance, AM_VkContext::surface, nullptr);
+	vkDestroyDevice(device, nullptr);
+	vkDestroySurfaceKHR(instance, surface, nullptr);
 #ifdef _DEBUG
-	DestroyDebugUtilsMessengerEXT(AM_VkContext::instance, myDebugMessenger, nullptr);
+	DestroyDebugUtilsMessengerEXT(instance, myDebugMessenger, nullptr);
 #endif
-	vkDestroyInstance(AM_VkContext::instance, nullptr);
+	vkDestroyInstance(instance, nullptr);
 }
 
 bool AM_VkContext::TryGetQueueFamilies(VkPhysicalDevice device, int& transferQueueIdx, int& graphicsQueueIdx, int& presentQueueIdx, int& computeQueueIdx)
@@ -161,13 +155,13 @@ void AM_VkContext::GetAvailableInstanceLayers()
 void AM_VkContext::ChoosePhysicalDevice()
 {
 	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(AM_VkContext::instance, &deviceCount, nullptr);
+	vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
 	if (deviceCount == 0)
 		throw std::runtime_error("failed to find GPUs with Vulkan support!");
 
 	std::vector<VkPhysicalDevice> devices(deviceCount);
-	vkEnumeratePhysicalDevices(AM_VkContext::instance, &deviceCount, devices.data());
+	vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
 	for (const VkPhysicalDevice availableDevice : devices)
 	{
@@ -255,7 +249,7 @@ void AM_VkContext::CreateLogicalDevice()
 	createInfo.enabledLayerCount = static_cast<uint32_t>(enabledInstanceLayers.size());
 	createInfo.ppEnabledLayerNames = enabledInstanceLayers.data();
 
-	if ( vkCreateDevice(AM_VkContext::physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS )
+	if ( vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS )
 		throw std::runtime_error("failed to create logical device!");
 
 	vkGetDeviceQueue(device, graphicsFamilyIndex, 0, &graphicsQueue);
@@ -353,20 +347,122 @@ void AM_VkContext::CreateCommandPools()
 	poolInfo.queueFamilyIndex = graphicsFamilyIndex;
 
 	myCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	for (auto& commandPool : myCommandPools)
-		commandPool.CreatePool(poolInfo);
-
-	poolInfo.queueFamilyIndex = computeFamilyIndex;
 	myComputeCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	for (auto& commandPool : myComputeCommandPools)
-		commandPool.CreatePool(poolInfo);
+
+	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		myCommandPools[i] = CreateCommandPool(poolInfo);
+		myComputeCommandPools[i] = CreateCommandPool(poolInfo);
+	}
 
 	VkCommandPoolCreateInfo transferPoolInfo{};
 	transferPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	transferPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 	transferPoolInfo.queueFamilyIndex = transferFamilyIndex;
 
-	myTransferCommandPool.CreatePool(transferPoolInfo);
+	myTransferCommandPool = CreateCommandPool(transferPoolInfo);
+}
+
+VkSemaphore AM_VkContext::CreateSemaphore()
+{
+	VkSemaphoreCreateInfo semaphoreInfo{};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkSemaphore obj;
+	if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create semaphores!");
+	return obj;
+}
+
+VkFence AM_VkContext::CreateFence()
+{
+	VkFence obj;
+	VkFenceCreateInfo fenceInfo{};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	if (vkCreateFence(device, &fenceInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create semaphores!");
+
+	return obj;
+}
+
+VkPipelineLayout AM_VkContext::CreatePipelineLayout(const VkPipelineLayoutCreateInfo& aCreateInfo)
+{
+	VkPipelineLayout obj;
+	if (vkCreatePipelineLayout(device, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create pipeline layout!");
+
+	return obj;
+}
+
+VkPipeline AM_VkContext::CreateGraphicsPipeline(const VkGraphicsPipelineCreateInfo& aCreateInfo)
+{
+	VkPipeline obj;
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create graphics pipeline!");
+	return obj;
+}
+
+VkPipeline AM_VkContext::CreateComputePipeline(const VkComputePipelineCreateInfo& aCreateInfo)
+{
+	VkPipeline obj;
+	if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create compute pipeline!");
+	return obj;
+}
+
+VkFramebuffer AM_VkContext::CreateFrameBuffer(const VkFramebufferCreateInfo& aCreateInfo)
+{
+	VkFramebuffer obj;
+	if (vkCreateFramebuffer(device, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create framebuffer!");
+	return obj;
+}
+
+VkCommandBuffer AM_VkContext::AllocateCommandBuffer(const VkCommandBufferAllocateInfo& aCreateInfo)
+{
+	VkCommandBuffer obj;
+	if (vkAllocateCommandBuffers(device, &aCreateInfo, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to allocate command buffer!");
+	return obj;
+}
+
+VkSampler AM_VkContext::CreateSampler(const VkSamplerCreateInfo& aCreateInfo)
+{
+	VkSampler obj;
+	if (vkCreateSampler(device, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create texture sampler!");
+	return obj;
+}
+
+void AM_VkContext::DestroySampler(VkSampler aSampler)
+{
+	vkDestroySampler(device, aSampler, nullptr);
+}
+
+VkImageView AM_VkContext::CreateImageView(const VkImageViewCreateInfo& aCreateInfo)
+{
+	VkImageView obj;
+	if (vkCreateImageView(device, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create texture image view!");
+	return obj;
+}
+
+VkRenderPass AM_VkContext::CreateRenderPass(const VkRenderPassCreateInfo& aCreateInfo)
+{
+	VkRenderPass obj;
+	if (vkCreateRenderPass(device, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create render pass!");
+	return obj;
+}
+
+VkCommandPool AM_VkContext::CreateCommandPool(const VkCommandPoolCreateInfo& aCreateInfo)
+{
+	VkCommandPool obj;
+	if (vkCreateCommandPool(device, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create command pool!");
+	return obj;
 }
 
 #ifdef _DEBUG
@@ -390,7 +486,7 @@ void AM_VkContext::SetupDebugMessenger()
 	VkDebugUtilsMessengerCreateInfoEXT createInfo{};
 	PopulateDebugMessengerCreateInfo(createInfo);
 
-	if (CreateDebugUtilsMessengerEXT(AM_VkContext::instance, &createInfo, nullptr, &myDebugMessenger) != VK_SUCCESS)
+	if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &myDebugMessenger) != VK_SUCCESS)
 		throw std::runtime_error("failed to set up debug messenger!");
 }
 #endif //_DEBUG
