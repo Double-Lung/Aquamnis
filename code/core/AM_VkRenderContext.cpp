@@ -1,8 +1,8 @@
-#include "AM_VkRenderer.h"
+#include "AM_VkRenderContext.h"
 #include "vk_mem_alloc.h"
 #include <array>
 
-AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAllocator& aVMA)
+AM_VkRenderContext::AM_VkRenderContext(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAllocator& aVMA)
 	: myVkContext(aVkContext)
 	, myWindow(aWindow)
 	, myVMA(aVMA)
@@ -23,7 +23,7 @@ AM_VkRenderer::AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAl
 	CreateReusableCommandBuffers();
 }
 
-AM_VkRenderer::~AM_VkRenderer()
+AM_VkRenderContext::~AM_VkRenderContext()
 {
 	FreeCommandBuffers();
 
@@ -49,7 +49,7 @@ AM_VkRenderer::~AM_VkRenderer()
 	myVkContext.DestroyRenderPass(myRenderPass);
 }
 
-VkCommandBuffer AM_VkRenderer::BeginFrame()
+VkCommandBuffer AM_VkRenderContext::BeginFrame()
 {
 	assert(!myIsFrameStarted && "Can't call beginFrame while already in progress");
 	vkWaitForFences(myVkContext.device, 1, &myComputeInFlightFences[myCurrentFrame], VK_TRUE, UINT64_MAX);
@@ -86,7 +86,7 @@ VkCommandBuffer AM_VkRenderer::BeginFrame()
 	return commandBuffer;
 }
 
-void AM_VkRenderer::EndFrame()
+void AM_VkRenderContext::EndFrame()
 {
 	assert(myIsFrameStarted && "Can't call endFrame while frame is not in progress");
 	VkCommandBuffer commandBuffer = GetCurrentCommandBuffer();
@@ -134,7 +134,7 @@ void AM_VkRenderer::EndFrame()
 	myCurrentFrame = (myCurrentFrame + 1) % AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
 }
 
-void AM_VkRenderer::BeginRenderPass(VkCommandBuffer commandBuffer)
+void AM_VkRenderContext::BeginRenderPass(VkCommandBuffer commandBuffer)
 {
 	assert(myIsFrameStarted && "Can't call beginSwapChainRenderPass if frame is not in progress");
 	assert(commandBuffer == GetCurrentCommandBuffer() && "Can't begin render pass on command buffer from a different frame");
@@ -168,14 +168,14 @@ void AM_VkRenderer::BeginRenderPass(VkCommandBuffer commandBuffer)
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
-void AM_VkRenderer::EndRenderPass(VkCommandBuffer commandBuffer)
+void AM_VkRenderContext::EndRenderPass(VkCommandBuffer commandBuffer)
 {
 	assert(myIsFrameStarted && "Can't call endSwapChainRenderPass if frame is not in progress");
 	assert(commandBuffer == GetCurrentCommandBuffer() && "Can't end render pass on command buffer from a different frame");
 	vkCmdEndRenderPass(commandBuffer);
 }
 
-void AM_VkRenderer::SubmitComputeQueue()
+void AM_VkRenderContext::SubmitComputeQueue()
 {
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -189,7 +189,7 @@ void AM_VkRenderer::SubmitComputeQueue()
 		throw std::runtime_error("failed to submit compute command buffer!");
 }
 
-void AM_VkRenderer::CreateReusableCommandBuffers()
+void AM_VkRenderContext::CreateReusableCommandBuffers()
 {
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -208,7 +208,7 @@ void AM_VkRenderer::CreateReusableCommandBuffers()
 	}
 }
 
-void AM_VkRenderer::FreeCommandBuffers()
+void AM_VkRenderContext::FreeCommandBuffers()
 {
 	for (int i = 0; i < myVkContext.myCommandPools.size(); ++i)
 	{
@@ -231,7 +231,7 @@ void AM_VkRenderer::FreeCommandBuffers()
 	myComputeCommandBuffers.clear();
 }
 
-void AM_VkRenderer::RecreateSwapChain()
+void AM_VkRenderContext::RecreateSwapChain()
 {
 	int width = 0, height = 0;
 	myWindow.WaitForFramebufferSize(width, height);
@@ -244,7 +244,7 @@ void AM_VkRenderer::RecreateSwapChain()
 	CreateFramebuffers();
 }
 
-void AM_VkRenderer::CreateRenderPass()
+void AM_VkRenderContext::CreateRenderPass()
 {
 	VkAttachmentDescription colorAttachment{};
 	colorAttachment.format = myVkContext.surfaceFormat.format;
@@ -316,7 +316,7 @@ void AM_VkRenderer::CreateRenderPass()
 	myRenderPass = myVkContext.CreateRenderPass(renderPassInfo);
 }
 
-void AM_VkRenderer::CreateSwapChain()
+void AM_VkRenderContext::CreateSwapChain()
 {
 	int width, height;
 	myWindow.GetFramebufferSize(width, height);
@@ -358,7 +358,7 @@ void AM_VkRenderer::CreateSwapChain()
 	mySwapChain.CreateImageViews(viewInfo);
 }
 
-void AM_VkRenderer::CleanupSwapChain()
+void AM_VkRenderContext::CleanupSwapChain()
 {
 	myVkContext.DestroyImageView(myColorImageView);
 	vmaDestroyImage(myVMA, myColorImage.myImage, myColorImage.myAllocation);
@@ -372,7 +372,7 @@ void AM_VkRenderer::CleanupSwapChain()
 	mySwapChain.Destroy();
 }
 
-void AM_VkRenderer::CreateColorResources()
+void AM_VkRenderContext::CreateColorResources()
 {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -399,7 +399,7 @@ void AM_VkRenderer::CreateColorResources()
 	CreateImageView(myColorImageView, myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
-void AM_VkRenderer::CreateDepthResources()
+void AM_VkRenderContext::CreateDepthResources()
 {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -431,7 +431,7 @@ void AM_VkRenderer::CreateDepthResources()
 	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[myCurrentFrame]);
 }
 
-void AM_VkRenderer::CreateFramebuffers()
+void AM_VkRenderContext::CreateFramebuffers()
 {
 	const auto& swapChainImageViews = mySwapChain.GetImageViews();
 	myFramebuffers.resize(swapChainImageViews.size());
@@ -453,7 +453,7 @@ void AM_VkRenderer::CreateFramebuffers()
 	}
 }
 
-void AM_VkRenderer::CreateSyncObjects()
+void AM_VkRenderContext::CreateSyncObjects()
 {
 	myInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myComputeInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
@@ -473,7 +473,7 @@ void AM_VkRenderer::CreateSyncObjects()
 	}
 }
 
-void AM_VkRenderer::CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
+void AM_VkRenderContext::CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -489,7 +489,7 @@ void AM_VkRenderer::CreateImageView(VkImageView& outImageView, VkImage image, Vk
 	outImageView = myVkContext.CreateImageView(viewInfo);
 }
 
-void AM_VkRenderer::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
+void AM_VkRenderContext::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
 {
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -506,7 +506,7 @@ void AM_VkRenderer::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkComm
 	vkBeginCommandBuffer(aCommandBuffer, &beginInfo);
 }
 
-void AM_VkRenderer::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool)
+void AM_VkRenderContext::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool)
 {
 	vkEndCommandBuffer(commandBuffer);
 
@@ -521,7 +521,7 @@ void AM_VkRenderer::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aV
 	vkFreeCommandBuffers(myVkContext.device, aCommandPool, 1, &commandBuffer);
 }
 
-void AM_VkRenderer::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer)
+void AM_VkRenderContext::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer)
 {
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -579,7 +579,7 @@ void AM_VkRenderer::TransitionImageLayout(VkImage image, VkFormat format, VkImag
 	);
 }
 
-bool AM_VkRenderer::HasStencilComponent(VkFormat format)
+bool AM_VkRenderContext::HasStencilComponent(VkFormat format)
 {
 	return !((format ^ VK_FORMAT_D32_SFLOAT_S8_UINT) && (format ^ VK_FORMAT_D24_UNORM_S8_UINT));
 }

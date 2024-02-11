@@ -5,7 +5,7 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #endif
 #include "AM_VkRenderCore.h"
-#include "AM_VkRenderer.h"
+#include "AM_VkRenderContext.h"
 #include "AM_SimpleRenderSystem.h"
 #include "AM_PointLightRenderSystem.h"
 #include "AM_SimpleGPUParticleSystem.h"
@@ -13,6 +13,7 @@
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
+#include "AM_VkDescriptorSetWriter.h"
 
 #include "vk_mem_alloc.h"
 
@@ -38,7 +39,7 @@ AM_VkRenderCore::~AM_VkRenderCore()
 	delete mySimpleGPUParticleSystem;
 	delete myPointLightRenderSystem;
 	delete myRenderSystem;
-	delete myRenderer;
+	delete myRenderContext;
 
 	for (auto& entity : myEntities)
 	{
@@ -117,21 +118,6 @@ void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, 
 	viewInfo.subresourceRange.layerCount = aLayerCount;
 
 	outImageView = myVkContext.CreateImageView(viewInfo);
-}
-
-void AM_VkRenderCore::CreateDescriptorPool()
-{
-	std::vector<VkDescriptorPoolSize> poolSizes;
-	poolSizes.resize(3);
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	poolSizes[2].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
-
-	// compute set * MAX_FRAMES_IN_FLIGHT + graphics set * MAX_FRAMES_IN_FLIGHT
-	myDescriptorPool.CreatePool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 3, 0, poolSizes);
 }
 
 void AM_VkRenderCore::CreateDescriptorSets()
@@ -1061,10 +1047,10 @@ void AM_VkRenderCore::Setup()
 	VkApplicationInfo appInfo{};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pApplicationName = ApplicationConstants::WINDOWNAME;
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.applicationVersion = ApplicationConstants::APP_VERSION;
 	appInfo.pEngineName = ApplicationConstants::WINDOWNAME;
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_3;
+	appInfo.engineVersion = ApplicationConstants::APP_VERSION;
+	appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 3, 257);
 
 	VkInstanceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -1102,7 +1088,7 @@ void AM_VkRenderCore::Setup()
 	vmaCreateInfo.physicalDevice = myVkContext.physicalDevice;
 	vmaCreateInfo.device = myVkContext.device;
 
-	vmaCreateInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+	vmaCreateInfo.vulkanApiVersion = VK_MAKE_API_VERSION(0, 1, 3, 257);
 	static VmaVulkanFunctions vulkanFunctions = {};
 	vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
 	vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
@@ -1110,18 +1096,40 @@ void AM_VkRenderCore::Setup()
 	vmaCreateInfo.flags = 0;
 	vmaCreateAllocator(&vmaCreateInfo, &myVMA);
 
-	CreateDescriptorPool();
-	myRenderer = new AM_VkRenderer(myVkContext, myWindowInstance, myVMA);  // #FIX_ME should rename to render context
+	// numbers are arbitrary
+	std::vector<VkDescriptorPoolSize> descriptorPoolSizes;
+	descriptorPoolSizes.resize(7);
+	descriptorPoolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorPoolSizes[0].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 4;
+	descriptorPoolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorPoolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 4;
+	descriptorPoolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	descriptorPoolSizes[2].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
+	descriptorPoolSizes[3].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+	descriptorPoolSizes[3].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 4;
+	descriptorPoolSizes[4].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	descriptorPoolSizes[4].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 4;
+	descriptorPoolSizes[5].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+	descriptorPoolSizes[5].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
+	descriptorPoolSizes[6].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+	descriptorPoolSizes[6].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
 
-	myRenderSystem = new AM_SimpleRenderSystem(myVkContext, myRenderer->GetRenderPass());
-	myPointLightRenderSystem = new AM_PointLightRenderSystem(myVkContext, myRenderer->GetRenderPass());
-	mySimpleGPUParticleSystem = new AM_SimpleGPUParticleSystem(myVkContext, myRenderer->GetRenderPass());
-	myCubeMapRenderSystem = new AM_CubeMapRenderSystem(myVkContext, myRenderer->GetRenderPass());
+	// maxSet = total set count * MAX_FRAMES_IN_FLIGHT
+	myDescriptorPool.CreatePool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 3, 0, descriptorPoolSizes);
 
 	myTransferSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	for (VkSemaphore& semaphore : myTransferSemaphores)
 		semaphore = myVkContext.CreateSemaphore();
 
+	myRenderContext = new AM_VkRenderContext(myVkContext, myWindowInstance, myVMA);
+
+	// #FIX_ME: remove duplicated code
+	myRenderSystem = new AM_SimpleRenderSystem(myVkContext, myRenderContext->GetRenderPass());
+	myPointLightRenderSystem = new AM_PointLightRenderSystem(myVkContext, myRenderContext->GetRenderPass());
+	mySimpleGPUParticleSystem = new AM_SimpleGPUParticleSystem(myVkContext, myRenderContext->GetRenderPass());
+	myCubeMapRenderSystem = new AM_CubeMapRenderSystem(myVkContext, myRenderContext->GetRenderPass());
+
+	// #FIX_ME: move content elsewhere
 	LoadDefaultResources();
 }
 
@@ -1130,35 +1138,35 @@ void AM_VkRenderCore::MainLoop()
 	AM_Camera camera;
 	camera.myTransformComp.myTranslation = { 0.f, 15.f, 35.f };
 	camera.myTransformComp.myRotation = { 0.f, 0.f, 0.f };
-	camera.SetPerspectiveProjection(0.7854f, myRenderer->GetAspectRatio(), 0.1f, 100.f);
+	camera.SetPerspectiveProjection(0.7854f, myRenderContext->GetAspectRatio(), 0.1f, 100.f);
 	camera.SetRotation(camera.myTransformComp.myTranslation, camera.myTransformComp.myRotation);
 
 	while (!myWindowInstance.ShouldCloseWindow())
 	{
 		glfwPollEvents();
 		float deltaTime = AM_SimpleTimer::GetInstance().GetDeltaTime();
-		if (auto commandBufer = myRenderer->BeginFrame())
+		if (auto commandBufer = myRenderContext->BeginFrame())
 		{
 			UpdateCameraTransform(deltaTime, camera);
-			UpdateUniformBuffer(myRenderer->GetFrameIndex(), camera, myEntities, deltaTime);
+			UpdateUniformBuffer(myRenderContext->GetFrameIndex(), camera, myEntities, deltaTime);
 
 			// Compute work
-			mySimpleGPUParticleSystem->DispatchWork(myRenderer->GetCurrentComputeCommandBuffer(), myComputeDescriptorSets[myRenderer->GetFrameIndex()]);
-			myRenderer->SubmitComputeQueue();
+			mySimpleGPUParticleSystem->DispatchWork(myRenderContext->GetCurrentComputeCommandBuffer(), myComputeDescriptorSets[myRenderContext->GetFrameIndex()]);
+			myRenderContext->SubmitComputeQueue();
 
-			myRenderer->BeginRenderPass(commandBufer);
+			myRenderContext->BeginRenderPass(commandBufer);
 
-			myCubeMapRenderSystem->RenderEntities(commandBufer, myCubeMapDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
-			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
-			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], myEntities, camera);
-			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderer->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderer->GetFrameIndex()]);
+			myCubeMapRenderSystem->RenderEntities(commandBufer, myCubeMapDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
+			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
+			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
+			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderContext->GetFrameIndex()]);
 
-			myRenderer->EndRenderPass(commandBufer);
-			myRenderer->EndFrame();
+			myRenderContext->EndRenderPass(commandBufer);
+			myRenderContext->EndFrame();
 
 			if (myWindowInstance.ShouldUpdateCamera())
 			{
-				camera.SetPerspectiveProjection(0.7854f, myRenderer->GetAspectRatio(), 0.1f, 100.f);
+				camera.SetPerspectiveProjection(0.7854f, myRenderContext->GetAspectRatio(), 0.1f, 100.f);
 				myWindowInstance.ResetCameraUpdateFlag();
 			}
 		}

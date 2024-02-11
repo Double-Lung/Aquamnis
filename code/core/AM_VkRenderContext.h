@@ -7,11 +7,11 @@
 
 struct VmaAllocator_T;
 typedef VmaAllocator_T* VmaAllocator;
-class AM_VkRenderer
+class AM_VkRenderContext
 {
 public:
-	explicit AM_VkRenderer(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAllocator& aVMA);
-	~AM_VkRenderer();
+	explicit AM_VkRenderContext(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAllocator& aVMA);
+	~AM_VkRenderContext();
 
 	VkRenderPass GetRenderPass() const { return myRenderPass; }
 	bool isFrameInProgress() const { return myIsFrameStarted; }
@@ -44,8 +44,8 @@ public:
 	float GetAspectRatio() const { return mySwapChain.GetExtentRatio(); }
 
 private:
-	AM_VkRenderer(const AM_VkRenderer&) = delete;
-	AM_VkRenderer& operator=(const AM_VkRenderer&) = delete;
+	AM_VkRenderContext(const AM_VkRenderContext&) = delete;
+	AM_VkRenderContext& operator=(const AM_VkRenderContext&) = delete;
 
 	void CreateReusableCommandBuffers();
 	void FreeCommandBuffers();

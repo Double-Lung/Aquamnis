@@ -3,7 +3,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_VkContext.h"
-#include "AM_VkDescriptorUtils.h"
+#include "AM_VkDescriptorSetLayout.h"
 #include <glm/glm.hpp>
 
 class AM_Entity;

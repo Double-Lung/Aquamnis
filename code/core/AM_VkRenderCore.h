@@ -6,14 +6,14 @@
 #include "AM_Entity.h"
 #include "AM_VkSwapChain.h"
 #include "AM_Window.h"
-#include "AM_VkDescriptorUtils.h"
+#include "AM_VkDescriptorPool.h"
 #include "TempBuffer.h"
 #include "TempImage.h"
 #include <array>
 #include <glm/glm.hpp>
 #include <string>
 
-class AM_VkRenderer;
+class AM_VkRenderContext;
 class AM_SimpleRenderSystem;
 class AM_PointLightRenderSystem;
 class AM_SimpleGPUParticleSystem;
@@ -50,7 +50,6 @@ private:
 	bool CheckExtensionSupport();
 	bool CheckInstanceLayerSupport();
 	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
-	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImageView();
 	void CreateTextureImage();
@@ -115,7 +114,7 @@ private:
 	uint32_t myMipLevels;
 	uint32_t myCubeMapMipLevels;
 	VmaAllocator myVMA = nullptr;
-	AM_VkRenderer* myRenderer = nullptr;
+	AM_VkRenderContext* myRenderContext = nullptr;
 	AM_SimpleRenderSystem* myRenderSystem = nullptr;
 	AM_PointLightRenderSystem* myPointLightRenderSystem = nullptr;
 	AM_SimpleGPUParticleSystem* mySimpleGPUParticleSystem = nullptr;
