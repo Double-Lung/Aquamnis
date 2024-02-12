@@ -396,22 +396,6 @@ VkPipelineLayout AM_VkContext::CreatePipelineLayout(const VkPipelineLayoutCreate
 	return obj;
 }
 
-VkPipeline AM_VkContext::CreateGraphicsPipeline(const VkGraphicsPipelineCreateInfo& aCreateInfo)
-{
-	VkPipeline obj;
-	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
-		throw std::runtime_error("failed to create graphics pipeline!");
-	return obj;
-}
-
-VkPipeline AM_VkContext::CreateComputePipeline(const VkComputePipelineCreateInfo& aCreateInfo)
-{
-	VkPipeline obj;
-	if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &aCreateInfo, nullptr, &obj) != VK_SUCCESS)
-		throw std::runtime_error("failed to create compute pipeline!");
-	return obj;
-}
-
 VkFramebuffer AM_VkContext::CreateFrameBuffer(const VkFramebufferCreateInfo& aCreateInfo)
 {
 	VkFramebuffer obj;

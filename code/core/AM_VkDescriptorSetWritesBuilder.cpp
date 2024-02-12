@@ -1,9 +1,8 @@
 #include "AM_VkDescriptorSetWritesBuilder.h"
 #include <cassert>
 
-AM_VkDescriptorSetWritesBuilder::AM_VkDescriptorSetWritesBuilder(VkDescriptorSetLayout aDescriptorSetLayout, VkDescriptorPool aDescriptorPool) 
-	: myDescriptorSetLayout{ aDescriptorSetLayout }
-	, myDescriptorPool{ aDescriptorPool }
+AM_VkDescriptorSetWritesBuilder::AM_VkDescriptorSetWritesBuilder(VkDescriptorPool aDescriptorPool) 
+	: myDescriptorPool{ aDescriptorPool }
 {
 }
 

@@ -5,7 +5,7 @@
 class AM_VkDescriptorSetWritesBuilder
 {
 public:
-	AM_VkDescriptorSetWritesBuilder(VkDescriptorSetLayout aDescriptorSetLayout, VkDescriptorPool aDescriptorPool);
+	AM_VkDescriptorSetWritesBuilder(VkDescriptorPool aDescriptorPool);
 
 	void WriteBuffer(uint32_t aBinding, VkDescriptorBufferInfo* aBufferInfo, VkDescriptorType aType);
 	void WriteImage(uint32_t aBinding, VkDescriptorImageInfo* anImageInfo, VkDescriptorType aType);
@@ -14,7 +14,6 @@ public:
 private:
 	VkWriteDescriptorSet& WriteDefault(uint32_t aBinding);
 
-	VkDescriptorSetLayout myDescriptorSetLayout;
 	VkDescriptorPool myDescriptorPool;
 	std::vector<VkWriteDescriptorSet> myWrites;
 };

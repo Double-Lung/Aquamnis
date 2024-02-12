@@ -15,8 +15,8 @@ public:
 	{
 		myVkContext.DestroyPipelineLayout(myPipelineLayout);
 		myVkContext.DestroyPipelineLayout(myGfxPipelineLayout);
-		myVkContext.DestroyPipeline(myGraphicsPipeline);
-		myVkContext.DestroyPipeline(myComputePipeline);
+		vkDestroyPipeline(myVkContext.device, myGraphicsPipeline, nullptr);
+		vkDestroyPipeline(myVkContext.device, myComputePipeline, nullptr);
 		myVkContext.DestroyDescriptorSetLayout(myDescriptorSetLayout);
 		myVkContext.DestroyDescriptorSetLayout(myGfxDescriptorSetLayout);
 	}
@@ -39,9 +39,6 @@ private:
 
 	void CreateComputePipeline();
 	void CreateGraphicsPipeline(VkRenderPass aRenderPass);
-
-	// temp utils
-	static std::vector<char> ReadFile(const std::string& filename);
 
 	// should go into pipeline
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);

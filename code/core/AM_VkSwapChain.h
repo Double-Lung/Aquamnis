@@ -4,7 +4,7 @@
 class AM_VkSwapChain
 {
 public:
-	AM_VkSwapChain(AM_VkContext& aVkContext);
+	explicit AM_VkSwapChain(AM_VkContext& aVkContext);
 	~AM_VkSwapChain() { Destroy(); }
 
 	void SetExtent(uint32_t width, uint32_t height);

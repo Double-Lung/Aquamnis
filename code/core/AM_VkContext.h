@@ -35,8 +35,7 @@ struct AM_VkContext
 
 	void CreateCommandPools();
 
-	// vk object creation functions;
-
+	// --- vk object creation functions ---
 	VkSemaphore CreateSemaphore();
 	void DestroySemaphore(VkSemaphore aSemaphore) { vkDestroySemaphore(device, aSemaphore, nullptr); }
 
@@ -45,10 +44,6 @@ struct AM_VkContext
 
 	VkPipelineLayout CreatePipelineLayout(const VkPipelineLayoutCreateInfo& aCreateInfo);
 	void DestroyPipelineLayout(VkPipelineLayout aLayout){ vkDestroyPipelineLayout(device, aLayout, nullptr); }
-
-	VkPipeline CreateGraphicsPipeline(const VkGraphicsPipelineCreateInfo& aCreateInfo);
-	VkPipeline CreateComputePipeline(const VkComputePipelineCreateInfo& aCreateInfo);
-	void DestroyPipeline(VkPipeline aPipeline) { vkDestroyPipeline(device, aPipeline, nullptr); }
 
 	VkFramebuffer CreateFrameBuffer(const VkFramebufferCreateInfo& aCreateInfo);
 	void DestroyFrameBuffer(VkFramebuffer aFrameBuffer) { vkDestroyFramebuffer(device, aFrameBuffer, nullptr); }
@@ -80,7 +75,7 @@ struct AM_VkContext
 
 	VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& someBindings);
 	void DestroyDescriptorSetLayout(VkDescriptorSetLayout aLayout) { vkDestroyDescriptorSetLayout(device, aLayout, nullptr); }
-
+	// --- vk object creation functions ---
 
 #ifdef _DEBUG
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(

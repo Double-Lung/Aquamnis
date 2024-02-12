@@ -4,9 +4,9 @@
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
 #include "AM_VkDescriptorSetLayoutBuilder.h"
+#include "AM_RenderUtils.h"
 #include "vk_mem_alloc.h"
 #include <array>
-#include <fstream>
 #include <algorithm>
 
 AM_SimpleGPUParticleSystem::AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
@@ -57,17 +57,12 @@ void AM_SimpleGPUParticleSystem::DispatchWork(VkCommandBuffer aCommandBuffer, Vk
 
 void AM_SimpleGPUParticleSystem::CreateComputePipeline()
 {
-	auto computeShaderCode = ReadFile("../data/shader_bytecode/particle.comp.spv");
+	std::vector<char> computeShaderCode;
+	AM_RenderUtils::ReadFile(computeShaderCode, "../data/shader_bytecode/particle.comp.spv");
 #ifdef _DEBUG
 	std::cout << "compute shader file size: " << computeShaderCode.size() << '\n';
 #endif
 	VkShaderModule computeShaderModule = CreateShaderModule(computeShaderCode);
-
-	VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
-	computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-	computeShaderStageInfo.module = computeShaderModule;
-	computeShaderStageInfo.pName = "main";
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -79,7 +74,15 @@ void AM_SimpleGPUParticleSystem::CreateComputePipeline()
 	VkComputePipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 	pipelineInfo.layout = myPipelineLayout;
-	pipelineInfo.stage = computeShaderStageInfo;
+
+	VkPipelineShaderStageCreateInfo& computeShaderStageInfo = pipelineInfo.stage;
+	computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	computeShaderStageInfo.pName = "main";
+	computeShaderStageInfo.pNext = nullptr;
+	computeShaderStageInfo.pSpecializationInfo = nullptr;
+	computeShaderStageInfo.flags = 0;
+
 
 	myComputePipeline = myVkContext.CreateComputePipeline(pipelineInfo);
 
@@ -88,8 +91,8 @@ void AM_SimpleGPUParticleSystem::CreateComputePipeline()
 
 void AM_SimpleGPUParticleSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 {
-	auto vertShaderCode = ReadFile("../data/shader_bytecode/particle.vert.spv");
-	auto fragShaderCode = ReadFile("../data/shader_bytecode/particle.frag.spv");
+	auto vertShaderCode = AM_RenderUtils::ReadFile("../data/shader_bytecode/particle.vert.spv");
+	auto fragShaderCode = AM_RenderUtils::ReadFile("../data/shader_bytecode/particle.frag.spv");
 #ifdef _DEBUG
 	std::cout << "vert file size: " << vertShaderCode.size() << '\n';
 	std::cout << "frag file size: " << fragShaderCode.size() << '\n';
@@ -231,22 +234,6 @@ void AM_SimpleGPUParticleSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass
 
 	vkDestroyShaderModule(myVkContext.device, fragShaderModule, nullptr);
 	vkDestroyShaderModule(myVkContext.device, vertShaderModule, nullptr);
-}
-
-std::vector<char> AM_SimpleGPUParticleSystem::ReadFile(const std::string& filename)
-{
-	std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-	if (!file.is_open())
-		throw std::runtime_error("failed to open file!");
-
-	size_t fileSize = static_cast<size_t>(file.tellg());
-	std::vector<char> buffer(fileSize);
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
-	file.close();
-
-	return buffer;
 }
 
 VkShaderModule AM_SimpleGPUParticleSystem::CreateShaderModule(const std::vector<char>& code)

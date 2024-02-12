@@ -148,12 +148,12 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		imageInfo.imageView = myTextureImageView;
 		imageInfo.sampler = myTextureSampler;
 
-		AM_VkDescriptorSetWritesBuilder writter{ myRenderSystem->GetDescriptorSetLayout(), myGlobalDescriptorPool };
+		AM_VkDescriptorSetWritesBuilder writter{ myGlobalDescriptorPool };
 		writter.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 		writter.WriteImage(1, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 		myVkContext.WriteToDescriptorSet(myDescriptorSets[i], writter.GetWrites());
 
-		AM_VkDescriptorSetWritesBuilder writterCube{ myRenderSystem->GetDescriptorSetLayout(), myGlobalDescriptorPool }; // same layout as before
+		AM_VkDescriptorSetWritesBuilder writterCube{ myGlobalDescriptorPool }; // same layout as before
 		imageInfo.imageView = myCubeMapImageView;
 		imageInfo.sampler = myCubeMapSampler;
 		writterCube.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
@@ -173,7 +173,7 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		storageBufferInfoCurrentFrame.offset = 0;
 		storageBufferInfoCurrentFrame.range = virtualBuffer2.myAllocation->GetSize();
 
-		AM_VkDescriptorSetWritesBuilder writter2{ mySimpleGPUParticleSystem->GetDescriptorSetLayout(), myGlobalDescriptorPool };
+		AM_VkDescriptorSetWritesBuilder writter2{ myGlobalDescriptorPool };
 		writter2.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 		writter2.WriteBuffer(1, &storageBufferInfoLastFrame, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 		writter2.WriteBuffer(2, &storageBufferInfoCurrentFrame, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
