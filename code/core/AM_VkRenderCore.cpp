@@ -13,7 +13,7 @@
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
-#include "AM_VkDescriptorSetWriter.h"
+#include "AM_VkDescriptorSetWritesBuilder.h"
 
 #include "vk_mem_alloc.h"
 
@@ -27,7 +27,6 @@
 
 AM_VkRenderCore::AM_VkRenderCore()
 	: myVkContext{}
-	, myDescriptorPool{myVkContext}
 	, myMipLevels(0)
 	, myCubeMapMipLevels(0)
 {
@@ -56,14 +55,18 @@ AM_VkRenderCore::~AM_VkRenderCore()
 	vmaDestroyImage(myVMA, myCubeMapImage.myImage, myCubeMapImage.myAllocation);
 	vmaDestroyAllocator(myVMA);
 
-	for (VkSemaphore semaphore : myTransferSemaphores)
-		myVkContext.DestroySemaphore(semaphore);
-
 	myVkContext.DestroyImageView(myCubeMapImageView);
 	myVkContext.DestroyImageView(myTextureImageView);
 
 	myVkContext.DestroySampler(myTextureSampler);
 	myVkContext.DestroySampler(myCubeMapSampler);
+
+	myVkContext.DestroyDescriptorPool(myGlobalDescriptorPool);
+
+	for (VkSemaphore semaphore : myTransferSemaphores)
+		myVkContext.DestroySemaphore(semaphore);
+
+	
 }
 
 bool AM_VkRenderCore::CheckExtensionSupport()
@@ -126,13 +129,13 @@ void AM_VkRenderCore::CreateDescriptorSets()
 	std::vector<VkDescriptorSetLayout> computeLayouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, mySimpleGPUParticleSystem->GetDescriptorSetLayout());
 
 	myDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	myDescriptorPool.AllocateDescriptorSets(layouts, myDescriptorSets);
+	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, layouts, myDescriptorSets);
 
 	myComputeDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	myDescriptorPool.AllocateDescriptorSets(computeLayouts, myComputeDescriptorSets);
+	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, computeLayouts, myComputeDescriptorSets);
 
 	myCubeMapDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	myDescriptorPool.AllocateDescriptorSets(layouts, myCubeMapDescriptorSets);
+	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, layouts, myCubeMapDescriptorSets);
 	
 	for (size_t i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
@@ -145,17 +148,17 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		imageInfo.imageView = myTextureImageView;
 		imageInfo.sampler = myTextureSampler;
 
-		AM_VkDescriptorSetWriter writter{ myRenderSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool };
-		writter.WriteBuffer(0, &bufferInfo);
-		writter.WriteImage(1, &imageInfo);
-		writter.Update(myDescriptorSets[i]);
+		AM_VkDescriptorSetWritesBuilder writter{ myRenderSystem->GetDescriptorSetLayout(), myGlobalDescriptorPool };
+		writter.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		writter.WriteImage(1, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		myVkContext.WriteToDescriptorSet(myDescriptorSets[i], writter.GetWrites());
 
-		AM_VkDescriptorSetWriter writterCube{ myRenderSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool }; // same layout as before
+		AM_VkDescriptorSetWritesBuilder writterCube{ myRenderSystem->GetDescriptorSetLayout(), myGlobalDescriptorPool }; // same layout as before
 		imageInfo.imageView = myCubeMapImageView;
 		imageInfo.sampler = myCubeMapSampler;
-		writterCube.WriteBuffer(0, &bufferInfo);
-		writterCube.WriteImage(1, &imageInfo); // updated
-		writterCube.Update(myCubeMapDescriptorSets[i]);
+		writterCube.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		writterCube.WriteImage(1, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER); // updated
+		myVkContext.WriteToDescriptorSet(myCubeMapDescriptorSets[i], writterCube.GetWrites());
 
 		// for compute shader
 		VkDescriptorBufferInfo storageBufferInfoLastFrame{};
@@ -170,11 +173,11 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		storageBufferInfoCurrentFrame.offset = 0;
 		storageBufferInfoCurrentFrame.range = virtualBuffer2.myAllocation->GetSize();
 
-		AM_VkDescriptorSetWriter writter2{ mySimpleGPUParticleSystem->GetDescriptorSetLayoutWrapper(), myDescriptorPool };
-		writter2.WriteBuffer(0, &bufferInfo);
-		writter2.WriteBuffer(1, &storageBufferInfoLastFrame);
-		writter2.WriteBuffer(2, &storageBufferInfoCurrentFrame);
-		writter2.Update(myComputeDescriptorSets[i]);
+		AM_VkDescriptorSetWritesBuilder writter2{ mySimpleGPUParticleSystem->GetDescriptorSetLayout(), myGlobalDescriptorPool };
+		writter2.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		writter2.WriteBuffer(1, &storageBufferInfoLastFrame, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+		writter2.WriteBuffer(2, &storageBufferInfoCurrentFrame, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+		myVkContext.WriteToDescriptorSet(myComputeDescriptorSets[i], writter2.GetWrites());
 	}
 }
 
@@ -1115,7 +1118,7 @@ void AM_VkRenderCore::Setup()
 	descriptorPoolSizes[6].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
 
 	// maxSet = total set count * MAX_FRAMES_IN_FLIGHT
-	myDescriptorPool.CreatePool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 3, 0, descriptorPoolSizes);
+	myGlobalDescriptorPool = myVkContext.CreateDescriptorPool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 3, 0, descriptorPoolSizes);
 
 	myTransferSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	for (VkSemaphore& semaphore : myTransferSemaphores)

@@ -67,6 +67,21 @@ struct AM_VkContext
 	VkCommandPool CreateCommandPool(const VkCommandPoolCreateInfo& aCreateInfo);
 	void DestroyCommandPool(VkCommandPool aCommandPool) { vkDestroyCommandPool(device, aCommandPool, nullptr); }
 
+	VkDescriptorPool CreateDescriptorPool(uint32_t aMaxSetCount, VkDescriptorPoolCreateFlags somePoolFlags, const std::vector<VkDescriptorPoolSize>& somePoolSizes);
+	void DestroyDescriptorPool(VkDescriptorPool aPool) { vkDestroyDescriptorPool(device, aPool, nullptr); }
+	void ResetDescriptorPool(VkDescriptorPool aPool) { vkResetDescriptorPool(device, aPool, 0); }
+
+	void AllocateDescriptorSets(VkDescriptorPool aPool, std::vector<VkDescriptorSetLayout>& someDescriptorSetLayouts, std::vector<VkDescriptorSet>& outDescriptorSets);
+	void WriteToDescriptorSet(VkDescriptorSet aDescriptorSet, std::vector<VkWriteDescriptorSet>& someWrites);
+	void FreeDescriptorSets(VkDescriptorPool aPool, std::vector<VkDescriptorSet>& someDescriptorSets)
+	{
+		vkFreeDescriptorSets(device, aPool, static_cast<uint32_t>(someDescriptorSets.size()), someDescriptorSets.data());
+	}
+
+	VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& someBindings);
+	void DestroyDescriptorSetLayout(VkDescriptorSetLayout aLayout) { vkDestroyDescriptorSetLayout(device, aLayout, nullptr); }
+
+
 #ifdef _DEBUG
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,

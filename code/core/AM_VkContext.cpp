@@ -465,6 +465,58 @@ VkCommandPool AM_VkContext::CreateCommandPool(const VkCommandPoolCreateInfo& aCr
 	return obj;
 }
 
+VkDescriptorPool AM_VkContext::CreateDescriptorPool(uint32_t aMaxSetCount, VkDescriptorPoolCreateFlags somePoolFlags, const std::vector<VkDescriptorPoolSize>& somePoolSizes)
+{
+	VkDescriptorPool obj;
+
+	VkDescriptorPoolCreateInfo descriptorPoolInfo{};
+	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(somePoolSizes.size());
+	descriptorPoolInfo.pPoolSizes = somePoolSizes.data();
+	descriptorPoolInfo.maxSets = aMaxSetCount;
+	descriptorPoolInfo.flags = somePoolFlags;
+
+	if (vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create descriptor pool!");
+	return obj;
+}
+
+void AM_VkContext::AllocateDescriptorSets(VkDescriptorPool aPool, std::vector<VkDescriptorSetLayout>& someDescriptorSetLayouts, std::vector<VkDescriptorSet>& outDescriptorSets)
+{
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = aPool;
+	allocInfo.pSetLayouts = someDescriptorSetLayouts.data();
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(outDescriptorSets.size());
+
+	if (vkAllocateDescriptorSets(device, &allocInfo, outDescriptorSets.data()) != VK_SUCCESS)
+		throw std::runtime_error("failed to create descriptor set from pool!");
+}
+
+void AM_VkContext::WriteToDescriptorSet(VkDescriptorSet aDescriptorSet, std::vector<VkWriteDescriptorSet>& someWrites)
+{
+	for (VkWriteDescriptorSet& write : someWrites)
+		write.dstSet = aDescriptorSet;
+
+	vkUpdateDescriptorSets(device, static_cast<uint32_t>(someWrites.size()), someWrites.data(), 0, nullptr);
+}
+
+VkDescriptorSetLayout AM_VkContext::CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& someBindings)
+{
+	VkDescriptorSetLayout obj;
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{};
+	descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(someBindings.size());
+	descriptorSetLayoutInfo.pBindings = someBindings.data();
+
+	if (vkCreateDescriptorSetLayout(device, &descriptorSetLayoutInfo, nullptr, &obj) != VK_SUCCESS)
+		throw std::runtime_error("failed to create descriptor set layout!");
+
+	return obj;
+}
+
+
 #ifdef _DEBUG
 VKAPI_ATTR VkBool32 VKAPI_CALL AM_VkContext::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
 {

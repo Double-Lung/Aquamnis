@@ -3,6 +3,7 @@
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
+#include "AM_VkDescriptorSetLayoutBuilder.h"
 #include "vk_mem_alloc.h"
 #include <array>
 #include <fstream>
@@ -12,10 +13,8 @@ AM_SimpleGPUParticleSystem::AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext,
 	: myVkContext{ aVkContext }
 	, myComputePipeline{}
 	, myPipelineLayout{}
-	, myDescriptorSetLayout{ aVkContext } 
 	, myGraphicsPipeline{}
 	, myGfxPipelineLayout{}
-	, myGfxDescriptorSetLayout{ aVkContext }
 {
 	CreateDescriptorSetLayout();
 	CreateComputePipeline();
@@ -73,7 +72,7 @@ void AM_SimpleGPUParticleSystem::CreateComputePipeline()
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional
-	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.GetDescriptorSetLayout();
+	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout;
 
 	myPipelineLayout = myVkContext.CreatePipelineLayout(pipelineLayoutInfo);
 
@@ -192,7 +191,7 @@ void AM_SimpleGPUParticleSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional
-	pipelineLayoutInfo.pSetLayouts = &myGfxDescriptorSetLayout.GetDescriptorSetLayout();
+	pipelineLayoutInfo.pSetLayouts = &myGfxDescriptorSetLayout;
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -266,12 +265,18 @@ VkShaderModule AM_SimpleGPUParticleSystem::CreateShaderModule(const std::vector<
 
 void AM_SimpleGPUParticleSystem::CreateDescriptorSetLayout()
 {
-	myDescriptorSetLayout.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
-	myDescriptorSetLayout.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
-	myDescriptorSetLayout.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
-	myDescriptorSetLayout.CreateLayout();
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
 
-	myGfxDescriptorSetLayout.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
-	myGfxDescriptorSetLayout.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-	myGfxDescriptorSetLayout.CreateLayout();
+	AM_VkDescriptorSetLayoutBuilder builder1;
+	builder1.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
+	builder1.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
+	builder1.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
+	builder1.GetBindings(bindings);
+	myDescriptorSetLayout = myVkContext.CreateDescriptorSetLayout(bindings);
+
+	AM_VkDescriptorSetLayoutBuilder builder2;
+	builder2.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
+	builder2.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+	builder2.GetBindings(bindings);
+	myGfxDescriptorSetLayout = myVkContext.CreateDescriptorSetLayout(bindings);
 }

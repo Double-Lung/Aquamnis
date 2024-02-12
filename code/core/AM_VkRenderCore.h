@@ -6,7 +6,6 @@
 #include "AM_Entity.h"
 #include "AM_VkSwapChain.h"
 #include "AM_Window.h"
-#include "AM_VkDescriptorPool.h"
 #include "TempBuffer.h"
 #include "TempImage.h"
 #include <array>
@@ -83,7 +82,7 @@ private:
 	void CreateTextureSampler();
 	void CreateCubeMapSampler();
 	bool HasStencilComponent(VkFormat format);
-	void LoadDefaultResources(); // #FIX_ME need to get rid of this
+	void LoadDefaultResources();
 
 	void UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera);
 
@@ -93,7 +92,7 @@ private:
 	std::vector<VkSemaphore> myTransferSemaphores;
 	std::vector<TempBuffer> myVirtualShaderStorageBuffers;
 
-	AM_VkDescriptorPool myDescriptorPool;
+	VkDescriptorPool myGlobalDescriptorPool;
 
 	TempImage myTextureImage;
 	VkImageView myTextureImageView;

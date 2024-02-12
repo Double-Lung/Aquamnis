@@ -2,6 +2,7 @@
 #include "AM_Entity.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
+#include "AM_VkDescriptorSetLayoutBuilder.h"
 #include <array>
 #include <fstream>
 #include <algorithm>
@@ -17,7 +18,6 @@ AM_PointLightRenderSystem::AM_PointLightRenderSystem(AM_VkContext& aVkContext, V
 	: myVkContext{ aVkContext }
 	, myGraphicsPipeline{}
 	, myPipelineLayout{}
-	, myDescriptorSetLayout{ aVkContext }
 {
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline(aRenderPass);
@@ -172,7 +172,7 @@ void AM_PointLightRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional
-	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout.GetDescriptorSetLayout();
+	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout;
 	pipelineLayoutInfo.pushConstantRangeCount = 1; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
 
@@ -246,7 +246,11 @@ VkShaderModule AM_PointLightRenderSystem::CreateShaderModule(const std::vector<c
 
 void AM_PointLightRenderSystem::CreateDescriptorSetLayout()
 {
-	myDescriptorSetLayout.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
-	myDescriptorSetLayout.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-	myDescriptorSetLayout.CreateLayout();
+	AM_VkDescriptorSetLayoutBuilder builder;
+	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
+	builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	builder.GetBindings(bindings);
+	myDescriptorSetLayout = myVkContext.CreateDescriptorSetLayout(bindings);
 }

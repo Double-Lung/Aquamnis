@@ -3,7 +3,6 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_VkContext.h"
-#include "AM_VkDescriptorSetLayout.h"
 #include <unordered_map>
 #include "TempBuffer.h"
 #include <glm/glm.hpp>
@@ -18,14 +17,15 @@ public:
 		myVkContext.DestroyPipelineLayout(myGfxPipelineLayout);
 		myVkContext.DestroyPipeline(myGraphicsPipeline);
 		myVkContext.DestroyPipeline(myComputePipeline);
+		myVkContext.DestroyDescriptorSetLayout(myDescriptorSetLayout);
+		myVkContext.DestroyDescriptorSetLayout(myGfxDescriptorSetLayout);
 	}
 
 	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, const TempBuffer* anSSBO);
 	// need to run outside of any render pass
 	void DispatchWork(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet);
-	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout.GetDescriptorSetLayout(); }
-	VkDescriptorSetLayout& GetDescriptorSetLayout() { return myDescriptorSetLayout.GetDescriptorSetLayout(); }
-	AM_VkDescriptorSetLayout& GetDescriptorSetLayoutWrapper() { return myDescriptorSetLayout; }
+	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout; }
+	VkDescriptorSetLayout& GetDescriptorSetLayout() { return myDescriptorSetLayout; }
 
 private:
 	struct PushConstantData
@@ -50,11 +50,11 @@ private:
 	AM_VkContext& myVkContext;
 	VkPipeline myComputePipeline;
 	VkPipelineLayout myPipelineLayout;
-	AM_VkDescriptorSetLayout myDescriptorSetLayout;
+	VkDescriptorSetLayout myDescriptorSetLayout;
 
 	VkPipeline myGraphicsPipeline;
 	VkPipelineLayout myGfxPipelineLayout;
-	AM_VkDescriptorSetLayout myGfxDescriptorSetLayout;
+	VkDescriptorSetLayout myGfxDescriptorSetLayout;
 	
 	uint32_t* myMaxComputeWorkGroupCount;
 	uint32_t myMaxComputeWorkGroupInvocations;
