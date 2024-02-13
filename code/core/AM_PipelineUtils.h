@@ -25,5 +25,5 @@ namespace AM_PipelineUtils
 	void EnableAlphaBlendState(GraphicsInitializer& outInitializer);
 	void EnableMultiSampleState(GraphicsInitializer& outInitializer, VkSampleCountFlagBits someBits, float aMinSampleShading = 0.2f);
 	void FillPiplineCreateInfo(VkGraphicsPipelineCreateInfo& outCreateInfo, const GraphicsInitializer& anInitializer);
-	
+	void SetDefaultComputeCreateInfo(VkComputePipelineCreateInfo& aCreateInfo);
 }

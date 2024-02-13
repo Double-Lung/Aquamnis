@@ -70,7 +70,7 @@ void AM_PipelineUtils::GetDefaultStates(AM_PipelineUtils::GraphicsInitializer& o
 
 	VkPipelineDynamicStateCreateInfo& dynamicState = outInitializer.dynamicState;
 	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount = outInitializer.dynamicStates.size();
+	dynamicState.dynamicStateCount = static_cast<uint32_t>(outInitializer.dynamicStates.size());
 	dynamicState.pDynamicStates = outInitializer.dynamicStates.data();
 
 	VkPipelineDepthStencilStateCreateInfo& depthStencil = outInitializer.depthStencilState;
@@ -102,6 +102,18 @@ void AM_PipelineUtils::FillPiplineCreateInfo(VkGraphicsPipelineCreateInfo& outCr
 	outCreateInfo.subpass = 0;
 	outCreateInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
 	outCreateInfo.basePipelineIndex = -1; // Optional
+}
+
+void AM_PipelineUtils::SetDefaultComputeCreateInfo(VkComputePipelineCreateInfo& aCreateInfo)
+{
+	aCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	VkPipelineShaderStageCreateInfo& computeShaderStageInfo = aCreateInfo.stage;
+	computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	computeShaderStageInfo.pName = "main";
+	computeShaderStageInfo.pNext = nullptr;
+	computeShaderStageInfo.pSpecializationInfo = nullptr;
+	computeShaderStageInfo.flags = 0;
 }
 
 void AM_PipelineUtils::EnableAlphaBlendState(GraphicsInitializer& outInitializer)

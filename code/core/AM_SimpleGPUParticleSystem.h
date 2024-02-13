@@ -1,11 +1,9 @@
 #pragma once
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include "AM_VkContext.h"
-#include <unordered_map>
+#include "AM_VkPipeline.h"
 #include "TempBuffer.h"
 #include <glm/glm.hpp>
+#include <unordered_map>
 
 class AM_SimpleGPUParticleSystem
 {
@@ -15,11 +13,12 @@ public:
 	{
 		myVkContext.DestroyPipelineLayout(myPipelineLayout);
 		myVkContext.DestroyPipelineLayout(myGfxPipelineLayout);
-		vkDestroyPipeline(myVkContext.device, myGraphicsPipeline, nullptr);
-		vkDestroyPipeline(myVkContext.device, myComputePipeline, nullptr);
 		myVkContext.DestroyDescriptorSetLayout(myDescriptorSetLayout);
 		myVkContext.DestroyDescriptorSetLayout(myGfxDescriptorSetLayout);
 	}
+
+	AM_SimpleGPUParticleSystem(const AM_SimpleGPUParticleSystem&) = delete;
+	AM_SimpleGPUParticleSystem& operator=(const AM_SimpleGPUParticleSystem&) = delete;
 
 	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, const TempBuffer* anSSBO);
 	// need to run outside of any render pass
@@ -28,28 +27,15 @@ public:
 	VkDescriptorSetLayout& GetDescriptorSetLayout() { return myDescriptorSetLayout; }
 
 private:
-	struct PushConstantData
-	{
-		glm::mat4 normalMat;
-		glm::mat4 transform;
-	};
-
-	AM_SimpleGPUParticleSystem(const AM_SimpleGPUParticleSystem&) = delete;
-	AM_SimpleGPUParticleSystem& operator=(const AM_SimpleGPUParticleSystem&) = delete;
-
 	void CreateComputePipeline();
 	void CreateGraphicsPipeline(VkRenderPass aRenderPass);
 
-	// should go into pipeline
-	VkShaderModule CreateShaderModule(const std::vector<char>& code);
-	void CreateDescriptorSetLayout();
-
 	AM_VkContext& myVkContext;
-	VkPipeline myComputePipeline;
+	AM_VkPipeline myComputePipeline;
 	VkPipelineLayout myPipelineLayout;
 	VkDescriptorSetLayout myDescriptorSetLayout;
 
-	VkPipeline myGraphicsPipeline;
+	AM_VkPipeline myGraphicsPipeline;
 	VkPipelineLayout myGfxPipelineLayout;
 	VkDescriptorSetLayout myGfxDescriptorSetLayout;
 	
