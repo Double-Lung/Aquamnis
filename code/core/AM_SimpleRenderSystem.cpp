@@ -12,30 +12,7 @@
 AM_SimpleRenderSystem::AM_SimpleRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
 	: myVkContext(aVkContext)
 	, myGraphicsPipeline(aVkContext)
-	, myPipelineLayout(nullptr)
 {
-	AM_VkDescriptorSetLayoutBuilder builder;
-	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
-	builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
-	builder.GetBindings(bindings);
-	myDescriptorSetLayout = myVkContext.CreateDescriptorSetLayout(bindings);
-
-	VkPushConstantRange pushConstantRange{};
-	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(PushConstantData);
-	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1; // Optional
-	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 1; // Optional
-	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
-
-	myPipelineLayout = myVkContext.CreatePipelineLayout(pipelineLayoutInfo);
-
 	CreateGraphicsPipeline(aRenderPass);
 }
 
@@ -43,7 +20,7 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 {
 	myGraphicsPipeline.BindGraphics(aCommandBuffer);
 	PushConstantData push;
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout, 0, 1, &aDescriptorSet, 0, nullptr);
+	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.GetPipelineLayout(), 0, 1, &aDescriptorSet, 0, nullptr);
 	for (auto& entry : someEntites)
 	{
 		auto& entity = entry.second;
@@ -58,7 +35,7 @@ void AM_SimpleRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDes
 
 		push.normalMat = entity.GetTransformComponent().GetNormalMatrix();
 		push.transform = entity.GetTransformComponent().GetMatrix();
-		vkCmdPushConstants(aCommandBuffer, myPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
+		vkCmdPushConstants(aCommandBuffer, myGraphicsPipeline.GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
 		vkCmdDrawIndexed(aCommandBuffer, static_cast<uint32_t>(entity.GetIndices().size()), 1, 0, 0, 0);
 	}
 }
@@ -81,11 +58,17 @@ void AM_SimpleRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	AM_PipelineUtils::FillPiplineCreateInfo(pipelineInfo, graphicsInitializer);
 	pipelineInfo.renderPass = aRenderPass;
-	pipelineInfo.layout = myPipelineLayout;
+
+	AM_VkDescriptorSetLayoutBuilder builder;
+	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
+	builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
 	myGraphicsPipeline.CreatePipeline(
 		"../data/shader_bytecode/shader.vert.spv",
 		"../data/shader_bytecode/shader.frag.spv",
+		builder,
+		sizeof(PushConstantData),
+		VK_SHADER_STAGE_VERTEX_BIT,
 		pipelineInfo);
 }
 

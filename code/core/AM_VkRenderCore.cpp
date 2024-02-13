@@ -10,6 +10,7 @@
 #include "AM_PointLightRenderSystem.h"
 #include "AM_SimpleGPUParticleSystem.h"
 #include "AM_CubeMapRenderSystem.h"
+#include "AM_ComputeParticle.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
@@ -34,6 +35,7 @@ AM_VkRenderCore::AM_VkRenderCore()
 
 AM_VkRenderCore::~AM_VkRenderCore()
 {
+	delete myComputeParticle;
 	delete myCubeMapRenderSystem;
 	delete mySimpleGPUParticleSystem;
 	delete myPointLightRenderSystem;
@@ -126,7 +128,7 @@ void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, 
 void AM_VkRenderCore::CreateDescriptorSets()
 {
 	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myRenderSystem->GetDescriptorSetLayout());
-	std::vector<VkDescriptorSetLayout> computeLayouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, mySimpleGPUParticleSystem->GetDescriptorSetLayout());
+	std::vector<VkDescriptorSetLayout> computeLayouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myComputeParticle->GetDescriptorSetLayout());
 
 	myDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, layouts, myDescriptorSets);
@@ -1131,6 +1133,7 @@ void AM_VkRenderCore::Setup()
 	myPointLightRenderSystem = new AM_PointLightRenderSystem(myVkContext, myRenderContext->GetRenderPass());
 	mySimpleGPUParticleSystem = new AM_SimpleGPUParticleSystem(myVkContext, myRenderContext->GetRenderPass());
 	myCubeMapRenderSystem = new AM_CubeMapRenderSystem(myVkContext, myRenderContext->GetRenderPass());
+	myComputeParticle = new AM_ComputeParticle(myVkContext);
 
 	// #FIX_ME: move content elsewhere
 	LoadDefaultResources();
@@ -1153,15 +1156,14 @@ void AM_VkRenderCore::MainLoop()
 			UpdateCameraTransform(deltaTime, camera);
 			UpdateUniformBuffer(myRenderContext->GetFrameIndex(), camera, myEntities, deltaTime);
 
-			// Compute work
-			mySimpleGPUParticleSystem->DispatchWork(myRenderContext->GetCurrentComputeCommandBuffer(), myComputeDescriptorSets[myRenderContext->GetFrameIndex()]);
+			myComputeParticle->DispatchWork(myRenderContext->GetCurrentComputeCommandBuffer(), myComputeDescriptorSets[myRenderContext->GetFrameIndex()]);
 			myRenderContext->SubmitComputeQueue();
 
 			myRenderContext->BeginRenderPass(commandBufer);
 
 			myCubeMapRenderSystem->RenderEntities(commandBufer, myCubeMapDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
 			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
-			myPointLightRenderSystem->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
+			myPointLightRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
 			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderContext->GetFrameIndex()]);
 
 			myRenderContext->EndRenderPass(commandBufer);

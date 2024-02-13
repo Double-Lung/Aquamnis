@@ -17,6 +17,7 @@ class AM_SimpleRenderSystem;
 class AM_PointLightRenderSystem;
 class AM_SimpleGPUParticleSystem;
 class AM_CubeMapRenderSystem;
+class AM_ComputeParticle;
 class AM_Camera;
 struct VmaAllocator_T;
 typedef VmaAllocator_T* VmaAllocator;
@@ -118,5 +119,6 @@ private:
 	AM_PointLightRenderSystem* myPointLightRenderSystem = nullptr;
 	AM_SimpleGPUParticleSystem* mySimpleGPUParticleSystem = nullptr;
 	AM_CubeMapRenderSystem* myCubeMapRenderSystem = nullptr;
+	AM_ComputeParticle* myComputeParticle = nullptr;
 };
 

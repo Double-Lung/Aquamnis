@@ -10,24 +10,17 @@ class AM_CubeMapRenderSystem
 {
 public:
 	AM_CubeMapRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass);
-	~AM_CubeMapRenderSystem()
-	{
-		myVkContext.DestroyPipelineLayout(myPipelineLayout);
-		myVkContext.DestroyDescriptorSetLayout(myDescriptorSetLayout);
-	}
+
 	AM_CubeMapRenderSystem(const AM_CubeMapRenderSystem&) = delete;
 	AM_CubeMapRenderSystem& operator=(const AM_CubeMapRenderSystem&) = delete;
 
 	void RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera);
-	const VkDescriptorSetLayout GetDescriptorSetLayout() const { return myDescriptorSetLayout; }
-	VkDescriptorSetLayout& GetDescriptorSetLayout() { return myDescriptorSetLayout; }
+	VkDescriptorSetLayout GetDescriptorSetLayout() { return myGraphicsPipeline.GetDescriptorSetLayout(); }
 
 private:
 	void CreateGraphicsPipeline(VkRenderPass aRenderPass);
 
 	AM_VkContext& myVkContext;
 	AM_VkPipeline myGraphicsPipeline;
-	VkPipelineLayout myPipelineLayout;
-	VkDescriptorSetLayout myDescriptorSetLayout;
 };
 

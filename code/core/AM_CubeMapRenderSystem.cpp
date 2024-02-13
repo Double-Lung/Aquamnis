@@ -13,32 +13,14 @@
 AM_CubeMapRenderSystem::AM_CubeMapRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
 	: myVkContext{aVkContext}
 	, myGraphicsPipeline{aVkContext}
-	, myPipelineLayout{nullptr}
 {
-	AM_VkDescriptorSetLayoutBuilder builder;
-	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
-	builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
-	builder.GetBindings(bindings);
-	myDescriptorSetLayout = myVkContext.CreateDescriptorSetLayout(bindings);
-
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1; // Optional
-	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
-
-	myPipelineLayout = myVkContext.CreatePipelineLayout(pipelineLayoutInfo);
-
 	CreateGraphicsPipeline(aRenderPass);
 }
 
 void AM_CubeMapRenderSystem::RenderEntities(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera&/* aCamera*/)
 {
 	myGraphicsPipeline.BindGraphics(aCommandBuffer);
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipelineLayout, 0, 1, &aDescriptorSet, 0, nullptr);
+	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myGraphicsPipeline.GetPipelineLayout(), 0, 1, &aDescriptorSet, 0, nullptr);
 	for (auto& entry : someEntites)
 	{
 		auto& entity = entry.second;
@@ -80,12 +62,18 @@ void AM_CubeMapRenderSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	AM_PipelineUtils::FillPiplineCreateInfo(pipelineInfo, graphicsInitializer);
-	pipelineInfo.layout = myPipelineLayout;
 	pipelineInfo.renderPass = aRenderPass;
+
+	AM_VkDescriptorSetLayoutBuilder builder;
+	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
+	builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
 	myGraphicsPipeline.CreatePipeline(
 		"../data/shader_bytecode/skybox.vert.spv",
 		"../data/shader_bytecode/skybox.frag.spv",
+		builder,
+		0,
+		0,
 		pipelineInfo);
 }
 

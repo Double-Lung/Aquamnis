@@ -1,17 +1,33 @@
 #include "AM_VkPipeline.h"
 #include "AM_RenderUtils.h"
+#include "AM_VkDescriptorSetLayoutBuilder.h"
 #include <array>
 #include <cassert>
 
 AM_VkPipeline::AM_VkPipeline(AM_VkContext& aVkContext)
 	: myVkContext(aVkContext)
+	, myDescriptorSetLayout(nullptr)
+	, myPipelineLayout(nullptr)
 	, myPipeline(nullptr)
 {
 }
 
-void AM_VkPipeline::CreatePipeline(const std::string& aVertShaderPath, const std::string& aFragShaderPath, VkGraphicsPipelineCreateInfo& aPipelineCreateInfo)
+AM_VkPipeline::~AM_VkPipeline()
+{
+	vkDestroyPipeline(myVkContext.device, myPipeline, nullptr);
+	vkDestroyPipelineLayout(myVkContext.device, myPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(myVkContext.device, myDescriptorSetLayout, nullptr);
+}
+
+void AM_VkPipeline::CreatePipeline(const std::string& aVertShaderPath, const std::string& aFragShaderPath, AM_VkDescriptorSetLayoutBuilder& aBuilder, uint32_t aPushConstantSize, VkShaderStageFlags someFlags, VkGraphicsPipelineCreateInfo& aPipelineCreateInfo)
 {
 	assert(myPipeline == nullptr && "Trying to create pipeline again!");
+
+	VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	CreateDescriptorSetLayout(aBuilder);
+	CreatePipelineLayout(aPushConstantSize, someFlags);
+
 	std::vector<char> vertCode;
 	std::vector<char> fragCode;
 	AM_RenderUtils::ReadFile(vertCode, aVertShaderPath);
@@ -42,6 +58,8 @@ void AM_VkPipeline::CreatePipeline(const std::string& aVertShaderPath, const std
 	aPipelineCreateInfo.pStages = shaderStages.data();
 	aPipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
 
+	aPipelineCreateInfo.layout = myPipelineLayout;
+
 	if (vkCreateGraphicsPipelines(myVkContext.device, VK_NULL_HANDLE, 1, &aPipelineCreateInfo, nullptr, &myPipeline) != VK_SUCCESS)
 		throw std::runtime_error("failed to create graphics pipeline!");
 
@@ -49,9 +67,13 @@ void AM_VkPipeline::CreatePipeline(const std::string& aVertShaderPath, const std
 	vkDestroyShaderModule(myVkContext.device, vertModule, nullptr);
 }
 
-void AM_VkPipeline::CreatePipeline(const std::string& aCompShaderPath, VkComputePipelineCreateInfo& aPipelineCreateInfo)
+void AM_VkPipeline::CreatePipeline(const std::string& aCompShaderPath, AM_VkDescriptorSetLayoutBuilder& aBuilder, uint32_t aPushConstantSize, VkComputePipelineCreateInfo& aPipelineCreateInfo)
 {
 	assert(myPipeline == nullptr && "Trying to create pipeline again!");
+
+	CreateDescriptorSetLayout(aBuilder);
+	CreatePipelineLayout(aPushConstantSize, VK_SHADER_STAGE_COMPUTE_BIT);
+
 	std::vector<char> compCode;
 	AM_RenderUtils::ReadFile(compCode, aCompShaderPath);
 
@@ -61,6 +83,7 @@ void AM_VkPipeline::CreatePipeline(const std::string& aCompShaderPath, VkCompute
 
 	VkShaderModule compModule = CreateShaderModule(compCode);
 	aPipelineCreateInfo.stage.module = compModule;
+	aPipelineCreateInfo.layout = myPipelineLayout;
 
 	if (vkCreateComputePipelines(myVkContext.device, VK_NULL_HANDLE, 1, &aPipelineCreateInfo, nullptr, &myPipeline) != VK_SUCCESS)
 		throw std::runtime_error("failed to create compute pipeline!");
@@ -80,4 +103,32 @@ VkShaderModule AM_VkPipeline::CreateShaderModule(const std::vector<char>& code)
 		throw std::runtime_error("failed to create shader module!");
 
 	return shaderModule;
+}
+
+void AM_VkPipeline::CreateDescriptorSetLayout(AM_VkDescriptorSetLayoutBuilder& aBuilder)
+{
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	aBuilder.GetBindings(bindings);
+	myDescriptorSetLayout = myVkContext.CreateDescriptorSetLayout(bindings);
+}
+
+void AM_VkPipeline::CreatePipelineLayout(uint32_t aPushConstantSize, VkShaderStageFlags someFlags)
+{
+	assert(myDescriptorSetLayout && "Invalid descriptor set layout!");
+
+	VkPushConstantRange pushConstantRange{};
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = aPushConstantSize;
+	pushConstantRange.stageFlags = someFlags;
+
+	bool usePushConstant = aPushConstantSize > 0;
+
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 1; // Optional
+	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout;
+	pipelineLayoutInfo.pushConstantRangeCount = usePushConstant ? 1 : 0;
+	pipelineLayoutInfo.pPushConstantRanges = usePushConstant ? &pushConstantRange : nullptr;
+
+	myPipelineLayout = myVkContext.CreatePipelineLayout(pipelineLayoutInfo);
 }
