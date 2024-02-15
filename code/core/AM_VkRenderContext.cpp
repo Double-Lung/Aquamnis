@@ -248,7 +248,7 @@ void AM_VkRenderContext::CreateRenderPass()
 {
 	VkAttachmentDescription colorAttachment{};
 	colorAttachment.format = myVkContext.surfaceFormat.format;
-	colorAttachment.samples = myVkContext.maxMSAASamples;
+	colorAttachment.samples = myVkContext.globalMSAASamples;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -262,7 +262,7 @@ void AM_VkRenderContext::CreateRenderPass()
 
 	VkAttachmentDescription depthAttachment{};
 	depthAttachment.format = myVkContext.depthFormat;
-	depthAttachment.samples = myVkContext.maxMSAASamples;
+	depthAttachment.samples = myVkContext.globalMSAASamples;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -386,7 +386,7 @@ void AM_VkRenderContext::CreateColorResources()
 	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	imageInfo.samples = myVkContext.maxMSAASamples;
+	imageInfo.samples = myVkContext.globalMSAASamples;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.flags = 0; // Optional
 
@@ -413,7 +413,7 @@ void AM_VkRenderContext::CreateDepthResources()
 	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	imageInfo.samples = myVkContext.maxMSAASamples;
+	imageInfo.samples = myVkContext.globalMSAASamples;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.flags = 0; // Optional
 

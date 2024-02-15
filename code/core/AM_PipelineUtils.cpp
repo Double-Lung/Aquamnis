@@ -2,13 +2,6 @@
 
 void AM_PipelineUtils::GetDefaultStates(AM_PipelineUtils::GraphicsInitializer& outInitializer)
 {
-	VkPipelineVertexInputStateCreateInfo& vertexInputInfo = outInitializer.vertexInputState;
-	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 0;
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputInfo.pVertexAttributeDescriptions = nullptr;
-
 	VkPipelineInputAssemblyStateCreateInfo& inputAssembly = outInitializer.inputAssemblyState;
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -132,11 +125,7 @@ void AM_PipelineUtils::EnableAlphaBlendState(GraphicsInitializer& outInitializer
 void AM_PipelineUtils::EnableMultiSampleState(GraphicsInitializer& outInitializer, VkSampleCountFlagBits someBits, float aMinSampleShading /*= 0.2f*/)
 {
 	VkPipelineMultisampleStateCreateInfo& multisampling = outInitializer.multisampleState;
-	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	multisampling.sampleShadingEnable = VK_TRUE; // enable sample shading in the pipeline
 	multisampling.rasterizationSamples = someBits;
 	multisampling.minSampleShading = aMinSampleShading; // min fraction for sample shading; closer to one is smoother
-	multisampling.pSampleMask = nullptr; // Optional
-	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
-	multisampling.alphaToOneEnable = VK_FALSE; // Optional
 }

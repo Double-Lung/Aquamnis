@@ -6,11 +6,11 @@
 #endif
 #include "AM_VkRenderCore.h"
 #include "AM_VkRenderContext.h"
-#include "AM_SimpleRenderSystem.h"
-#include "AM_PointLightRenderSystem.h"
-#include "AM_SimpleGPUParticleSystem.h"
-#include "AM_CubeMapRenderSystem.h"
 #include "AM_ComputeParticle.h"
+#include "AM_VkRenderMethodBillboard.h"
+#include "AM_VkRenderMethodCubeMap.h"
+#include "AM_VkRenderMethodMesh.h"
+#include "AM_VkRenderMethodPoint.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
@@ -36,10 +36,10 @@ AM_VkRenderCore::AM_VkRenderCore()
 AM_VkRenderCore::~AM_VkRenderCore()
 {
 	delete myComputeParticle;
-	delete myCubeMapRenderSystem;
-	delete mySimpleGPUParticleSystem;
-	delete myPointLightRenderSystem;
-	delete myRenderSystem;
+	delete myCubeMapRenderMethod;
+	delete myPointRenderMethod;
+	delete myBillboardRenderMethod;
+	delete myMeshRenderMethod;
 	delete myRenderContext;
 
 	for (auto& entity : myEntities)
@@ -127,7 +127,7 @@ void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, 
 
 void AM_VkRenderCore::CreateDescriptorSets()
 {
-	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myRenderSystem->GetDescriptorSetLayout());
+	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myMeshRenderMethod->GetDescriptorSetLayout());
 	std::vector<VkDescriptorSetLayout> computeLayouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myComputeParticle->GetDescriptorSetLayout());
 
 	myDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
@@ -1128,12 +1128,53 @@ void AM_VkRenderCore::Setup()
 
 	myRenderContext = new AM_VkRenderContext(myVkContext, myWindowInstance, myVMA);
 
-	// #FIX_ME: remove duplicated code
-	myRenderSystem = new AM_SimpleRenderSystem(myVkContext, myRenderContext->GetRenderPass());
-	myPointLightRenderSystem = new AM_PointLightRenderSystem(myVkContext, myRenderContext->GetRenderPass());
-	mySimpleGPUParticleSystem = new AM_SimpleGPUParticleSystem(myVkContext, myRenderContext->GetRenderPass());
-	myCubeMapRenderSystem = new AM_CubeMapRenderSystem(myVkContext, myRenderContext->GetRenderPass());
-	myComputeParticle = new AM_ComputeParticle(myVkContext);
+
+	auto bindingDesc = Vertex::GetBindingDescription();
+	auto attriDesc = Vertex::GetAttributeDescriptions();
+	auto bindingDesc2 = Particle::GetBindingDescription();
+	auto attriDesc2 = Particle::GetAttributeDescriptions();
+
+	myMeshRenderMethod = new AM_VkRenderMethodMesh(
+		myVkContext, 
+		myRenderContext->GetRenderPass(),
+		"../data/shader_bytecode/shader.vert.spv",
+		"../data/shader_bytecode/shader.frag.spv",
+		1,
+		static_cast<uint32_t>(attriDesc.size()),
+		&bindingDesc,
+		attriDesc.data());
+
+	myBillboardRenderMethod = new AM_VkRenderMethodBillboard(
+		myVkContext, 
+		myRenderContext->GetRenderPass(),
+		"../data/shader_bytecode/pointlight.vert.spv",
+		"../data/shader_bytecode/pointlight.frag.spv", 
+		0,
+		0);
+
+	myPointRenderMethod = new AM_VkRenderMethodPoint(
+		myVkContext, 
+		myRenderContext->GetRenderPass(),
+		"../data/shader_bytecode/particle.vert.spv",
+		"../data/shader_bytecode/particle.frag.spv", 
+		1,
+		static_cast<uint32_t>(attriDesc2.size()),
+		&bindingDesc2,
+		attriDesc2.data());
+
+	myCubeMapRenderMethod = new AM_VkRenderMethodCubeMap(
+		myVkContext, 
+		myRenderContext->GetRenderPass(),
+		"../data/shader_bytecode/skybox.vert.spv",
+		"../data/shader_bytecode/skybox.frag.spv", 
+		1,
+		static_cast<uint32_t>(attriDesc.size()),
+		&bindingDesc,
+		attriDesc.data());
+
+	myComputeParticle = new AM_ComputeParticle(
+		myVkContext,
+		"../data/shader_bytecode/particle.comp.spv");
 
 	// #FIX_ME: move content elsewhere
 	LoadDefaultResources();
@@ -1161,10 +1202,10 @@ void AM_VkRenderCore::MainLoop()
 
 			myRenderContext->BeginRenderPass(commandBufer);
 
-			myCubeMapRenderSystem->RenderEntities(commandBufer, myCubeMapDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
-			myRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
-			myPointLightRenderSystem->RenderEntities(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
-			mySimpleGPUParticleSystem->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderContext->GetFrameIndex()]);
+			myCubeMapRenderMethod->Render(commandBufer, myCubeMapDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
+			myMeshRenderMethod->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
+			myBillboardRenderMethod->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
+			myPointRenderMethod->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderContext->GetFrameIndex()], camera);
 
 			myRenderContext->EndRenderPass(commandBufer);
 			myRenderContext->EndFrame();

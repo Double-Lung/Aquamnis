@@ -10,11 +10,46 @@
 #include <array>
 #include <algorithm>
 
-AM_SimpleGPUParticleSystem::AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass)
+AM_SimpleGPUParticleSystem::AM_SimpleGPUParticleSystem(
+	AM_VkContext& aVkContext,
+	const VkRenderPass aRenderPass,
+	const std::string& aVertexShaderPath,
+	const std::string& aFragmentShaderPath,
+	uint32_t aBindingDescriptionCount,
+	uint32_t anAttributeDescriptionCount,
+	const VkVertexInputBindingDescription* aBindingDescription,
+	const VkVertexInputAttributeDescription* anAttributeDescription)
 	: myVkContext{ aVkContext }
 	, myGraphicsPipeline{aVkContext}
 {
-	CreateGraphicsPipeline(aRenderPass);
+	AM_PipelineUtils::GraphicsInitializer graphicsInitializer{};
+	AM_PipelineUtils::GetDefaultStates(graphicsInitializer);
+	if (VK_SAMPLE_COUNT_1_BIT < myVkContext.globalMSAASamples)
+		AM_PipelineUtils::EnableMultiSampleState(graphicsInitializer, myVkContext.globalMSAASamples);
+
+	VkPipelineVertexInputStateCreateInfo& vertexInputInfo = graphicsInitializer.vertexInputState;
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = aBindingDescription ? aBindingDescriptionCount : 0;
+	vertexInputInfo.pVertexBindingDescriptions = aBindingDescription;
+	vertexInputInfo.vertexAttributeDescriptionCount = anAttributeDescription ? anAttributeDescriptionCount : 0;
+	vertexInputInfo.pVertexAttributeDescriptions = anAttributeDescription;
+
+
+	VkPipelineInputAssemblyStateCreateInfo& inputAssembly = graphicsInitializer.inputAssemblyState;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+
+	VkPipelineRasterizationStateCreateInfo& rasterizer = graphicsInitializer.rasterizationState;
+	rasterizer.polygonMode = VK_POLYGON_MODE_POINT;
+
+	AM_VkDescriptorSetLayoutBuilder builder;
+	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
+	builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+
+
+	VkGraphicsPipelineCreateInfo pipelineInfo{};
+	AM_PipelineUtils::FillPiplineCreateInfo(pipelineInfo, graphicsInitializer);
+	pipelineInfo.renderPass = aRenderPass;
+	myGraphicsPipeline.CreatePipeline(aVertexShaderPath, aFragmentShaderPath, builder, pipelineInfo);
 }
 
 void AM_SimpleGPUParticleSystem::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet, const TempBuffer* anSSBO)
@@ -28,40 +63,3 @@ void AM_SimpleGPUParticleSystem::Render(VkCommandBuffer aCommandBuffer, VkDescri
 	vkCmdDraw(aCommandBuffer, PARTICLE_COUNT, 1, 0, 0);
 }
 
-void AM_SimpleGPUParticleSystem::CreateGraphicsPipeline(VkRenderPass aRenderPass)
-{
-	AM_PipelineUtils::GraphicsInitializer graphicsInitializer{};
-	AM_PipelineUtils::GetDefaultStates(graphicsInitializer);
-	AM_PipelineUtils::EnableMultiSampleState(graphicsInitializer, myVkContext.maxMSAASamples);
-
-	VkPipelineVertexInputStateCreateInfo& vertexInputInfo = graphicsInitializer.vertexInputState;
-	auto bindingDescription = Particle::GetBindingDescription();
-	auto attributeDescriptions = Particle::GetAttributeDescriptions();
-	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 1;
-	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-
-	VkPipelineInputAssemblyStateCreateInfo& inputAssembly = graphicsInitializer.inputAssemblyState;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-
-	VkPipelineRasterizationStateCreateInfo& rasterizer = graphicsInitializer.rasterizationState;
-	rasterizer.polygonMode = VK_POLYGON_MODE_POINT;
-
-	VkGraphicsPipelineCreateInfo pipelineInfo{};
-	AM_PipelineUtils::FillPiplineCreateInfo(pipelineInfo, graphicsInitializer);
-	pipelineInfo.renderPass = aRenderPass;
-
-	AM_VkDescriptorSetLayoutBuilder builder2;
-	builder2.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
-	builder2.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-
-	myGraphicsPipeline.CreatePipeline(
-		"../data/shader_bytecode/particle.vert.spv",
-		"../data/shader_bytecode/particle.frag.spv",
-		builder2,
-		0,
-		0,
-		pipelineInfo);
-}

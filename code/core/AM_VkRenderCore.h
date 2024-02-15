@@ -13,11 +13,11 @@
 #include <string>
 
 class AM_VkRenderContext;
-class AM_SimpleRenderSystem;
-class AM_PointLightRenderSystem;
-class AM_SimpleGPUParticleSystem;
-class AM_CubeMapRenderSystem;
 class AM_ComputeParticle;
+class AM_VkRenderMethodMesh;
+class AM_VkRenderMethodBillboard;
+class AM_VkRenderMethodCubeMap;
+class AM_VkRenderMethodPoint;
 class AM_Camera;
 struct VmaAllocator_T;
 typedef VmaAllocator_T* VmaAllocator;
@@ -115,10 +115,10 @@ private:
 	uint32_t myCubeMapMipLevels;
 	VmaAllocator myVMA = nullptr;
 	AM_VkRenderContext* myRenderContext = nullptr;
-	AM_SimpleRenderSystem* myRenderSystem = nullptr;
-	AM_PointLightRenderSystem* myPointLightRenderSystem = nullptr;
-	AM_SimpleGPUParticleSystem* mySimpleGPUParticleSystem = nullptr;
-	AM_CubeMapRenderSystem* myCubeMapRenderSystem = nullptr;
 	AM_ComputeParticle* myComputeParticle = nullptr;
+	AM_VkRenderMethodMesh* myMeshRenderMethod = nullptr;
+	AM_VkRenderMethodBillboard* myBillboardRenderMethod = nullptr;
+	AM_VkRenderMethodCubeMap* myCubeMapRenderMethod = nullptr;
+	AM_VkRenderMethodPoint* myPointRenderMethod = nullptr;
 };
 

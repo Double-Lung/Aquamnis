@@ -9,7 +9,16 @@ class AM_Camera;
 class AM_SimpleRenderSystem
 {
 public:
-	AM_SimpleRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass);
+	explicit AM_SimpleRenderSystem(
+		AM_VkContext& aVkContext,
+		const VkRenderPass aRenderPass,
+		const std::string& aVertexShaderPath,
+		const std::string& aFragmentShaderPath,
+		uint32_t aBindingDescriptionCount = 1,
+		uint32_t anAttributeDescriptionCount = 1,
+		const VkVertexInputBindingDescription* aBindingDescription = nullptr,
+		const VkVertexInputAttributeDescription* anAttributeDescription = nullptr);
+
 	AM_SimpleRenderSystem(const AM_SimpleRenderSystem&) = delete;
 	AM_SimpleRenderSystem& operator=(const AM_SimpleRenderSystem&) = delete;
 
@@ -23,19 +32,11 @@ private:
 		glm::mat4 transform;
 	};
 
-	void CreateGraphicsPipeline(VkRenderPass aRenderPass);
-
 	AM_VkContext& myVkContext;
 	AM_VkPipeline myGraphicsPipeline;
 };
 
 // #FIX_ME
-// 
-// configurable pipeline creation
-//   binding description
-//   binding attribute
-//   render pass
-//   shader path
 // 
 // configurable push constant data
 //	 template

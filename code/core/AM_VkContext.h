@@ -29,7 +29,7 @@ struct AM_VkContext
 	void CreateLogicalDevice();
 	void InitSwapChainCreationInfo();
 
-	void GetMaxMSAASampleCount();
+	void FindMaxMSAASampleCount();
 	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, const VkImageTiling& tiling, const VkFormatFeatureFlags& features) const;
 	void GetDepthFormat();
 
@@ -121,6 +121,7 @@ struct AM_VkContext
 	VkPresentModeKHR presentMode;
 	VkFormat depthFormat;
 	VkSampleCountFlagBits maxMSAASamples;
+	VkSampleCountFlagBits globalMSAASamples;
 	uint32_t swapChainImageCount;
 	uint32_t graphicsFamilyIndex;
 	uint32_t presentFamilyIndex;

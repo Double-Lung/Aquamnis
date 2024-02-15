@@ -2,11 +2,19 @@
 #include "AM_PipelineUtils.h"
 #include "AM_VkDescriptorSetLayoutBuilder.h"
 
-AM_ComputeParticle::AM_ComputeParticle(AM_VkContext& aVkContext)
+AM_ComputeParticle::AM_ComputeParticle(AM_VkContext& aVkContext, const std::string& aComputeShaderPath)
 	: myVkContext(aVkContext)
 	, myComputePipeline(aVkContext)
 {
-	CreateComputePipeline();
+	VkComputePipelineCreateInfo pipelineInfo{};
+	AM_PipelineUtils::SetDefaultComputeCreateInfo(pipelineInfo);
+
+	AM_VkDescriptorSetLayoutBuilder builder;
+	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
+	builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
+	builder.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
+
+	myComputePipeline.CreatePipeline(aComputeShaderPath, builder, pipelineInfo);
 }
 
 void AM_ComputeParticle::DispatchWork(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet)
@@ -28,19 +36,4 @@ void AM_ComputeParticle::DispatchWork(VkCommandBuffer aCommandBuffer, VkDescript
 		throw std::runtime_error("failed to record compute command buffer!");
 }
 
-void AM_ComputeParticle::CreateComputePipeline()
-{
-	VkComputePipelineCreateInfo pipelineInfo{};
-	AM_PipelineUtils::SetDefaultComputeCreateInfo(pipelineInfo);
 
-	AM_VkDescriptorSetLayoutBuilder builder1;
-	builder1.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
-	builder1.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
-	builder1.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
-
-	myComputePipeline.CreatePipeline(
-		"../data/shader_bytecode/particle.comp.spv",
-		builder1,
-		0,
-		pipelineInfo);
-}

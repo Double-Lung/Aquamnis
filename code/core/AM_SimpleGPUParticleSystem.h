@@ -8,7 +8,16 @@
 class AM_SimpleGPUParticleSystem
 {
 public:
-	AM_SimpleGPUParticleSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass);
+	explicit AM_SimpleGPUParticleSystem(
+		AM_VkContext& aVkContext,
+		const VkRenderPass aRenderPass,
+		const std::string& aVertexShaderPath,
+		const std::string& aFragmentShaderPath,
+		uint32_t aBindingDescriptionCount = 1,
+		uint32_t anAttributeDescriptionCount = 1,
+		const VkVertexInputBindingDescription* aBindingDescription = nullptr,
+		const VkVertexInputAttributeDescription* anAttributeDescription = nullptr);
+
 	AM_SimpleGPUParticleSystem(const AM_SimpleGPUParticleSystem&) = delete;
 	AM_SimpleGPUParticleSystem& operator=(const AM_SimpleGPUParticleSystem&) = delete;
 
@@ -16,7 +25,6 @@ public:
 	VkDescriptorSetLayout GetDescriptorSetLayout() { return myGraphicsPipeline.GetDescriptorSetLayout(); }
 
 private:
-	void CreateGraphicsPipeline(VkRenderPass aRenderPass);
 	AM_VkContext& myVkContext;
 	AM_VkPipeline myGraphicsPipeline;
 };

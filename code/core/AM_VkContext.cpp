@@ -27,6 +27,7 @@ AM_VkContext::AM_VkContext()
 	, presentMode(VK_PRESENT_MODE_MAX_ENUM_KHR)
 	, depthFormat(VK_FORMAT_MAX_ENUM)
 	, maxMSAASamples(VK_SAMPLE_COUNT_1_BIT)
+	, globalMSAASamples(VK_SAMPLE_COUNT_1_BIT)
 	, swapChainImageCount(0)
 	, graphicsFamilyIndex(0)
 	, presentFamilyIndex(0)
@@ -120,8 +121,9 @@ void AM_VkContext::Init()
 	CreateLogicalDevice();
 	CreateCommandPools();
 	InitSwapChainCreationInfo();
-	GetMaxMSAASampleCount();
+	FindMaxMSAASampleCount();
 	GetDepthFormat();
+	globalMSAASamples = VK_SAMPLE_COUNT_4_BIT; // #FIX_ME need to make it dynamic
 }
 
 void AM_VkContext::GetAvailableInstanceExtensions()
@@ -288,7 +290,7 @@ void AM_VkContext::InitSwapChainCreationInfo()
 	swapChainImageCount = std::clamp(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.minImageCount, surfaceCapabilities.maxImageCount);   
 }
 
-void AM_VkContext::GetMaxMSAASampleCount()
+void AM_VkContext::FindMaxMSAASampleCount()
 {
 	VkSampleCountFlags counts =
 		deviceProperties.limits.framebufferColorSampleCounts

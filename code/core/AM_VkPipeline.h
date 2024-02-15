@@ -14,15 +14,14 @@ public:
 		const std::string& aVertShaderPath, 
 		const std::string& aFragShaderPath, 
 		AM_VkDescriptorSetLayoutBuilder& aBuilder, 
-		uint32_t aPushConstantSize, 
-		VkShaderStageFlags someFlags,
-		VkGraphicsPipelineCreateInfo& aPipelineCreateInfo);
+		VkGraphicsPipelineCreateInfo& aPipelineCreateInfo,
+		const VkPushConstantRange* aPushConstantRange = nullptr);
 
 	void CreatePipeline(
 		const std::string& aCompShaderPath, 
 		AM_VkDescriptorSetLayoutBuilder& aBuilder, 
-		uint32_t aPushConstantSize, 
-		VkComputePipelineCreateInfo& aPipelineCreateInfo);
+		VkComputePipelineCreateInfo& aPipelineCreateInfo,
+		const VkPushConstantRange* aPushConstantRange = nullptr);
 
 	void BindGraphics(VkCommandBuffer aCommandBuffer) { vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline); }
 	void BindCompute(VkCommandBuffer aCommandBuffer) { vkCmdBindPipeline(aCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myPipeline); }
@@ -33,7 +32,7 @@ public:
 private:
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);
 	void CreateDescriptorSetLayout(AM_VkDescriptorSetLayoutBuilder& aBuilder);
-	void CreatePipelineLayout(uint32_t aPushConstantSize, VkShaderStageFlags someFlags);
+	void CreatePipelineLayout(const VkPushConstantRange* aPushConstantRange = nullptr);
 
 	AM_VkContext& myVkContext;
 	VkDescriptorSetLayout myDescriptorSetLayout;

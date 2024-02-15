@@ -14,7 +14,7 @@ OutputDir = "%{cfg.buildcfg}_%{cfg.system}_%{cfg.architecture}/"
 group "Data"
 	project "Shaders"
 		kind "None"
-		files { "data/shaders/**.vert", "data/shaders/**.frag" }
+		files { "data/shaders/**.vert", "data/shaders/**.frag", "data/shaders/**.comp" }
 	project "Scripts"
 		kind "None"
 		files { "scripts/**.bat" }

@@ -9,7 +9,16 @@ class AM_Camera;
 class AM_PointLightRenderSystem
 {
 public:
-	AM_PointLightRenderSystem(AM_VkContext& aVkContext, VkRenderPass aRenderPass);
+	explicit AM_PointLightRenderSystem(
+		AM_VkContext& aVkContext,
+		const VkRenderPass aRenderPass,
+		const std::string& aVertexShaderPath,
+		const std::string& aFragmentShaderPath,
+		uint32_t aBindingDescriptionCount = 1,
+		uint32_t anAttributeDescriptionCount = 1,
+		const VkVertexInputBindingDescription* aBindingDescription = nullptr,
+		const VkVertexInputAttributeDescription* anAttributeDescription = nullptr);
+
 	AM_PointLightRenderSystem(const AM_PointLightRenderSystem&) = delete;
 	AM_PointLightRenderSystem& operator=(const AM_PointLightRenderSystem&) = delete;
 
