@@ -36,11 +36,9 @@ AM_VkRenderContext::~AM_VkRenderContext()
 	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		myVkContext.DestroyFence(myInFlightFences[i]);
-		myVkContext.DestroyFence(myComputeInFlightFences[i]);
 
 		myVkContext.DestroySemaphore(myImageAvailableSemaphores[i]);
 		myVkContext.DestroySemaphore(myRenderFinishedSemaphores[i]);
-		myVkContext.DestroySemaphore(myComputeFinishedSemaphores[i]);
 	}
 
 	for (VkFramebuffer frameBuffer : myFramebuffers)
@@ -52,7 +50,6 @@ AM_VkRenderContext::~AM_VkRenderContext()
 VkCommandBuffer AM_VkRenderContext::BeginFrame()
 {
 	assert(!myIsFrameStarted && "Can't call beginFrame while already in progress");
-	vkWaitForFences(myVkContext.device, 1, &myComputeInFlightFences[myCurrentFrame], VK_TRUE, UINT64_MAX);
 	vkWaitForFences(myVkContext.device, 1, &myInFlightFences[myCurrentFrame], VK_TRUE, UINT64_MAX);
 
 	VkResult result = vkAcquireNextImageKHR(myVkContext.device, mySwapChain.GetSwapChain(), UINT64_MAX, myImageAvailableSemaphores[myCurrentFrame], VK_NULL_HANDLE, &myImageIndex);
@@ -66,9 +63,6 @@ VkCommandBuffer AM_VkRenderContext::BeginFrame()
 	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		throw std::runtime_error("failed to acquire swap chain image!");
 
-	vkResetFences(myVkContext.device, 1, &myComputeInFlightFences[myCurrentFrame]);
-	vkResetCommandPool(myVkContext.device, myVkContext.myComputeCommandPools[myCurrentFrame], VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
-	
 	vkResetFences(myVkContext.device, 1, &myInFlightFences[myCurrentFrame]);
 	vkResetCommandPool(myVkContext.device, myVkContext.myCommandPools[myCurrentFrame], VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 
@@ -93,7 +87,7 @@ void AM_VkRenderContext::EndFrame()
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		throw std::runtime_error("failed to record command buffer!");
 
-	std::array<VkSemaphore, 2> waitSemaphores = { myComputeFinishedSemaphores[myCurrentFrame], myImageAvailableSemaphores[myCurrentFrame] };
+	std::array<VkSemaphore, 1> waitSemaphores = { myImageAvailableSemaphores[myCurrentFrame] };
 	std::array<VkPipelineStageFlags, 2> waitStages = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -175,20 +169,6 @@ void AM_VkRenderContext::EndRenderPass(VkCommandBuffer commandBuffer)
 	vkCmdEndRenderPass(commandBuffer);
 }
 
-void AM_VkRenderContext::SubmitComputeQueue()
-{
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &myComputeCommandBuffers[myCurrentFrame];
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &myComputeFinishedSemaphores[myCurrentFrame];
-
-	if (vkQueueSubmit(myVkContext.computeQueue, 1, &submitInfo, myComputeInFlightFences[myCurrentFrame]) != VK_SUCCESS)
-		throw std::runtime_error("failed to submit compute command buffer!");
-}
-
 void AM_VkRenderContext::CreateReusableCommandBuffers()
 {
 	VkCommandBufferAllocateInfo allocInfo{};
@@ -197,14 +177,10 @@ void AM_VkRenderContext::CreateReusableCommandBuffers()
 	allocInfo.commandBufferCount = 1;
 
 	myCommandBuffers.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	myComputeCommandBuffers.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		allocInfo.commandPool = myVkContext.myCommandPools[i];
 		myCommandBuffers[i] = myVkContext.AllocateCommandBuffer(allocInfo);
-
-		allocInfo.commandPool = myVkContext.myComputeCommandPools[i];
-		myComputeCommandBuffers[i] = myVkContext.AllocateCommandBuffer(allocInfo);
 	}
 }
 
@@ -219,16 +195,6 @@ void AM_VkRenderContext::FreeCommandBuffers()
 			&myCommandBuffers[i]);
 	}
 	myCommandBuffers.clear();
-
-	for (int i = 0; i < myVkContext.myComputeCommandPools.size(); ++i)
-	{
-		vkFreeCommandBuffers(
-			myVkContext.device,
-			myVkContext.myComputeCommandPools[i],
-			1,
-			&myComputeCommandBuffers[i]);
-	}
-	myComputeCommandBuffers.clear();
 }
 
 void AM_VkRenderContext::RecreateSwapChain()
@@ -456,20 +422,16 @@ void AM_VkRenderContext::CreateFramebuffers()
 void AM_VkRenderContext::CreateSyncObjects()
 {
 	myInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	myComputeInFlightFences.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 
 	myImageAvailableSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myRenderFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	myComputeFinishedSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 
 	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		myInFlightFences[i] = myVkContext.CreateFence();
-		myComputeInFlightFences[i] = myVkContext.CreateFence();
 
 		myImageAvailableSemaphores[i] = myVkContext.CreateSemaphore();
 		myRenderFinishedSemaphores[i] = myVkContext.CreateSemaphore();
-		myComputeFinishedSemaphores[i] = myVkContext.CreateSemaphore();
 	}
 }
 

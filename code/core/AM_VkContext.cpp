@@ -349,12 +349,9 @@ void AM_VkContext::CreateCommandPools()
 	poolInfo.queueFamilyIndex = graphicsFamilyIndex;
 
 	myCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	myComputeCommandPools.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-
 	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		myCommandPools[i] = CreateCommandPool(poolInfo);
-		myComputeCommandPools[i] = CreateCommandPool(poolInfo);
 	}
 
 	VkCommandPoolCreateInfo transferPoolInfo{};

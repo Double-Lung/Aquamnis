@@ -13,7 +13,6 @@
 #include <string>
 
 class AM_VkRenderContext;
-class AM_ComputeParticle;
 class AM_VkRenderMethodMesh;
 class AM_VkRenderMethodBillboard;
 class AM_VkRenderMethodCubeMap;
@@ -69,8 +68,6 @@ private:
 	void CreateUniformBuffers();
 	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime);
 
-	void CreateShaderStorageBuffers();
-
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
 	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
 
@@ -91,7 +88,6 @@ private:
 	AM_VkContext myVkContext;
 
 	std::vector<VkSemaphore> myTransferSemaphores;
-	std::vector<TempBuffer> myVirtualShaderStorageBuffers;
 
 	VkDescriptorPool myGlobalDescriptorPool;
 
@@ -109,16 +105,13 @@ private:
 
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	std::vector<VkDescriptorSet> myCubeMapDescriptorSets;
-	std::vector<VkDescriptorSet> myComputeDescriptorSets;
 	
 	uint32_t myMipLevels;
 	uint32_t myCubeMapMipLevels;
 	VmaAllocator myVMA = nullptr;
 	AM_VkRenderContext* myRenderContext = nullptr;
-	AM_ComputeParticle* myComputeParticle = nullptr;
 	AM_VkRenderMethodMesh* myMeshRenderMethod = nullptr;
 	AM_VkRenderMethodBillboard* myBillboardRenderMethod = nullptr;
 	AM_VkRenderMethodCubeMap* myCubeMapRenderMethod = nullptr;
-	AM_VkRenderMethodPoint* myPointRenderMethod = nullptr;
 };
 

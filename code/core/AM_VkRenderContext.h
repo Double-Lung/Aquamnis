@@ -15,19 +15,13 @@ public:
 
 	VkRenderPass GetRenderPass() const { return myRenderPass; }
 	bool isFrameInProgress() const { return myIsFrameStarted; }
-	inline VkCommandBuffer GetCurrentCommandBuffer() const
+	VkCommandBuffer GetCurrentCommandBuffer() const
 	{
 		assert(myIsFrameStarted && "Cannot get command buffer when frame not in progress");
 		return myCommandBuffers[myCurrentFrame];
 	}
 
-	inline VkCommandBuffer GetCurrentComputeCommandBuffer() const
-	{
-		assert(myIsFrameStarted && "Cannot get command buffer when frame not in progress");
-		return myComputeCommandBuffers[myCurrentFrame];
-	}
-
-	inline uint32_t GetFrameIndex() const
+	uint32_t GetFrameIndex() const
 	{
 		assert(myIsFrameStarted && "Cannot get frame index when frame not in progress");
 		return myCurrentFrame;
@@ -37,7 +31,6 @@ public:
 	void EndFrame();
 	void BeginRenderPass(VkCommandBuffer commandBuffer);
 	void EndRenderPass(VkCommandBuffer commandBuffer);
-	void SubmitComputeQueue();
 
 	uint32_t GetWidth() const { return mySwapChain.GetWidth(); }
 	uint32_t GetHeight() const { return mySwapChain.GetHeight(); }

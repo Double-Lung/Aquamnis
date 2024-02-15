@@ -6,7 +6,6 @@
 #endif
 #include "AM_VkRenderCore.h"
 #include "AM_VkRenderContext.h"
-#include "AM_ComputeParticle.h"
 #include "AM_VkRenderMethodBillboard.h"
 #include "AM_VkRenderMethodCubeMap.h"
 #include "AM_VkRenderMethodMesh.h"
@@ -35,9 +34,7 @@ AM_VkRenderCore::AM_VkRenderCore()
 
 AM_VkRenderCore::~AM_VkRenderCore()
 {
-	delete myComputeParticle;
 	delete myCubeMapRenderMethod;
-	delete myPointRenderMethod;
 	delete myBillboardRenderMethod;
 	delete myMeshRenderMethod;
 	delete myRenderContext;
@@ -50,8 +47,6 @@ AM_VkRenderCore::~AM_VkRenderCore()
 			vmaDestroyBuffer(myVMA, vertexBuffer->myBuffer, vertexBuffer->myAllocation);
 	}
 
-	for (auto& SSBO : myVirtualShaderStorageBuffers)
-		vmaDestroyBuffer(myVMA, SSBO.myBuffer, SSBO.myAllocation);
 	vmaDestroyBuffer(myVMA, myUniformBuffer.myBuffer, myUniformBuffer.myAllocation);
 	vmaDestroyImage(myVMA, myTextureImage.myImage, myTextureImage.myAllocation);
 	vmaDestroyImage(myVMA, myCubeMapImage.myImage, myCubeMapImage.myAllocation);
@@ -128,13 +123,9 @@ void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, 
 void AM_VkRenderCore::CreateDescriptorSets()
 {
 	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myMeshRenderMethod->GetDescriptorSetLayout());
-	std::vector<VkDescriptorSetLayout> computeLayouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myComputeParticle->GetDescriptorSetLayout());
 
 	myDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, layouts, myDescriptorSets);
-
-	myComputeDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, computeLayouts, myComputeDescriptorSets);
 
 	myCubeMapDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, layouts, myCubeMapDescriptorSets);
@@ -161,25 +152,6 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		writterCube.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 		writterCube.WriteImage(1, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER); // updated
 		myVkContext.WriteToDescriptorSet(myCubeMapDescriptorSets[i], writterCube.GetWrites());
-
-		// for compute shader
-		VkDescriptorBufferInfo storageBufferInfoLastFrame{};
-		TempBuffer virtualBuffer = myVirtualShaderStorageBuffers[(i - 1) % AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT];
-		storageBufferInfoLastFrame.buffer = virtualBuffer.myBuffer;
-		storageBufferInfoLastFrame.offset = 0;
-		storageBufferInfoLastFrame.range = virtualBuffer.myAllocation->GetSize();
-
-		VkDescriptorBufferInfo storageBufferInfoCurrentFrame{};
-		TempBuffer virtualBuffer2 = myVirtualShaderStorageBuffers[i];
-		storageBufferInfoCurrentFrame.buffer = virtualBuffer2.myBuffer;
-		storageBufferInfoCurrentFrame.offset = 0;
-		storageBufferInfoCurrentFrame.range = virtualBuffer2.myAllocation->GetSize();
-
-		AM_VkDescriptorSetWritesBuilder writter2{ myGlobalDescriptorPool };
-		writter2.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		writter2.WriteBuffer(1, &storageBufferInfoLastFrame, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-		writter2.WriteBuffer(2, &storageBufferInfoCurrentFrame, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-		myVkContext.WriteToDescriptorSet(myComputeDescriptorSets[i], writter2.GetWrites());
 	}
 }
 
@@ -811,47 +783,6 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 	vmaCopyMemoryToAllocation(myVMA, &ubo, myUniformBuffer.myAllocation, currentImage * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
 }
 
-void AM_VkRenderCore::CreateShaderStorageBuffers()
-{
-	myVirtualShaderStorageBuffers.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
-
-	std::default_random_engine rndEngine((unsigned)time(nullptr));
-	std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
-	std::uniform_real_distribution<float> rndDist2(0.005f, 0.5f);
-
-	// Initial particle positions on a circle
-	static constexpr int PARTICLE_COUNT = 2000;
-	std::vector<Particle> particles(PARTICLE_COUNT);
-	for (Particle& particle : particles)
-	{
-		float r = 0.25f * sqrt(rndDist(rndEngine));
-		float theta = rndDist(rndEngine) * 2.f * 3.1415926f;
-		float x = r * cos(theta) * (600.f / 800.f); 
-		float y = r * sin(theta);
-		particle.position = glm::vec2(x, y);
-		particle.velocity = glm::normalize(glm::vec2(x, y)) * rndDist2(rndEngine);
-		particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
-	}
-
-	VkDeviceSize bufferSize = sizeof(Particle) * PARTICLE_COUNT;
-	TempBuffer stagingBufer{};
-	CreateFilledStagingBuffer(stagingBufer, bufferSize, particles.data());
-	for (auto& SSBO : myVirtualShaderStorageBuffers)
-	{
-		VkBufferCreateInfo SSBOBufferCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-		SSBOBufferCreateInfo.size = bufferSize;
-		SSBOBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-		VmaAllocationCreateInfo SSBOBufferAllocInfo = {};
-		SSBOBufferAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		VkResult result = vmaCreateBuffer(myVMA, &SSBOBufferCreateInfo, &SSBOBufferAllocInfo, &SSBO.myBuffer, &SSBO.myAllocation, nullptr);
-		assert(result == VK_SUCCESS && "failed to create SSBO!");
-		CopyBuffer(stagingBufer.myBuffer, stagingBufer.myAllocation, &SSBO);
-	}
-
-	vmaDestroyBuffer(myVMA, stagingBufer.myBuffer, stagingBufer.myAllocation);
-}
-
 void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
 {
 	VkCommandBufferAllocateInfo allocInfo{};
@@ -1026,6 +957,7 @@ void AM_VkRenderCore::LoadDefaultResources()
 	CreateTextureSampler();
 
 	// #FIX_ME too much copy pasting
+	// #FIX_ME get rid of extra preprocessor defines
 	CreateCubeMapImage();
 	CreateCubeMapImageView();
 	CreateCubeMapSampler();
@@ -1033,7 +965,6 @@ void AM_VkRenderCore::LoadDefaultResources()
 	// load 3d models
 	LoadEntities();
 	CreateUniformBuffers();
-	CreateShaderStorageBuffers();
 
 	CreateDescriptorSets();
 }
@@ -1152,16 +1083,6 @@ void AM_VkRenderCore::Setup()
 		0,
 		0);
 
-	myPointRenderMethod = new AM_VkRenderMethodPoint(
-		myVkContext, 
-		myRenderContext->GetRenderPass(),
-		"../data/shader_bytecode/particle.vert.spv",
-		"../data/shader_bytecode/particle.frag.spv", 
-		1,
-		static_cast<uint32_t>(attriDesc2.size()),
-		&bindingDesc2,
-		attriDesc2.data());
-
 	myCubeMapRenderMethod = new AM_VkRenderMethodCubeMap(
 		myVkContext, 
 		myRenderContext->GetRenderPass(),
@@ -1171,10 +1092,6 @@ void AM_VkRenderCore::Setup()
 		static_cast<uint32_t>(attriDesc.size()),
 		&bindingDesc,
 		attriDesc.data());
-
-	myComputeParticle = new AM_ComputeParticle(
-		myVkContext,
-		"../data/shader_bytecode/particle.comp.spv");
 
 	// #FIX_ME: move content elsewhere
 	LoadDefaultResources();
@@ -1197,15 +1114,11 @@ void AM_VkRenderCore::MainLoop()
 			UpdateCameraTransform(deltaTime, camera);
 			UpdateUniformBuffer(myRenderContext->GetFrameIndex(), camera, myEntities, deltaTime);
 
-			myComputeParticle->DispatchWork(myRenderContext->GetCurrentComputeCommandBuffer(), myComputeDescriptorSets[myRenderContext->GetFrameIndex()]);
-			myRenderContext->SubmitComputeQueue();
-
 			myRenderContext->BeginRenderPass(commandBufer);
 
 			myCubeMapRenderMethod->Render(commandBufer, myCubeMapDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
 			myMeshRenderMethod->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
 			myBillboardRenderMethod->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
-			myPointRenderMethod->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], &myVirtualShaderStorageBuffers[myRenderContext->GetFrameIndex()], camera);
 
 			myRenderContext->EndRenderPass(commandBufer);
 			myRenderContext->EndFrame();
