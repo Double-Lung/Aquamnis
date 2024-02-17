@@ -1,15 +1,12 @@
 #pragma once
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 
 #include "AM_Entity.h"
 #include "AM_VkSwapChain.h"
 #include "AM_Window.h"
 #include "TempBuffer.h"
 #include "TempImage.h"
-#include <array>
 #include <glm/glm.hpp>
+#include <array>
 #include <string>
 
 class AM_VkRenderContext;
@@ -18,8 +15,11 @@ class AM_VkRenderMethodBillboard;
 class AM_VkRenderMethodCubeMap;
 class AM_VkRenderMethodPoint;
 class AM_Camera;
-struct VmaAllocator_T;
-typedef VmaAllocator_T* VmaAllocator;
+
+
+struct VmaAllocationInfo;
+VK_DEFINE_HANDLE(VmaAllocation);
+VK_DEFINE_HANDLE(VmaAllocator);
 class AM_VkRenderCore
 {
 public:
@@ -57,7 +57,7 @@ private:
 	void CreateCubeMapImageView();
 
 	void CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer);
-	void CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocation, const TempBuffer* aDestinationBuffer);
+	void CopyBuffer(VkBuffer aSourceBuffer, VmaAllocationInfo* anAllocationInfo, const TempBuffer* aDestinationBuffer);
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer);
 	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
 

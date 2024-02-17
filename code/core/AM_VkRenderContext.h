@@ -5,8 +5,8 @@
 #include "TempImage.h"
 #include <cassert>
 
-struct VmaAllocator_T;
-typedef VmaAllocator_T* VmaAllocator;
+struct VmaAllocationInfo;
+VK_DEFINE_HANDLE(VmaAllocator);
 class AM_VkRenderContext
 {
 public:

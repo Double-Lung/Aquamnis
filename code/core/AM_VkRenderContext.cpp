@@ -1,5 +1,5 @@
 #include "AM_VkRenderContext.h"
-#include "vk_mem_alloc.h"
+#include "AM_VmaUsage.h"
 #include <array>
 
 AM_VkRenderContext::AM_VkRenderContext(AM_VkContext& aVkContext, AM_Window& aWindow, VmaAllocator& aVMA)

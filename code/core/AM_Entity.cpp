@@ -1,4 +1,3 @@
-#define TINYOBJLOADER_IMPLEMENTATION
 #include "AM_Entity.h"
 #include "AM_VkRenderCoreConstants.h"
 #include <array>

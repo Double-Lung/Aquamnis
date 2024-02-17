@@ -1,8 +1,7 @@
 #pragma once
 #include <vulkan/vulkan.h>
 
-struct VmaAllocation_T;
-typedef VmaAllocation_T* VmaAllocation;
+VK_DEFINE_HANDLE(VmaAllocation);
 
 struct TempImage
 {

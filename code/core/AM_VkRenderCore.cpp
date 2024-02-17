@@ -1,9 +1,3 @@
-#define STB_IMAGE_IMPLEMENTATION
-#ifndef VMA_IMPLEMENTATION
-#define VMA_IMPLEMENTATION
-#define VMA_STATIC_VULKAN_FUNCTIONS 0
-#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#endif
 #include "AM_VkRenderCore.h"
 #include "AM_VkRenderContext.h"
 #include "AM_VkRenderMethodBillboard.h"
@@ -14,13 +8,11 @@
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
 #include "AM_VkDescriptorSetWritesBuilder.h"
-
-#include "vk_mem_alloc.h"
+#include "AM_VmaUsage.h"
 
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
-#include <glm/gtc/matrix_transform.hpp>
 #include <stb_image.h>
 #include <random>
 #include <unordered_map>
@@ -62,8 +54,6 @@ AM_VkRenderCore::~AM_VkRenderCore()
 
 	for (VkSemaphore semaphore : myTransferSemaphores)
 		myVkContext.DestroySemaphore(semaphore);
-
-	
 }
 
 bool AM_VkRenderCore::CheckExtensionSupport()
@@ -449,12 +439,12 @@ void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage,
 	);
 }
 
-void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocation, const TempBuffer* aDestinationBuffer)
+void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocationInfo* anAllocationInfo, const TempBuffer* aDestinationBuffer)
 {
 	VkCommandBuffer commandBuffer;
 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool);
 
-	VkBufferCopy copyRegion{ 0, 0, anAllocation->GetSize() };
+	VkBufferCopy copyRegion{ 0, 0, anAllocationInfo->size };
 	vkCmdCopyBuffer(commandBuffer, aSourceBuffer, aDestinationBuffer->myBuffer, 1, &copyRegion);
 
 	VkBufferMemoryBarrier bufferMemoryBarrier{};
@@ -465,7 +455,7 @@ void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocation anAllocat
 	bufferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
 	bufferMemoryBarrier.buffer = aDestinationBuffer->myBuffer;
 	bufferMemoryBarrier.offset = 0;
-	bufferMemoryBarrier.size = anAllocation->GetSize();
+	bufferMemoryBarrier.size = anAllocationInfo->size;
 
 	vkCmdPipelineBarrier(
 		commandBuffer,
@@ -680,10 +670,11 @@ void AM_VkRenderCore::CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t 
 	stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 	stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
-	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &outBuffer.myBuffer, &outBuffer.myAllocation, nullptr);
+	VmaAllocationInfo allocationInfo;
+	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &outBuffer.myBuffer, &outBuffer.myAllocation, &allocationInfo);
 	assert(result == VK_SUCCESS && "failed to create staging buffer!");
 
-	vmaCopyMemoryToAllocation(myVMA, aSource, outBuffer.myAllocation, outBuffer.myAllocation->GetOffset(), aBufferSize);
+	vmaCopyMemoryToAllocation(myVMA, aSource, outBuffer.myAllocation, allocationInfo.offset, aBufferSize);
 }
 
 void AM_VkRenderCore::UploadToBuffer(uint64_t aBufferSize, void* aSource, const TempBuffer* aBuffer)
@@ -698,11 +689,12 @@ void AM_VkRenderCore::UploadToBuffer(uint64_t aBufferSize, void* aSource, const 
 
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingAllocation;
-	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer, &stagingAllocation, nullptr);
+	VmaAllocationInfo allocationInfo;
+	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer, &stagingAllocation, &allocationInfo);
 	assert(result == VK_SUCCESS && "failed to create staging buffer!");
 
-	vmaCopyMemoryToAllocation(myVMA, aSource, stagingAllocation, stagingAllocation->GetOffset(), aBufferSize);
-	CopyBuffer(stagingBuffer, stagingAllocation, aBuffer);
+	vmaCopyMemoryToAllocation(myVMA, aSource, stagingAllocation, allocationInfo.offset, aBufferSize);
+	CopyBuffer(stagingBuffer, &allocationInfo, aBuffer);
 	vmaDestroyBuffer(myVMA, stagingBuffer, stagingAllocation);
 }
 
@@ -752,9 +744,10 @@ void AM_VkRenderCore::CreateUniformBuffers()
 	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 	allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-	VkResult result = vmaCreateBuffer(myVMA, &bufferInfo, &allocInfo, &myUniformBuffer.myBuffer, &myUniformBuffer.myAllocation, nullptr);
+	VmaAllocationInfo allocationInfo;
+	VkResult result = vmaCreateBuffer(myVMA, &bufferInfo, &allocInfo, &myUniformBuffer.myBuffer, &myUniformBuffer.myAllocation, &allocationInfo);
 	assert(result == VK_SUCCESS && "failed to create uniform buffer!");
-	assert(myUniformBuffer.myAllocation->GetMappedData() != nullptr && "Uniform buffer is not mapped!");
+	assert(allocationInfo.pMappedData != nullptr && "Uniform buffer is not mapped!");
 }
 
 void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime)
