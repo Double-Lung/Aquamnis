@@ -1,6 +1,5 @@
 #pragma once
 
-#include "AM_Entity.h"
 #include "AM_VkSwapChain.h"
 #include "AM_Window.h"
 #include "TempBuffer.h"
@@ -15,7 +14,8 @@ class AM_VkRenderMethodBillboard;
 class AM_VkRenderMethodCubeMap;
 class AM_VkRenderMethodPoint;
 class AM_Camera;
-
+class AM_Entity;
+class AM_EntityStorage;
 
 struct VmaAllocationInfo;
 VK_DEFINE_HANDLE(VmaAllocation);
@@ -51,16 +51,18 @@ private:
 	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
 	void CreateDescriptorSets();
 	void CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1);
+	void CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp);
+	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
 
 	void CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer);
 	void CopyBuffer(VkBuffer aSourceBuffer, VmaAllocationInfo* anAllocationInfo, const TempBuffer* aDestinationBuffer);
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer);
-	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
 
 	void CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, uint64_t aStrideSize, std::vector<void*>& someSources);
 	void UploadToBuffer(uint64_t aBufferSize, void* aSource, const TempBuffer* aBuffer);
-	void CreateVertexBuffer(AM_Entity& anEntity);
-	void CreateIndexBuffer(AM_Entity& anEntity);
+	void CreateVertexBuffer(AM_Entity& outEntity, std::vector<Vertex>& someVertices);
+	void CreateIndexBuffer(AM_Entity& outEntity, std::vector<uint32_t>& someIndices);
+
 	void CreateUniformBuffers();
 	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime);
 
@@ -71,10 +73,11 @@ private:
 	void BeginOwnershipTransfer(VkCommandBuffer& aSrcCommandBuffer, VkQueue& aSrcQueue, VkSemaphore& aSignalSemaphore);
 	// also submit commands in destination queue
 	void EndOwnershipTransfer(VkCommandBuffer& aDstCommandBuffer, VkQueue& aDstQueue, VkSemaphore& aWaitSemaphore);
-	void LoadEntities();
-
-	void CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp);
+	
 	bool HasStencilComponent(VkFormat format);
+	void LoadModel(std::vector<Vertex>& outVertices, std::vector<uint32_t>& outIndices, const char* aFilePath);
+	void LoadVertexData(AM_Entity& outEntity, const char* aFilePath);
+
 	void LoadDefaultResources();
 
 	void UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera);
@@ -86,7 +89,7 @@ private:
 
 	VkDescriptorPool myGlobalDescriptorPool;
 
-	std::unordered_map<uint64_t, AM_Entity> myEntities;
+	AM_EntityStorage* myEntityStorage = nullptr;
 
 	TempBuffer myUniformBuffer;
 

@@ -1,8 +1,8 @@
 #pragma once
-#include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
+#include <glm/gtx/hash.hpp>
 #include <array>
-#include <memory>
 
 struct Particle
 {
@@ -36,3 +36,15 @@ struct Particle
 	glm::vec2 velocity;
 	glm::vec4 color;
 };
+
+namespace std
+{
+	template<> struct hash<Particle>
+	{
+		size_t operator()(Particle const& aParticle) const
+		{
+			return ((hash<glm::vec2>()(aParticle.position) ^
+				(hash<glm::vec4>()(aParticle.color) << 1)) >> 1);
+		}
+	};
+}

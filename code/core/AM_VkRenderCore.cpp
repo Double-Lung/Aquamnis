@@ -7,12 +7,15 @@
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
 #include "AM_Particle.h"
+#include "AM_Texture.h"
 #include "AM_VkDescriptorSetWritesBuilder.h"
 #include "AM_VmaUsage.h"
-
+#include "AM_Entity.h"
+#include "AM_EntityStorage.h"
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <tiny_obj_loader.h>
 #include <stb_image.h>
 #include <random>
 #include <unordered_map>
@@ -145,8 +148,8 @@ void AM_VkRenderCore::CreateDescriptorSets()
 	}
 }
 
-// #FIX_ME: move to a common util class
-void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1)
+
+void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1) // #FIX_ME: move to a common util class
 {
 	int texWidth = 0, texHeight = 0, texChannels = 0;
 	std::vector<void*> imageLayers(aLayerCount, nullptr);
@@ -554,9 +557,9 @@ void AM_VkRenderCore::UploadToBuffer(uint64_t aBufferSize, void* aSource, const 
 	vmaDestroyBuffer(myVMA, stagingBuffer, stagingAllocation);
 }
 
-void AM_VkRenderCore::CreateVertexBuffer(AM_Entity& anEntity)
+void AM_VkRenderCore::CreateVertexBuffer(AM_Entity& outEntity, std::vector<Vertex>& someVertices)
 {
-	VkDeviceSize bufferSize = sizeof(anEntity.GetVertices()[0]) * anEntity.GetVertices().size();
+	VkDeviceSize bufferSize = sizeof(Vertex) * someVertices.size();
 	VkBufferCreateInfo vertexBufferCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	vertexBufferCreateInfo.size = bufferSize;
 	vertexBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
@@ -567,13 +570,14 @@ void AM_VkRenderCore::CreateVertexBuffer(AM_Entity& anEntity)
 	TempBuffer vertexBuffer;
 	VkResult result = vmaCreateBuffer(myVMA, &vertexBufferCreateInfo, &vertexBufferAllocInfo, &vertexBuffer.myBuffer, &vertexBuffer.myAllocation, nullptr);
 	assert(result == VK_SUCCESS && "failed to create vertex buffer!");
-	anEntity.SetVertexBuffer(vertexBuffer);
-	UploadToBuffer(bufferSize, (void*)anEntity.GetVertices().data(), anEntity.GetTempVertexBuffer());
+
+	UploadToBuffer(bufferSize, (void*)someVertices.data(), &vertexBuffer);
+	outEntity.SetVertexBuffer(vertexBuffer);
 }
 
-void AM_VkRenderCore::CreateIndexBuffer(AM_Entity& anEntity)
+void AM_VkRenderCore::CreateIndexBuffer(AM_Entity& outEntity, std::vector<uint32_t>& someIndices)
 {
-	VkDeviceSize bufferSize = sizeof(anEntity.GetIndices()[0]) * anEntity.GetIndices().size();
+	VkDeviceSize bufferSize = sizeof(uint32_t) * someIndices.size();
 	VkBufferCreateInfo indexBufferCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	indexBufferCreateInfo.size = bufferSize;
 	indexBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
@@ -584,8 +588,9 @@ void AM_VkRenderCore::CreateIndexBuffer(AM_Entity& anEntity)
 	TempBuffer indexBuffer;
 	VkResult result = vmaCreateBuffer(myVMA, &indexBufferCreateInfo, &indexBufferAllocInfo, &indexBuffer.myBuffer, &indexBuffer.myAllocation, nullptr);
 	assert(result == VK_SUCCESS && "failed to create vertex buffer!");
-	anEntity.SetIndexBuffer(indexBuffer);
-	UploadToBuffer(bufferSize, (void*)anEntity.GetIndices().data(), anEntity.GetTempIndexBuffer());
+	
+	UploadToBuffer(bufferSize, (void*)someIndices.data(), &indexBuffer);
+	outEntity.SetIndexBuffer(indexBuffer);
 }
 
 void AM_VkRenderCore::CreateUniformBuffers()
@@ -695,58 +700,6 @@ void AM_VkRenderCore::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue 
 	vkFreeCommandBuffers(myVkContext.device, aCommandPool, 1, &commandBuffer);
 }
 
-void AM_VkRenderCore::LoadEntities()
-{
- 	AM_Entity vikingRoomEntity = AM_Entity::CreateEntity();
- 	auto& transform1 = vikingRoomEntity.GetTransformComponent();
- 	transform1.myTranslation = { 12.f, 0.f, 0.f };
- 	vikingRoomEntity.LoadModel(AM_VkRenderCoreConstants::MODEL_PATH);
- 	CreateVertexBuffer(vikingRoomEntity);
- 	CreateIndexBuffer(vikingRoomEntity);
-	myEntities.emplace(vikingRoomEntity.GetId(), std::move(vikingRoomEntity));
-
-	AM_Entity vaseEntity = AM_Entity::CreateEntity();
-	auto& transform2 = vaseEntity.GetTransformComponent();
-	transform2.myTranslation = { -8.f, 0.f, 0.f };
-	transform2.myRotation = { 3.14159f, 0.f, 0.f};
-	transform2.myScale = { 20.f, 20.f, 20.f };
-	vaseEntity.LoadModel("../data/models/smooth_vase.obj");
-	CreateVertexBuffer(vaseEntity);
-	CreateIndexBuffer(vaseEntity);
-	myEntities.emplace(vaseEntity.GetId(), std::move(vaseEntity));
-
-	AM_Entity quadEntity = AM_Entity::CreateEntity();
-	auto& transform3 = quadEntity.GetTransformComponent();
-	transform3.myTranslation = { 0.f, -1.f, 0.f };
-	transform3.myScale = { 42.f, 1.f, 42.f };
-	quadEntity.LoadModel("../data/models/quad.obj");
-	CreateVertexBuffer(quadEntity);
-	CreateIndexBuffer(quadEntity);
-	myEntities.emplace(quadEntity.GetId(), std::move(quadEntity));
-
-	AM_Entity cubeEntity = AM_Entity::CreateEntity();
-	auto& transform4 = cubeEntity.GetTransformComponent();
-	transform4.myTranslation = { 0.f, 0.f, 0.f };
-	transform4.myScale = { 1.f, 1.f, 1.f };
-	cubeEntity.SetIsCube(true);
-	cubeEntity.LoadModel("../data/models/cube.obj");
-	CreateVertexBuffer(cubeEntity);
-	CreateIndexBuffer(cubeEntity);
-	myEntities.emplace(cubeEntity.GetId(), std::move(cubeEntity));
-
-	AM_Entity pointLight1 = AM_Entity::CreateEntity();
-	pointLight1.InitLightComponent();
-	pointLight1.GetTransformComponent().myTranslation = { -5.f, 2.f, -.7f };
-	pointLight1.SetColor({1.f, .1f, .1f});
-	myEntities.emplace(pointLight1.GetId(), std::move(pointLight1));
-
-	AM_Entity pointLight2 = AM_Entity::CreateEntity();
-	pointLight2.InitLightComponent();
-	pointLight2.GetTransformComponent().myTranslation = { -5.f, 2.f, .7f };
-	pointLight2.SetColor({ 1.f, 1.f, .1f });
-	myEntities.emplace(pointLight2.GetId(), std::move(pointLight2));
-}
-
 void AM_VkRenderCore::CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp)
 {
 	VkSamplerCreateInfo samplerInfo{};
@@ -774,29 +727,109 @@ bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
 	return !((format ^ VK_FORMAT_D32_SFLOAT_S8_UINT) && (format ^ VK_FORMAT_D24_UNORM_S8_UINT));
 }
 
+void AM_VkRenderCore::LoadModel(std::vector<Vertex>& outVertices, std::vector<uint32_t>& outIndices, const char* aFilePath)
+{
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn, err;
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, aFilePath))
+		throw std::runtime_error(warn + err);
+
+	std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+	for (const tinyobj::shape_t& shape : shapes)
+	{
+		for (const tinyobj::index_t& index : shape.mesh.indices)
+		{
+			Vertex vertex{};
+			vertex.myPosition =
+			{
+				attrib.vertices[3 * index.vertex_index + 0],
+				attrib.vertices[3 * index.vertex_index + 1],
+				attrib.vertices[3 * index.vertex_index + 2]
+			};
+			vertex.myNormal =
+			{
+				attrib.normals[3 * index.normal_index + 0],
+				attrib.normals[3 * index.normal_index + 1],
+				attrib.normals[3 * index.normal_index + 2]
+			};
+			vertex.texCoord =
+			{
+				attrib.texcoords[2 * index.texcoord_index + 0],
+				1.f - attrib.texcoords[2 * index.texcoord_index + 1] // vulkan uv
+			};
+			vertex.myColor = { 1.0f, 1.0f, 1.0f };
+
+			if (uniqueVertices.count(vertex) == 0)
+			{
+				uniqueVertices[vertex] = static_cast<uint32_t>(outVertices.size());
+				outVertices.push_back(vertex);
+			}
+
+			outIndices.push_back(uniqueVertices[vertex]);
+		}
+	}
+}
+
+void AM_VkRenderCore::LoadVertexData(AM_Entity& outEntity, const char* aFilePath)
+{
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
+	LoadModel(vertices, indices, aFilePath);
+	CreateVertexBuffer(outEntity, vertices);
+	CreateIndexBuffer(outEntity, indices);
+}
+
+// #FIX_ME: move out
 void AM_VkRenderCore::LoadDefaultResources()
 {
-	// load textures
-	TempImage tmp;
-	VkImageView tmpView;
-	VkSampler tmpSamp;
-	const char* textures[1] = { AM_VkRenderCoreConstants::TEXTURE_PATH };
-	CreateTextureImage(tmp, textures, 1);
-	CreateImageView(tmpView, tmp.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1);
-	CreateTextureSampler(tmpSamp, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
-	
-	TempImage tmp2;
-	VkImageView tmpView2;
-	VkSampler tmpSamp2;
-	CreateTextureImage(tmp2, AM_VkRenderCoreConstants::CUBEMAP_TEXTURE_PATH, 6);
-	CreateImageView(tmpView2, tmp2.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 0, 6);
-	CreateTextureSampler(tmpSamp2, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER);
+	AM_Entity& vikingRoomEntity = myEntityStorage->Add();
+	LoadVertexData(vikingRoomEntity, "../data/models/vikingroom.obj");
+	auto& transform1 = vikingRoomEntity.GetTransformComponent();
+	transform1.myTranslation = { 12.f, 0.f, 0.f };
+	AM_Texture& vikingRoomTexture = vikingRoomEntity.GetTexture();
+	const char* textures[] = { AM_VkRenderCoreConstants::TEXTURE_PATH };
+	CreateTextureImage(vikingRoomTexture.myImage, textures, 1);
+	CreateImageView(vikingRoomTexture.myImageView, vikingRoomTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1);
+	CreateTextureSampler(vikingRoomTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
 
-	// load 3d models
-	// #FIX_ME refactor entity class
-	LoadEntities();
+	AM_Entity& vaseEntity = myEntityStorage->Add();
+	LoadVertexData(vaseEntity, "../data/models/smooth_vase.obj");
+	auto& transform2 = vaseEntity.GetTransformComponent();
+	transform2.myTranslation = { -8.f, 0.f, 0.f };
+	transform2.myRotation = { 3.14159f, 0.f, 0.f };
+	transform2.myScale = { 20.f, 20.f, 20.f };
+
+	AM_Entity& quadEntity = myEntityStorage->Add();
+	LoadVertexData(vaseEntity, "../data/models/quad.obj");
+	auto& transform3 = quadEntity.GetTransformComponent();
+	transform3.myTranslation = { 0.f, -1.f, 0.f };
+	transform3.myScale = { 42.f, 1.f, 42.f };
+
+	AM_Entity& skybox = myEntityStorage->Add();
+	LoadVertexData(vaseEntity, "../data/models/cube.obj");
+	auto& transform4 = skybox.GetTransformComponent();
+	transform4.myTranslation = { 0.f, 0.f, 0.f };
+	transform4.myScale = { 1.f, 1.f, 1.f };
+	skybox.SetIsCube(true);
+	AM_Texture& skyboxTexture = skybox.GetTexture();
+	CreateTextureImage(skyboxTexture.myImage, AM_VkRenderCoreConstants::CUBEMAP_TEXTURE_PATH, 6);
+	CreateImageView(skyboxTexture.myImageView, skyboxTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 0, 6);
+	CreateTextureSampler(skyboxTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER);
+
+	AM_Entity& pointLight1 = myEntityStorage->Add();
+	pointLight1.InitLightComponent();
+	pointLight1.GetTransformComponent().myTranslation = { -5.f, 2.f, -.7f };
+	pointLight1.SetColor({ 1.f, .1f, .1f });
+
+	AM_Entity& pointLight2 = myEntityStorage->Add();
+	pointLight2.InitLightComponent();
+	pointLight2.GetTransformComponent().myTranslation = { -5.f, 2.f, .7f };
+	pointLight2.SetColor({ 1.f, 1.f, .1f });
+
 	CreateUniformBuffers();
-
 	CreateDescriptorSets();
 }
 
@@ -924,7 +957,6 @@ void AM_VkRenderCore::Setup()
 		&bindingDesc,
 		attriDesc.data());
 
-	// #FIX_ME: move content elsewhere
 	LoadDefaultResources();
 }
 

@@ -28,8 +28,7 @@ public:
 	AM_VkRenderMethod(const AM_VkRenderMethod&) = delete;
 	AM_VkRenderMethod& operator=(const AM_VkRenderMethod&) = delete;
 
-	// #FIX_ME: refactor into a common interface
-	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, const TempBuffer* aBuffer, const AM_Camera& aCamera);
+	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, const TempBuffer* aBuffer, const AM_Camera& aCamera); // #FIX_ME: refactor into a common interface
 	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera);
 
 	VkDescriptorSetLayout GetDescriptorSetLayout() { return myPipeline.GetDescriptorSetLayout(); }
