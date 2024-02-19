@@ -10,21 +10,6 @@ class AM_Entity
 {
 	friend AM_EntityStorage;
 public:
-	AM_Entity()
-		: myTexture{}
-		, myTempVertexBuffer{}
-		, myTempIndexBuffer{}
-		, myColor{ 1.f, 1.f, 1.f }
-		, myTranslation{ 0.f, 0.f, 0.f }
-		, myScale{ 1.f, 1.f, 1.f }
-		, myRotation{ 0.f, 0.f, 0.f }
-		, myId(0)
-		, myLightIntensity(0.f)
-		, myIsSkybox(false)
-		, myIsEmissive(false)
-	{
-	}
-
 	AM_Entity(AM_Entity&& anEntity) noexcept
 	{
 		*this = std::move(anEntity);
@@ -76,16 +61,20 @@ public:
 	const TempBuffer* GetTempVertexBuffer() const { return &myTempVertexBuffer; }
 	const TempBuffer* GetTempIndexBuffer() const { return &myTempIndexBuffer; }
 
+	glm::vec3 myTranslation{ 0.f, 0.f, 0.f };
+	glm::vec3 myScale{ 1.f, 1.f, 1.f };
+	glm::vec3 myRotation{ 0.f, 0.f, 0.f };
+
 private:
+	explicit AM_Entity(uint64_t anID);
+	static AM_Entity* CreateEntity();
 	void SetId(uint64_t anId) { myId = anId; }
 	
 	AM_Texture myTexture;
 	TempBuffer myTempVertexBuffer;
 	TempBuffer myTempIndexBuffer;
 	glm::vec3 myColor;
-	glm::vec3 myTranslation{ 0.f, 0.f, 0.f };
-	glm::vec3 myScale{ 1.f, 1.f, 1.f };
-	glm::vec3 myRotation{ 0.f, 0.f, 0.f };
+	
 	uint64_t myId;
 	float myLightIntensity;
 	bool myIsSkybox;

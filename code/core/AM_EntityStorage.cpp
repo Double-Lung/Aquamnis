@@ -1,11 +1,23 @@
 #include "AM_EntityStorage.h"
 
-AM_Entity& AM_EntityStorage::Add()
+AM_EntityStorage::AM_EntityStorage()
 {
-	static uint64_t id = 1; // reserve 0
-	AM_Entity& newEntity = myEntities[id];
-	newEntity.SetId(id);
-	++id;
+	myEntities.reserve(10);
+}
+
+AM_EntityStorage::~AM_EntityStorage()
+{
+	for (auto& kv : myEntities)
+	{
+		if (kv.second)
+			delete kv.second;
+	}
+}
+
+AM_Entity* AM_EntityStorage::Add()
+{
+	AM_Entity* newEntity = AM_Entity::CreateEntity();
+	myEntities.emplace(newEntity->myId, newEntity);
 	return newEntity;
 }
 
@@ -14,6 +26,6 @@ AM_Entity* AM_EntityStorage::GetIfExist(uint64_t anId)
 {
 	auto ite = myEntities.find(anId);
 	if (ite != myEntities.end())
-		return &ite->second;
+		return ite->second;
 	return nullptr;
 }

@@ -113,6 +113,8 @@ void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, 
 	outImageView = myVkContext.CreateImageView(viewInfo);
 }
 
+
+// #FIX_ME: move into entity for per entity uniform
 void AM_VkRenderCore::CreateDescriptorSets()
 {
 	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myMeshRenderMethod->GetDescriptorSetLayout());
@@ -147,7 +149,6 @@ void AM_VkRenderCore::CreateDescriptorSets()
 		myVkContext.WriteToDescriptorSet(myCubeMapDescriptorSets[i], writterCube.GetWrites());
 	}
 }
-
 
 void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1) // #FIX_ME: move to a common util class
 {
@@ -785,49 +786,45 @@ void AM_VkRenderCore::LoadVertexData(AM_Entity& outEntity, const char* aFilePath
 // #FIX_ME: move out
 void AM_VkRenderCore::LoadDefaultResources()
 {
-	AM_Entity& vikingRoomEntity = myEntityStorage->Add();
-	LoadVertexData(vikingRoomEntity, "../data/models/vikingroom.obj");
-	auto& transform1 = vikingRoomEntity.GetTransformComponent();
-	transform1.myTranslation = { 12.f, 0.f, 0.f };
-	AM_Texture& vikingRoomTexture = vikingRoomEntity.GetTexture();
+	AM_Entity* vikingRoomEntity = myEntityStorage->Add();
+	LoadVertexData(*vikingRoomEntity, "../data/models/vikingroom.obj");
+	vikingRoomEntity->myTranslation = { 12.f, 0.f, 0.f };
+	AM_Texture& vikingRoomTexture = vikingRoomEntity->GetTexture();
 	const char* textures[] = { AM_VkRenderCoreConstants::TEXTURE_PATH };
 	CreateTextureImage(vikingRoomTexture.myImage, textures, 1);
 	CreateImageView(vikingRoomTexture.myImageView, vikingRoomTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1);
 	CreateTextureSampler(vikingRoomTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
 
-	AM_Entity& vaseEntity = myEntityStorage->Add();
-	LoadVertexData(vaseEntity, "../data/models/smooth_vase.obj");
-	auto& transform2 = vaseEntity.GetTransformComponent();
-	transform2.myTranslation = { -8.f, 0.f, 0.f };
-	transform2.myRotation = { 3.14159f, 0.f, 0.f };
-	transform2.myScale = { 20.f, 20.f, 20.f };
+	AM_Entity* vaseEntity = myEntityStorage->Add();
+	LoadVertexData(*vaseEntity, "../data/models/smooth_vase.obj");
+	vaseEntity->myTranslation = { -8.f, 0.f, 0.f };
+	vaseEntity->myRotation = { 3.14159f, 0.f, 0.f };
+	vaseEntity->myScale = { 20.f, 20.f, 20.f };
 
-	AM_Entity& quadEntity = myEntityStorage->Add();
-	LoadVertexData(vaseEntity, "../data/models/quad.obj");
-	auto& transform3 = quadEntity.GetTransformComponent();
-	transform3.myTranslation = { 0.f, -1.f, 0.f };
-	transform3.myScale = { 42.f, 1.f, 42.f };
+	AM_Entity* quadEntity = myEntityStorage->Add();
+	LoadVertexData(*quadEntity, "../data/models/quad.obj");
+	quadEntity->myTranslation = { 0.f, -1.f, 0.f };
+	quadEntity->myScale = { 42.f, 1.f, 42.f };
 
-	AM_Entity& skybox = myEntityStorage->Add();
-	LoadVertexData(vaseEntity, "../data/models/cube.obj");
-	auto& transform4 = skybox.GetTransformComponent();
-	transform4.myTranslation = { 0.f, 0.f, 0.f };
-	transform4.myScale = { 1.f, 1.f, 1.f };
-	skybox.SetIsCube(true);
-	AM_Texture& skyboxTexture = skybox.GetTexture();
+	AM_Entity* skybox = myEntityStorage->Add();
+	LoadVertexData(*skybox, "../data/models/cube.obj");
+	skybox->myTranslation = { 0.f, 0.f, 0.f };
+	skybox->myScale = { 1.f, 1.f, 1.f };
+	skybox->SetIsSkybox(true);
+	AM_Texture& skyboxTexture = skybox->GetTexture();
 	CreateTextureImage(skyboxTexture.myImage, AM_VkRenderCoreConstants::CUBEMAP_TEXTURE_PATH, 6);
 	CreateImageView(skyboxTexture.myImageView, skyboxTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 0, 6);
 	CreateTextureSampler(skyboxTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER);
 
-	AM_Entity& pointLight1 = myEntityStorage->Add();
-	pointLight1.InitLightComponent();
-	pointLight1.GetTransformComponent().myTranslation = { -5.f, 2.f, -.7f };
-	pointLight1.SetColor({ 1.f, .1f, .1f });
+	AM_Entity* pointLight1 = myEntityStorage->Add();
+	pointLight1->SetIsEmissive(true);
+	pointLight1->myTranslation = { -5.f, 2.f, -.7f };
+	pointLight1->SetColor({ 1.f, 0.1f, 0.1f });
 
-	AM_Entity& pointLight2 = myEntityStorage->Add();
-	pointLight2.InitLightComponent();
-	pointLight2.GetTransformComponent().myTranslation = { -5.f, 2.f, .7f };
-	pointLight2.SetColor({ 1.f, 1.f, .1f });
+	AM_Entity* pointLight2 = myEntityStorage->Add();
+	pointLight2->SetIsEmissive(true);
+	pointLight2->myTranslation = { -5.f, 2.f, .7f };
+	pointLight2->SetColor({ 1.f, 1.f, 0.1f });
 
 	CreateUniformBuffers();
 	CreateDescriptorSets();

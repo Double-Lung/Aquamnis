@@ -13,9 +13,9 @@
 - [x] Simple compute shader
 - [x] Integrate GPU Open VMA
 - [x] Adding basic cubemap
-- [ ] Refactor into Core & App structure
 - [ ] Pregenerated mipmap
 - [ ] Instanced rendering
+- [ ] Descriptor Management
 - [ ] Dynamic uniforms
 - [ ] Separate images and sampler descriptors
 - [ ] Pipeline cache
