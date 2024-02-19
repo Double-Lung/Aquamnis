@@ -145,24 +145,27 @@ void AM_VkRenderCore::CreateDescriptorSets()
 	}
 }
 
-void AM_VkRenderCore::CreateTextureImageView()
+// #FIX_ME: move to a common util class
+void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1)
 {
-	CreateImageView(myTextureImageView, myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
-}
+	int texWidth = 0, texHeight = 0, texChannels = 0;
+	std::vector<void*> imageLayers(aLayerCount, nullptr);
+	for (uint32_t i = 0; i < aLayerCount; ++i)
+	{
+		imageLayers[i] = reinterpret_cast<void*>(stbi_load(somePaths[i], &texWidth, &texHeight, &texChannels, STBI_rgb_alpha));
+		if (!imageLayers[i])
+			throw std::runtime_error("failed to load texture image!");
+		assert(texWidth && texHeight && texChannels);
+	}
 
-void AM_VkRenderCore::CreateTextureImage()
-{
-	int texWidth, texHeight, texChannels;
-	stbi_uc* pixels = stbi_load(AM_VkRenderCoreConstants::TEXTURE_PATH, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	if (!pixels)
-		throw std::runtime_error("failed to load texture image!");
+	//myMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;  // #FIX_ME: add back mipmap
+	uint64_t stride = static_cast<uint64_t>(texWidth) * static_cast<uint64_t>(texHeight) * static_cast<uint64_t>(texChannels);
+	uint64_t bufferSize = stride * static_cast<uint64_t>(aLayerCount);
 
-	uint64_t bufferSize = (uint64_t)texWidth * (uint64_t)texHeight * 4;
 	TempBuffer stagingBuffer;
-	CreateFilledStagingBuffer(stagingBuffer, bufferSize, (void*)pixels);
-	stbi_image_free(pixels);
-
-	myMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+	CreateFilledStagingBuffer(stagingBuffer, bufferSize, stride, imageLayers);
+	for (void* dataPtr : imageLayers)
+		stbi_image_free(reinterpret_cast<stbi_uc*>(dataPtr));
 
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -183,14 +186,14 @@ void AM_VkRenderCore::CreateTextureImage()
 	VmaAllocationCreateInfo allocationInfo{};
 	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myTextureImage.myImage, &myTextureImage.myAllocation, nullptr);
+	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &outImage.myImage, &outImage.myAllocation, nullptr);
 	assert(result == VK_SUCCESS && "failed to create image!");
 
 	VkCommandBuffer commandBuffer;
 	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool);
-	TransitionImageLayout(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, 1, commandBuffer);
-	CopyBufferToImage(stagingBuffer.myBuffer, myTextureImage.myImage, texWidth, texHeight, commandBuffer);
-	
+	TransitionImageLayout(outImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, aLayerCount, commandBuffer);
+	CopyBufferToImage(stagingBuffer.myBuffer, outImage.myImage, texWidth, texHeight, aLayerCount, commandBuffer);
+
 	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
 	postCopyTransferMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	postCopyTransferMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -199,7 +202,7 @@ void AM_VkRenderCore::CreateTextureImage()
 	postCopyTransferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
 	postCopyTransferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 	postCopyTransferMemoryBarrier.dstAccessMask = 0;
-	postCopyTransferMemoryBarrier.image = myTextureImage.myImage;
+	postCopyTransferMemoryBarrier.image = outImage.myImage;
 	postCopyTransferMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	postCopyTransferMemoryBarrier.subresourceRange.levelCount = myMipLevels;
 	postCopyTransferMemoryBarrier.subresourceRange.baseArrayLayer = 0;
@@ -208,7 +211,7 @@ void AM_VkRenderCore::CreateTextureImage()
 
 	vkCmdPipelineBarrier(
 		commandBuffer,
-		VK_PIPELINE_STAGE_TRANSFER_BIT, 
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
 		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
 		0,
 		0, nullptr,
@@ -229,7 +232,7 @@ void AM_VkRenderCore::CreateTextureImage()
 	postCopyGraphicsMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
 	postCopyGraphicsMemoryBarrier.srcAccessMask = 0;
 	postCopyGraphicsMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	postCopyGraphicsMemoryBarrier.image = myTextureImage.myImage;
+	postCopyGraphicsMemoryBarrier.image = outImage.myImage;
 	postCopyGraphicsMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	postCopyGraphicsMemoryBarrier.subresourceRange.levelCount = myMipLevels;
 	postCopyGraphicsMemoryBarrier.subresourceRange.baseArrayLayer = 0;
@@ -256,165 +259,11 @@ void AM_VkRenderCore::CreateTextureImage()
 	vkQueueWaitIdle(myVkContext.graphicsQueue);
 	vkFreeCommandBuffers(myVkContext.device, myVkContext.myCommandPools[0], 1, &graphicsCommandBuffer);
 
-	GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
+	// GenerateMipmaps(myTextureImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, myMipLevels);
 	vmaDestroyBuffer(myVMA, stagingBuffer.myBuffer, stagingBuffer.myAllocation);
 }
 
-void AM_VkRenderCore::CreateCubeMapImage()
-{
-	int texWidth = 0, texHeight = 0, texChannels = 0;
-	stbi_uc* images[6];
-	for (int i = 0; i < 6; ++i)
-	{
-		images[i] = stbi_load(AM_VkRenderCoreConstants::CUBEMAP_TEXTURE_PATH[i], &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-		if (!images[i])
-			throw std::runtime_error("failed to load texture image!");
-	}
-
-	uint64_t stride = (uint64_t)texWidth * (uint64_t)texHeight * 4;
-	uint64_t bufferSize = stride * 6;
-	TempBuffer stagingBuffer;
-
-	VkBufferCreateInfo stagingBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-	stagingBufferInfo.size = bufferSize;
-	stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-	VmaAllocationCreateInfo stagingAllocInfo = {};
-	stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-	stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer.myBuffer, &stagingBuffer.myAllocation, nullptr);
-	assert(result == VK_SUCCESS && "failed to create staging buffer!");
-
-	void* mappedData;
-	vmaMapMemory(myVMA, stagingBuffer.myAllocation, &mappedData);
-	for (uint64_t i = 0; i < 6; ++i)
-	{
-		void* dst = (char*)mappedData + i * stride;
-		memcpy(dst, images[i], stride);
-		stbi_image_free(images[i]);
-	}
-	vmaUnmapMemory(myVMA, stagingBuffer.myAllocation);
-
-	myCubeMapMipLevels = 1;  // keep it simple for now
-
-	VkImageCreateInfo imageInfo{};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent = { (uint32_t)texWidth, (uint32_t)texHeight, 1 };
-	imageInfo.mipLevels = myCubeMapMipLevels;
-	imageInfo.arrayLayers = 6; // Cube faces count as array layers in Vulkan
-	imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; // Cube map flag
-
-	VmaAllocationCreateInfo allocationInfo{};
-	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
-
-	result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myCubeMapImage.myImage, &myCubeMapImage.myAllocation, nullptr);
-	assert(result == VK_SUCCESS && "failed to create image!");
-
-	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool);
-	TransitionImageLayout(myCubeMapImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myCubeMapMipLevels, 6, commandBuffer);
-
-	VkBufferImageCopy bufferCopyRegion = {};
-	bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	bufferCopyRegion.imageSubresource.mipLevel = 0;
-	bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
-	bufferCopyRegion.imageSubresource.layerCount = 6;
-	bufferCopyRegion.imageExtent = { (uint32_t)texWidth, (uint32_t)texHeight, 1 };
-	bufferCopyRegion.imageOffset = { 0, 0, 0 };
-	bufferCopyRegion.bufferOffset = 0;
-	bufferCopyRegion.bufferRowLength = 0;
-	bufferCopyRegion.bufferImageHeight = 0;
-
-	vkCmdCopyBufferToImage(
-		commandBuffer,
-		stagingBuffer.myBuffer,
-		myCubeMapImage.myImage,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		1,
-		&bufferCopyRegion
-	);
-
-	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
-	postCopyTransferMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	postCopyTransferMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	postCopyTransferMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	postCopyTransferMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
-	postCopyTransferMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
-	postCopyTransferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	postCopyTransferMemoryBarrier.dstAccessMask = 0;
-	postCopyTransferMemoryBarrier.image = myCubeMapImage.myImage;
-	postCopyTransferMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	postCopyTransferMemoryBarrier.subresourceRange.levelCount = myCubeMapMipLevels;
-	postCopyTransferMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	postCopyTransferMemoryBarrier.subresourceRange.layerCount = 6;
-	postCopyTransferMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-
-	vkCmdPipelineBarrier(
-		commandBuffer,
-		VK_PIPELINE_STAGE_TRANSFER_BIT,
-		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &postCopyTransferMemoryBarrier
-	);
-
-	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0]);
-
-	VkCommandBuffer graphicsCommandBuffer;
-	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0]);
-
-	VkImageMemoryBarrier postCopyGraphicsMemoryBarrier{};
-	postCopyGraphicsMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	postCopyGraphicsMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	postCopyGraphicsMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	postCopyGraphicsMemoryBarrier.srcQueueFamilyIndex = myVkContext.transferFamilyIndex;
-	postCopyGraphicsMemoryBarrier.dstQueueFamilyIndex = myVkContext.graphicsFamilyIndex;
-	postCopyGraphicsMemoryBarrier.srcAccessMask = 0;
-	postCopyGraphicsMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	postCopyGraphicsMemoryBarrier.image = myCubeMapImage.myImage;
-	postCopyGraphicsMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	postCopyGraphicsMemoryBarrier.subresourceRange.levelCount = myCubeMapMipLevels;
-	postCopyGraphicsMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	postCopyGraphicsMemoryBarrier.subresourceRange.layerCount = 6;
-	postCopyGraphicsMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-
-	vkCmdPipelineBarrier(
-		graphicsCommandBuffer,
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &postCopyGraphicsMemoryBarrier
-	);
-
-	EndOwnershipTransfer(graphicsCommandBuffer, myVkContext.graphicsQueue, myTransferSemaphores[0]);
-
-	// this is good for now
-	// use fence for async submission
-	vkQueueWaitIdle(myVkContext.transferQueue);
-	vkFreeCommandBuffers(myVkContext.device, myVkContext.myTransferCommandPool, 1, &commandBuffer);
-
-	vkQueueWaitIdle(myVkContext.graphicsQueue);
-	vkFreeCommandBuffers(myVkContext.device, myVkContext.myCommandPools[0], 1, &graphicsCommandBuffer);
-	vmaDestroyBuffer(myVMA, stagingBuffer.myBuffer, stagingBuffer.myAllocation);
-}
-
-void AM_VkRenderCore::CreateCubeMapImageView()
-{
-	CreateImageView(myCubeMapImageView, myCubeMapImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, myCubeMapMipLevels, 6);
-}
-
-void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer)
+void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer)
 {
 	VkBufferImageCopy region{};
 	region.bufferOffset = 0;
@@ -424,7 +273,7 @@ void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage,
 	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	region.imageSubresource.mipLevel = 0;
 	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = 1;
+	region.imageSubresource.layerCount = aLayerCount;
 
 	region.imageOffset = { 0, 0, 0 };
 	region.imageExtent = { aWidth, aHeight, 1 };
@@ -552,7 +401,6 @@ void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkIm
 	);
 }
 
-
 void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels)
 {
 	// Check if image format supports linear blitting
@@ -660,7 +508,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[0]);
 }
 
-void AM_VkRenderCore::CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, void* aSource)
+void AM_VkRenderCore::CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, uint64_t aStrideSize, std::vector<void*>& someSources)
 {
 	VkBufferCreateInfo stagingBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	stagingBufferInfo.size = aBufferSize;
@@ -674,7 +522,15 @@ void AM_VkRenderCore::CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t 
 	VkResult result = vmaCreateBuffer(myVMA, &stagingBufferInfo, &stagingAllocInfo, &outBuffer.myBuffer, &outBuffer.myAllocation, &allocationInfo);
 	assert(result == VK_SUCCESS && "failed to create staging buffer!");
 
-	vmaCopyMemoryToAllocation(myVMA, aSource, outBuffer.myAllocation, allocationInfo.offset, aBufferSize);
+	uint64_t sourceCount = static_cast<uint64_t>(someSources.size());
+	void* mappedData;
+	vmaMapMemory(myVMA, outBuffer.myAllocation, &mappedData);
+	for (uint64_t i = 0; i < sourceCount; ++i)
+	{
+		void* dst = (char*)mappedData + i * aStrideSize;
+		memcpy(dst, someSources[i], aStrideSize);
+	}
+	vmaUnmapMemory(myVMA, outBuffer.myAllocation);
 }
 
 void AM_VkRenderCore::UploadToBuffer(uint64_t aBufferSize, void* aSource, const TempBuffer* aBuffer)
@@ -891,50 +747,26 @@ void AM_VkRenderCore::LoadEntities()
 	myEntities.emplace(pointLight2.GetId(), std::move(pointLight2));
 }
 
-void AM_VkRenderCore::CreateTextureSampler()
+void AM_VkRenderCore::CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp)
 {
 	VkSamplerCreateInfo samplerInfo{};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerInfo.magFilter = VK_FILTER_LINEAR;
 	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeU = anAddressMode;
+	samplerInfo.addressModeV = anAddressMode;
+	samplerInfo.addressModeW = anAddressMode;
 	samplerInfo.anisotropyEnable = VK_TRUE;
 	samplerInfo.maxAnisotropy = myVkContext.deviceProperties.limits.maxSamplerAnisotropy;
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.borderColor = aBorderColor;
 	samplerInfo.unnormalizedCoordinates = VK_FALSE;
 	samplerInfo.compareEnable = VK_FALSE;
-	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerInfo.compareOp = aCompareOp;
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	samplerInfo.mipLodBias = 0.0f;
 	samplerInfo.minLod = 0.f;
 	samplerInfo.maxLod = static_cast<float>(myMipLevels); // or VK_LOD_CLAMP_NONE
-
-	myTextureSampler = myVkContext.CreateSampler(samplerInfo);
-}
-
-void AM_VkRenderCore::CreateCubeMapSampler()
-{
-	VkSamplerCreateInfo samplerInfo{};
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.anisotropyEnable = VK_TRUE;
-	samplerInfo.maxAnisotropy = myVkContext.deviceProperties.limits.maxSamplerAnisotropy;
-	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
-	samplerInfo.compareEnable = VK_FALSE;
-	samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.mipLodBias = 0.0f;
-	samplerInfo.minLod = 0.f;
-	samplerInfo.maxLod = static_cast<float>(myCubeMapMipLevels); // or VK_LOD_CLAMP_NONE
-
-	myCubeMapSampler = myVkContext.CreateSampler(samplerInfo);
+	outSampler = myVkContext.CreateSampler(samplerInfo);
 }
 
 bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
@@ -945,17 +777,23 @@ bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
 void AM_VkRenderCore::LoadDefaultResources()
 {
 	// load textures
-	CreateTextureImage();
-	CreateTextureImageView();
-	CreateTextureSampler();
-
-	// #FIX_ME too much copy pasting
-	// #FIX_ME get rid of extra preprocessor defines
-	CreateCubeMapImage();
-	CreateCubeMapImageView();
-	CreateCubeMapSampler();
+	TempImage tmp;
+	VkImageView tmpView;
+	VkSampler tmpSamp;
+	const char* textures[1] = { AM_VkRenderCoreConstants::TEXTURE_PATH };
+	CreateTextureImage(tmp, textures, 1);
+	CreateImageView(tmpView, tmp.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1);
+	CreateTextureSampler(tmpSamp, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
+	
+	TempImage tmp2;
+	VkImageView tmpView2;
+	VkSampler tmpSamp2;
+	CreateTextureImage(tmp2, AM_VkRenderCoreConstants::CUBEMAP_TEXTURE_PATH, 6);
+	CreateImageView(tmpView2, tmp2.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 0, 6);
+	CreateTextureSampler(tmpSamp2, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER);
 
 	// load 3d models
+	// #FIX_ME refactor entity class
 	LoadEntities();
 	CreateUniformBuffers();
 

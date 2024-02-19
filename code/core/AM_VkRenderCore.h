@@ -50,18 +50,14 @@ private:
 	bool CheckInstanceLayerSupport();
 	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
 	void CreateDescriptorSets();
-	void CreateTextureImageView();
-	void CreateTextureImage();
+	void CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1);
 
-	void CreateCubeMapImage();
-	void CreateCubeMapImageView();
-
-	void CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, VkCommandBuffer aCommandBuffer);
+	void CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage, uint32_t aWidth, uint32_t aHeight, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer);
 	void CopyBuffer(VkBuffer aSourceBuffer, VmaAllocationInfo* anAllocationInfo, const TempBuffer* aDestinationBuffer);
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer);
 	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
 
-	void CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, void* aSource);
+	void CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, uint64_t aStrideSize, std::vector<void*>& someSources);
 	void UploadToBuffer(uint64_t aBufferSize, void* aSource, const TempBuffer* aBuffer);
 	void CreateVertexBuffer(AM_Entity& anEntity);
 	void CreateIndexBuffer(AM_Entity& anEntity);
@@ -77,8 +73,7 @@ private:
 	void EndOwnershipTransfer(VkCommandBuffer& aDstCommandBuffer, VkQueue& aDstQueue, VkSemaphore& aWaitSemaphore);
 	void LoadEntities();
 
-	void CreateTextureSampler();
-	void CreateCubeMapSampler();
+	void CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp);
 	bool HasStencilComponent(VkFormat format);
 	void LoadDefaultResources();
 
@@ -90,14 +85,6 @@ private:
 	std::vector<VkSemaphore> myTransferSemaphores;
 
 	VkDescriptorPool myGlobalDescriptorPool;
-
-	TempImage myTextureImage;
-	VkImageView myTextureImageView;
-	VkSampler myTextureSampler;
-
-	TempImage myCubeMapImage;
-	VkImageView myCubeMapImageView;
-	VkSampler myCubeMapSampler;
 
 	std::unordered_map<uint64_t, AM_Entity> myEntities;
 

@@ -7,7 +7,7 @@ namespace AM_VkRenderCoreConstants
 	constexpr static uint64_t SINGLEALLOCSIZE = 0x4000000;
 	constexpr static uint64_t UBO_ALIGNMENT = 0x200;
 
-	constexpr static const char* CUBEMAP_TEXTURE_PATH[6] =
+	static const char* CUBEMAP_TEXTURE_PATH[6] =
 	{
 		"../data/textures/cubemaps/Yokohama/posx.jpg",
 		"../data/textures/cubemaps/Yokohama/negx.jpg",
