@@ -1,8 +1,9 @@
 #pragma once
-#include "TempBuffer.h"
 #include "AM_Texture.h"
-#include <vulkan/vulkan.h>
+#include "AM_VkContext.h"
+#include "TempBuffer.h"
 #include <glm/glm.hpp>
+#include <vector>
 #include <memory>
 
 class AM_EntityStorage;
@@ -10,36 +11,38 @@ class AM_Entity
 {
 	friend AM_EntityStorage;
 public:
+	enum EntityType : uint8_t
+	{
+		MESH,
+		SKINNEDMESH,
+		PARTICLE,
+		BILLBOARD,
+		SKYBOX,
+		POINT,
+		LINE,
+	};
+
+	struct EntityUBO
+	{
+		glm::mat4 transform{ 1.f };
+		glm::mat4 transform2{ 1.f };
+		glm::mat4 transform3{ 1.f };
+		glm::mat4 transform4{ 1.f };
+	};
 	AM_Entity(AM_Entity&& anEntity) noexcept
 	{
 		*this = std::move(anEntity);
 	}
 
-	AM_Entity& operator=(AM_Entity&& anEntity) noexcept
-	{
-		if (this == &anEntity)
-			return *this;
-
-		myId = std::exchange(anEntity.myId, 0);
-		myTexture = anEntity.myTexture;
-		myTempVertexBuffer = anEntity.myTempVertexBuffer;
-		myTempIndexBuffer = anEntity.myTempIndexBuffer;
-		myColor = anEntity.myColor;
-		myTranslation = anEntity.myTranslation;
-		myScale = anEntity.myScale;
-		myRotation = anEntity.myRotation;
-		myLightIntensity = anEntity.myLightIntensity;
-		myIsSkybox = anEntity.myIsSkybox;
-		return *this;
-	}
-
 	AM_Entity(const AM_Entity& anEntity) = delete;
 	AM_Entity& operator=(const AM_Entity& anEntity) = delete;
-
+	
 	glm::mat4 GetNormalMatrix();
 	glm::mat4 GetMatrix();
 	
 	uint64_t GetId() const { return myId; }
+	EntityType GetType() const { return myType; }
+	void SetType(EntityType aType) { myType = aType; }
 
 	void SetIsEmissive(bool anIsEmissive) { myIsEmissive = anIsEmissive; }
 	bool IsEmissive() const { return myIsEmissive; }
@@ -58,26 +61,55 @@ public:
 
 	void SetVertexBuffer(TempBuffer aVertexBuffer) { myTempVertexBuffer = aVertexBuffer; }
 	void SetIndexBuffer(TempBuffer anIndexBuffer) { myTempIndexBuffer = anIndexBuffer; }
+	void SetUniformBuffer(TempBuffer aUniformBuffer) { myTempUniformBuffer = aUniformBuffer; }
 	const TempBuffer* GetTempVertexBuffer() const { return &myTempVertexBuffer; }
 	const TempBuffer* GetTempIndexBuffer() const { return &myTempIndexBuffer; }
+	const TempBuffer* GetUniformBuffer() const { return &myTempUniformBuffer; }
+
+	const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return myDescriptorSets; }
+	std::vector<VkDescriptorSet>& GetDescriptorSets()  { return myDescriptorSets; }
 
 	glm::vec3 myTranslation{ 0.f, 0.f, 0.f };
 	glm::vec3 myScale{ 1.f, 1.f, 1.f };
 	glm::vec3 myRotation{ 0.f, 0.f, 0.f };
 
 private:
+	AM_Entity& operator=(AM_Entity&& anEntity) noexcept
+	{
+		if (this == &anEntity)
+			return *this;
+
+		myId = std::exchange(anEntity.myId, 0);
+		myDescriptorSets = std::move(anEntity.myDescriptorSets);
+		myTexture = anEntity.myTexture;
+		myTempVertexBuffer = anEntity.myTempVertexBuffer;
+		myTempIndexBuffer = anEntity.myTempIndexBuffer;
+		myTempUniformBuffer = anEntity.myTempUniformBuffer;
+		myColor = anEntity.myColor;
+		myTranslation = anEntity.myTranslation;
+		myScale = anEntity.myScale;
+		myRotation = anEntity.myRotation;
+		myLightIntensity = anEntity.myLightIntensity;
+		myType = anEntity.myType;
+		myIsSkybox = anEntity.myIsSkybox;
+		myIsEmissive = anEntity.myIsEmissive;
+		return *this;
+	}
+
 	explicit AM_Entity(uint64_t anID);
 	static AM_Entity* CreateEntity();
 	void SetId(uint64_t anId) { myId = anId; }
 	
 	AM_Texture myTexture;
+	std::vector<VkDescriptorSet> myDescriptorSets;
 	TempBuffer myTempVertexBuffer;
 	TempBuffer myTempIndexBuffer;
+	TempBuffer myTempUniformBuffer;
 	glm::vec3 myColor;
-	
 	uint64_t myId;
 	float myLightIntensity;
-	bool myIsSkybox;
-	bool myIsEmissive;
+	EntityType myType;
+	bool myIsSkybox : 1;
+	bool myIsEmissive : 1;
 };
 

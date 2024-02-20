@@ -49,7 +49,7 @@ private:
 	bool CheckExtensionSupport();
 	bool CheckInstanceLayerSupport();
 	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
-	void CreateDescriptorSets();
+	void AllocatePerEntityDescriptorSets(AM_Entity& outEntity);
 	void CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1);
 	void CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp);
 	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
@@ -63,7 +63,7 @@ private:
 	void CreateVertexBuffer(AM_Entity& outEntity, std::vector<Vertex>& someVertices);
 	void CreateIndexBuffer(AM_Entity& outEntity, std::vector<uint32_t>& someIndices);
 
-	void CreateUniformBuffers();
+	void AllocatePerEntityUBO(AM_Entity& outEntity);
 	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime);
 
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
@@ -90,11 +90,6 @@ private:
 	VkDescriptorPool myGlobalDescriptorPool;
 
 	AM_EntityStorage* myEntityStorage = nullptr;
-
-	TempBuffer myUniformBuffer;
-
-	std::vector<VkDescriptorSet> myDescriptorSets;
-	std::vector<VkDescriptorSet> myCubeMapDescriptorSets;
 	
 	uint32_t myMipLevels;
 	uint32_t myCubeMapMipLevels;

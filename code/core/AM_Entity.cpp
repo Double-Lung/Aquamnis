@@ -1,4 +1,28 @@
 #include "AM_Entity.h"
+#include "AM_VkRenderCoreConstants.h"
+
+AM_Entity::AM_Entity(uint64_t anID)
+	: myTexture{}
+	, myTempVertexBuffer{}
+	, myTempIndexBuffer{}
+	, myTempUniformBuffer{}
+	, myColor{ 1.f, 1.f, 1.f }
+	, myTranslation{ 0.f, 0.f, 0.f }
+	, myScale{ 1.f, 1.f, 1.f }
+	, myRotation{ 0.f, 0.f, 0.f }
+	, myId(anID)
+	, myLightIntensity(0.f)
+	, myType(EntityType::MESH)
+	, myIsSkybox(false)
+	, myIsEmissive(false)
+{
+}
+
+AM_Entity* AM_Entity::CreateEntity()
+{
+	static uint64_t id = 1; // reserve 0
+	return new AM_Entity(id++);
+}
 
 glm::mat4 AM_Entity::GetNormalMatrix()
 {
@@ -70,25 +94,4 @@ glm::mat4 AM_Entity::GetMatrix()
 			1.0f
 		}
 	};
-}
-
-AM_Entity::AM_Entity(uint64_t anID) 
-	: myTexture{}
-	, myTempVertexBuffer{}
-	, myTempIndexBuffer{}
-	, myColor{ 1.f, 1.f, 1.f }
-	, myTranslation{ 0.f, 0.f, 0.f }
-	, myScale{ 1.f, 1.f, 1.f }
-	, myRotation{ 0.f, 0.f, 0.f }
-	, myId(anID)
-	, myLightIntensity(0.f)
-	, myIsSkybox(false)
-	, myIsEmissive(false)
-{
-}
-
-AM_Entity* AM_Entity::CreateEntity()
-{
-	static uint64_t id = 1; // reserve 0
-	return new AM_Entity(id++);
 }
