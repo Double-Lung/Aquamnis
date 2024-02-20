@@ -12,9 +12,11 @@ AM_Entity::AM_Entity(uint64_t anID)
 	, myRotation{ 0.f, 0.f, 0.f }
 	, myId(anID)
 	, myLightIntensity(0.f)
+	, myIndexBufferSize(0)
 	, myType(EntityType::MESH)
 	, myIsSkybox(false)
 	, myIsEmissive(false)
+	, myIsTransparent(false)
 {
 }
 

@@ -37,14 +37,15 @@ void AM_VkRenderMethodPoint::CreatePipeline_Imp(AM_VkDescriptorSetLayoutBuilder&
 	outBuilder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 }
 
-void AM_VkRenderMethodPoint::Render_Imp(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, const TempBuffer* aBuffer, const AM_Camera& /*aCamera*/)
+void AM_VkRenderMethodPoint::Render_Imp(AM_FrameRenderInfo& someInfo, std::vector<AM_Entity*>& /*someEntities*/, const TempBuffer* aBuffer)
 {
-	myPipeline.BindGraphics(aCommandBuffer);
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &aDescriptorSet, 0, nullptr);
+	VkCommandBuffer commandBuffer = someInfo.myCommandBuffer;
+	myPipeline.BindGraphics(commandBuffer);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &someInfo.myGlobalDescriptorSet, 0, nullptr);
 
 	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(aCommandBuffer, 0, 1, &aBuffer->myBuffer, offsets);
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &aBuffer->myBuffer, offsets);
 	static constexpr int PARTICLE_COUNT = 2000;
-	vkCmdDraw(aCommandBuffer, PARTICLE_COUNT, 1, 0, 0);
+	vkCmdDraw(commandBuffer, PARTICLE_COUNT, 1, 0, 0);
 }
 

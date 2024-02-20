@@ -12,6 +12,7 @@
 #include "AM_VmaUsage.h"
 #include "AM_EntityStorage.h"
 #include "AM_TempScene.h"
+#include "AM_FrameRenderInfo.h"
 #include <glm/glm.hpp>
 #include <cstdint>
 #include <cstdlib>
@@ -556,6 +557,7 @@ void AM_VkRenderCore::CreateIndexBuffer(AM_Entity& outEntity, std::vector<uint32
 	
 	UploadToBuffer(bufferSize, (void*)someIndices.data(), &indexBuffer);
 	outEntity.SetIndexBuffer(indexBuffer);
+	outEntity.SetIndexBufferSize(static_cast<uint32_t>(someIndices.size()));
 }
 
 VkDescriptorSetLayout AM_VkRenderCore::GePerEntitytDescriptorSetLayout(const AM_Entity& anEntity)
@@ -639,10 +641,6 @@ void AM_VkRenderCore::AllocatePerEntityUBO(AM_Entity& outEntity)
 	assert(allocationInfo.pMappedData != nullptr && "Uniform buffer is not mapped!");
 }
 
-
-
-
-
 void AM_VkRenderCore::AllocatePerEntityDescriptorSets(AM_Entity& outEntity)
 {
 	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, GePerEntitytDescriptorSetLayout(outEntity));
@@ -658,37 +656,16 @@ void AM_VkRenderCore::AllocatePerEntityDescriptorSets(AM_Entity& outEntity)
 	}
 }
 
-// #FIX_ME: need to move this out
-void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime)
+void AM_VkRenderCore::WriteEntityUniformBuffer(AM_Entity& anEntity)
 {
-	UniformBufferObject ubo{};
-	ubo.view = aCamera.GetViewMatrix();
-	ubo.projection = aCamera.GetProjectionMatrix();
-	ubo.inverseView = aCamera.GetInverseViewMatrix();
-	ubo.ambientColor = { 1.f, 1.f, 1.f, 0.03f };
 
-	int lightIndex = 0;
-	for (auto& kv : someEntites)
-	{
-		auto& entity = kv.second;
-		if (!entity.IsEmissive())
-			continue;
-
-		ubo.pointLightData[lightIndex].position = glm::vec4(entity.myTranslation, 1.f);
-		ubo.pointLightData[lightIndex].color = glm::vec4(entity.GetColor(), entity.GetLightIntensity());
-		++lightIndex;
-	}
-	ubo.numLights = lightIndex;
-	ubo.deltaTime = aDeltaTime;
-
-	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
-	vmaCopyMemoryToAllocation(myVMA, &ubo, myUniformBuffer.myAllocation, currentImage * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
 }
 
-void AM_VkRenderCore::UpdateSceneUBO(AM_TempScene& aScene)
+void AM_VkRenderCore::WriteSceneUbiformBuffer(AM_TempScene& aScene)
 {
-	// check if update is needed
-
+	if (!aScene.GetShouldUpdateUniformBuffer())
+		return;
+	
 	GlobalUBO& ubo = aScene.GetUBO();
 	static_assert(sizeof(GlobalUBO) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
 	vmaCopyMemoryToAllocation(myVMA, &ubo, aScene.GetUniformBuffer()->myAllocation, myRenderContext->GetFrameIndex() * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(GlobalUBO));
@@ -961,41 +938,44 @@ void AM_VkRenderCore::Setup()
 		attriDesc.data());
 }
 
-// #FIX_ME: need to move this out
-void AM_VkRenderCore::MainLoop()
+void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_EntityStorage& anEntityStorage)
 {
-	AM_Camera camera;
-	camera.myTransformComp.myTranslation = { 0.f, 15.f, 35.f };
-	camera.myTransformComp.myRotation = { 0.f, 0.f, 0.f };
-	camera.SetPerspectiveProjection(0.7854f, myRenderContext->GetAspectRatio(), 0.1f, 100.f);
-	camera.SetRotation(camera.myTransformComp.myTranslation, camera.myTransformComp.myRotation);
-
-	while (!myWindowInstance.ShouldCloseWindow())
+	if (auto commandBufer = myRenderContext->BeginFrame())
 	{
-		glfwPollEvents();
-		float deltaTime = AM_SimpleTimer::GetInstance().GetDeltaTime();
-		if (auto commandBufer = myRenderContext->BeginFrame())
+		WriteSceneUbiformBuffer(aScene);
+
+		/*
+		* compute work needs to be submitted before starting any render pass
+		*/
+
+		uint32_t frameIdx = myRenderContext->GetFrameIndex();
+		AM_FrameRenderInfo info
 		{
-			UpdateCameraTransform(deltaTime, camera);
-			UpdateUniformBuffer(myRenderContext->GetFrameIndex(), camera, myEntities, deltaTime);
-			
-			myRenderContext->BeginRenderPass(commandBufer);
+			commandBufer,
+			aScene.GetDescriptorSets()[frameIdx],
+			&anEntityStorage,
+			&aCamera,
+			frameIdx
+		};
 
-			myCubeMapRenderMethod->Render(commandBufer, myCubeMapDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
-			myMeshRenderMethod->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
-			myBillboardRenderMethod->Render(commandBufer, myDescriptorSets[myRenderContext->GetFrameIndex()], myEntities, camera);
+		myRenderContext->BeginRenderPass(commandBufer);
 
-			myRenderContext->EndRenderPass(commandBufer);
-			myRenderContext->EndFrame();
+		std::vector<AM_Entity*> entities = { anEntityStorage.GetIfExist(aScene.GetSkyboxId()) };
+		myCubeMapRenderMethod->Render(info, entities);
 
-			if (myWindowInstance.ShouldUpdateCamera())
-			{
-				camera.SetPerspectiveProjection(0.7854f, myRenderContext->GetAspectRatio(), 0.1f, 100.f);
-				myWindowInstance.ResetCameraUpdateFlag();
-			}
-		}
+		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::MESH);
+		myMeshRenderMethod->Render(info, entities);
+
+		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::BILLBOARD);
+		myBillboardRenderMethod->Render(info, entities);
+
+		myRenderContext->EndRenderPass(commandBufer);
+		myRenderContext->EndFrame();
 	}
+}
 
+void AM_VkRenderCore::OnEnd()
+{
 	vkDeviceWaitIdle(myVkContext.device);
 }
 
@@ -1064,7 +1044,7 @@ AM_Entity* AM_VkRenderCore::LoadSkybox(const char** someTexturePaths, AM_EntityS
 
 AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, AM_Entity::EntityType aType)
 {
-	AM_Entity* entity = myEntityStorage->Add();
+	AM_Entity* entity = anEntityStorage.Add();
 	entity->SetType(aType);
 
 	if (aModelPath)

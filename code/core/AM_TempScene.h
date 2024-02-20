@@ -31,7 +31,8 @@ public:
 		, myUniformBuffer{}
 		, myDescriptorSetLayout(nullptr)
 		, myCamera(nullptr)
-		, myShouldUpdateUniformBuffer(true)
+		, mySkybox(0)
+		, myShouldUpdateUniformBuffer(false)
 	{
 	}
 
@@ -58,17 +59,21 @@ public:
 	void UpdateUBO_DirectLighting(const glm::vec3& aLightDirection);
 	void UpdateUBO_AmbientColor(const glm::vec4& aColor);
 
-	void AddPointLight(uint64_t anId)
-	{
-		myPointLights.push_back(anId);
-	}
+	void AddMeshObject(uint64_t anId);
+	void AddPointLight(uint64_t anId);
+	void AddSkybox(uint64_t anId);
+
+	uint64_t GetSkyboxId() const { return mySkybox; }
+	bool GetShouldUpdateUniformBuffer() const { return myShouldUpdateUniformBuffer; }
 
 private:
 	GlobalUBO myUBO;
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	std::vector<uint64_t> myPointLights;
+	std::vector<uint64_t> myMeshObjects;
 	TempBuffer myUniformBuffer;
 	VkDescriptorSetLayout myDescriptorSetLayout;
 	AM_Camera* myCamera;
+	uint64_t mySkybox;
 	bool myShouldUpdateUniformBuffer : 1;
 };

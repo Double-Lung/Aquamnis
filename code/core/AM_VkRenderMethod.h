@@ -2,6 +2,7 @@
 #include "AM_VkContext.h"
 #include "AM_VkPipeline.h"
 #include "AM_PipelineUtils.h"
+#include "AM_FrameRenderInfo.h"
 #include "AM_VkDescriptorSetLayoutBuilder.h"
 #include <unordered_map>
 
@@ -28,9 +29,7 @@ public:
 	AM_VkRenderMethod(const AM_VkRenderMethod&) = delete;
 	AM_VkRenderMethod& operator=(const AM_VkRenderMethod&) = delete;
 
-	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, const TempBuffer* aBuffer, const AM_Camera& aCamera); // #FIX_ME: refactor into a common interface
-	void Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera);
-
+	void Render(AM_FrameRenderInfo& someInfo, std::vector<AM_Entity*> someEntities, const TempBuffer* aBuffer = nullptr);
 	VkDescriptorSetLayout GetDescriptorSetLayout() { return myPipeline.GetDescriptorSetLayout(); }
 
 protected:
@@ -48,7 +47,6 @@ private:
 		const VkVertexInputAttributeDescription* anAttributeDescription);
 };
 
-
 template <class ImpClass>
 AM_VkRenderMethod<ImpClass>::AM_VkRenderMethod(AM_VkContext& aVkContext, const VkRenderPass aRenderPass, const std::string& aVertexShaderPath, const std::string& aFragmentShaderPath, uint32_t aBindingDescriptionCount, uint32_t anAttributeDescriptionCount, const VkVertexInputBindingDescription* aBindingDescription, const VkVertexInputAttributeDescription* anAttributeDescription)
 	: myVkContext(aVkContext)
@@ -65,15 +63,9 @@ AM_VkRenderMethod<ImpClass>::AM_VkRenderMethod(AM_VkContext& aVkContext, const V
 }
 
 template <class ImpClass>
-void AM_VkRenderMethod<ImpClass>::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera)
+void AM_VkRenderMethod<ImpClass>::Render(AM_FrameRenderInfo& someInfo, std::vector<AM_Entity*> someEntities, const TempBuffer* aBuffer /*= nullptr*/)
 {
-	THIS(ImpClass)->Render_Imp(aCommandBuffer, aDescriptorSet, someEntites, aCamera);
-}
-
-template <class ImpClass>
-void AM_VkRenderMethod<ImpClass>::Render(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, const TempBuffer* aBuffer, const AM_Camera& aCamera)
-{
-	THIS(ImpClass)->Render_Imp(aCommandBuffer, aDescriptorSet, aBuffer, aCamera);
+	THIS(ImpClass)->Render_Imp(someInfo, someEntities, aBuffer);
 }
 
 template <class ImpClass>
@@ -102,3 +94,5 @@ void AM_VkRenderMethod<ImpClass>::CreatePipeline(const VkRenderPass aRenderPass,
 	AM_PipelineUtils::FillPiplineCreateInfo(pipelineInfo, graphicsInitializer);
 	myPipeline.CreatePipeline(aVertexShaderPath, aFragmentShaderPath, builder, pipelineInfo, rangePtr);
 }
+
+#undef THIS(DERIVED)

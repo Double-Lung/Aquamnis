@@ -37,41 +37,49 @@ void AM_VkRenderMethodBillboard::CreatePipeline_Imp(AM_VkDescriptorSetLayoutBuil
 	outRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 }
 
-void AM_VkRenderMethodBillboard::Render_Imp(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera)
+void AM_VkRenderMethodBillboard::Render_Imp(AM_FrameRenderInfo& someInfo, std::vector<AM_Entity*>& someEntities, const TempBuffer* /*aBuffer*/)
 {
-	myPipeline.BindGraphics(aCommandBuffer);
+	VkCommandBuffer commandBuffer = someInfo.myCommandBuffer;
+	myPipeline.BindGraphics(commandBuffer);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &someInfo.myGlobalDescriptorSet, 0, nullptr);
 
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &aDescriptorSet, 0, nullptr);
-
-	std::vector<uint64_t> sortedPointLights;
-	for (auto& kv : someEntites)
+	std::vector<AM_Entity*> sortedEntities;
+	std::vector<AM_Entity*> normalEntities;
+	for (AM_Entity* entity : someEntities)
 	{
-		auto& entity = kv.second;
-		if (!entity.HasPointLightComponent())
-			continue;
-		sortedPointLights.push_back(kv.first);
+		if (entity->IsTransparent())
+			sortedEntities.push_back(entity);
+		else
+			normalEntities.push_back(entity);
 	}
 
-	glm::vec3 camPos = aCamera.GetPosition();
-
-	std::sort(sortedPointLights.begin(), sortedPointLights.end(), [&someEntites, &camPos](uint64_t Ida, uint64_t Idb) -> bool
-		{
-			glm::vec3 offset1 = camPos - someEntites.at(Ida).GetTransformComponent().myTranslation;
-			glm::vec3 offset2 = camPos - someEntites.at(Idb).GetTransformComponent().myTranslation;
-			return glm::dot(offset1, offset1) > glm::dot(offset2, offset2);
-		});
-
-	for (auto id : sortedPointLights)
+	glm::vec3 camPos = someInfo.myCamera->GetPosition();
+	std::sort(sortedEntities.begin(), sortedEntities.end(), [&camPos](AM_Entity* lh, AM_Entity* rh) -> bool
 	{
-		auto& entity = someEntites.at(id);
-		PointLightPushConstants push{};
-		push.position = glm::vec4(entity.GetTransformComponent().myTranslation, 1.f);
-		push.color = glm::vec4(entity.GetColor(), entity.GetPointLightIntensity());
-		push.radius = 0.1f;
+		glm::vec3 offset1 = camPos - lh->myTranslation;
+		glm::vec3 offset2 = camPos - rh->myTranslation;
+		return glm::dot(offset1, offset1) > glm::dot(offset2, offset2);
+	});
 
-		vkCmdPushConstants(aCommandBuffer, myPipeline.GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PointLightPushConstants), &push);
+	// draw opaque first
+	for (AM_Entity* entity : normalEntities)
+	{
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 1, 1, &entity->GetDescriptorSets()[someInfo.myFrameIndex], 0, nullptr);
+// 		PointLightPushConstants push{};
+// 		push.position = glm::vec4(entity.GetTransformComponent().myTranslation, 1.f);
+// 		push.color = glm::vec4(entity.GetColor(), entity.GetPointLightIntensity());
+// 		push.radius = 0.1f;
+		vkCmdDraw(commandBuffer, 6, 1, 0, 0);  // draw 6 vertices for a quad
+	}
 
-		vkCmdDraw(aCommandBuffer, 6, 1, 0, 0);
+	for (AM_Entity* entity : sortedEntities)
+	{
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 1, 1, &entity->GetDescriptorSets()[someInfo.myFrameIndex], 0, nullptr);
+// 		PointLightPushConstants push{};
+// 		push.position = glm::vec4(entity.GetTransformComponent().myTranslation, 1.f);
+// 		push.color = glm::vec4(entity.GetColor(), entity.GetPointLightIntensity());
+// 		push.radius = 0.1f;
+		vkCmdDraw(commandBuffer, 6, 1, 0, 0);
 	}
 }
 

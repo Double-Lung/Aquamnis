@@ -28,7 +28,8 @@ class AM_VkRenderCore
 {
 public:
 	void Setup();
-	void MainLoop();
+	void Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_EntityStorage& anEntityStorage);
+	void OnEnd();
 	void InitScene(AM_TempScene& aScene);
 	AM_Entity* LoadSkybox(const char** someTexturePaths, AM_EntityStorage& anEntityStorage);
 	AM_Entity* LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, AM_Entity::EntityType aType);
@@ -76,9 +77,8 @@ private:
 	void AllocatePerEntityUBO(AM_Entity& outEntity);
 	void AllocatePerEntityDescriptorSets(AM_Entity& outEntity);
 
-	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime);
-	void UpdateEntityUBO(AM_Entity& anEntity);
-	void UpdateSceneUBO(AM_TempScene& aScene);
+	void WriteEntityUniformBuffer(AM_Entity& anEntity);
+	void WriteSceneUbiformBuffer(AM_TempScene& aScene);
 
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
 	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);

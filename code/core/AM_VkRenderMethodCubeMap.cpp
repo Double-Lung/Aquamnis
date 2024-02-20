@@ -40,22 +40,24 @@ void AM_VkRenderMethodCubeMap::CreatePipeline_Imp(AM_VkDescriptorSetLayoutBuilde
 	outBuilder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 }
 
-void AM_VkRenderMethodCubeMap::Render_Imp(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& /*aCamera*/)
+void AM_VkRenderMethodCubeMap::Render_Imp(AM_FrameRenderInfo& someInfo, std::vector<AM_Entity*>& someEntities, const TempBuffer* /*aBuffer*/)
 {
-	myPipeline.BindGraphics(aCommandBuffer);
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &aDescriptorSet, 0, nullptr);
-	for (auto& entry : someEntites)
-	{
-		auto& entity = entry.second;
-		if (!entity.GetIsCube())
-			continue;
-		const TempBuffer* vertexBuffer = entity.GetTempVertexBuffer();
-		const TempBuffer* indexBuffer = entity.GetTempIndexBuffer();
-		VkBuffer vertexBuffers[] = { vertexBuffer->myBuffer };
-		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(aCommandBuffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(aCommandBuffer, indexBuffer->myBuffer, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdDrawIndexed(aCommandBuffer, static_cast<uint32_t>(entity.GetIndices().size()), 1, 0, 0, 0);
-	}
+	AM_Entity* skyboxEntity = someEntities[0];
+	if (!skyboxEntity->GetIsSkybox())
+		return;
+
+	VkCommandBuffer commandBuffer = someInfo.myCommandBuffer;
+	myPipeline.BindGraphics(commandBuffer);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &someInfo.myGlobalDescriptorSet, 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 1, 1, &skyboxEntity->GetDescriptorSets()[someInfo.myFrameIndex], 0, nullptr);
+
+	const TempBuffer* vertexBuffer = skyboxEntity->GetTempVertexBuffer();
+	const TempBuffer* indexBuffer = skyboxEntity->GetTempIndexBuffer();
+	VkBuffer vertexBuffers[] = { vertexBuffer->myBuffer };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(commandBuffer, indexBuffer->myBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdDrawIndexed(commandBuffer, skyboxEntity->GetIndexBufferSize(), 1, 0, 0, 0);
+
 }
 

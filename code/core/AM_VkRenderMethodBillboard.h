@@ -5,7 +5,6 @@
 struct TempBuffer;
 class AM_Entity;
 class AM_Camera;
-
 class AM_VkRenderMethodBillboard : public AM_VkRenderMethod<AM_VkRenderMethodBillboard>
 {
 public:
@@ -23,8 +22,7 @@ public:
 	AM_VkRenderMethodBillboard& operator=(const AM_VkRenderMethodBillboard&) = delete;
 
 	void CreatePipeline_Imp(AM_VkDescriptorSetLayoutBuilder& outBuilder, VkPushConstantRange& outRange, AM_PipelineUtils::GraphicsInitializer& outPipelineInitializer);
-	void Render_Imp(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, const TempBuffer* aBuffer, const AM_Camera& aCamera);
-	void Render_Imp(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera);
+	void Render_Imp(AM_FrameRenderInfo& someInfo, std::vector<AM_Entity*>& someEntities, const TempBuffer* aBuffer);
 
 private:
 	struct PointLightPushConstants

@@ -42,3 +42,18 @@ void AM_TempScene::UpdateUBO_AmbientColor(const glm::vec4& aColor)
 	myUBO.ambientColor = aColor;
 	myShouldUpdateUniformBuffer = true;
 }
+
+void AM_TempScene::AddMeshObject(uint64_t anId)
+{
+	myMeshObjects.push_back(anId);
+}
+
+void AM_TempScene::AddPointLight(uint64_t anId)
+{
+	myPointLights.push_back(anId);
+}
+
+void AM_TempScene::AddSkybox(uint64_t anId)
+{
+	mySkybox = anId;
+}

@@ -69,6 +69,12 @@ public:
 	const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return myDescriptorSets; }
 	std::vector<VkDescriptorSet>& GetDescriptorSets()  { return myDescriptorSets; }
 
+	void SetTransparency(bool anIsTransparent) { myIsTransparent = anIsTransparent; }
+	bool IsTransparent() const { return myIsTransparent; }
+
+	void SetIndexBufferSize(uint32_t aSize) { myIndexBufferSize = aSize; }
+	uint32_t GetIndexBufferSize() const { return myIndexBufferSize; }
+
 	glm::vec3 myTranslation{ 0.f, 0.f, 0.f };
 	glm::vec3 myScale{ 1.f, 1.f, 1.f };
 	glm::vec3 myRotation{ 0.f, 0.f, 0.f };
@@ -90,9 +96,11 @@ private:
 		myScale = anEntity.myScale;
 		myRotation = anEntity.myRotation;
 		myLightIntensity = anEntity.myLightIntensity;
+		myIndexBufferSize = anEntity.myIndexBufferSize;
 		myType = anEntity.myType;
 		myIsSkybox = anEntity.myIsSkybox;
 		myIsEmissive = anEntity.myIsEmissive;
+		myIsTransparent = anEntity.myIsTransparent;
 		return *this;
 	}
 
@@ -108,8 +116,10 @@ private:
 	glm::vec3 myColor;
 	uint64_t myId;
 	float myLightIntensity;
+	uint32_t myIndexBufferSize;
 	EntityType myType;
 	bool myIsSkybox : 1;
 	bool myIsEmissive : 1;
+	bool myIsTransparent : 1;
 };
 

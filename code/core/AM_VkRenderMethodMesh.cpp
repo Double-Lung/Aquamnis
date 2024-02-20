@@ -35,26 +35,20 @@ void AM_VkRenderMethodMesh::CreatePipeline_Imp(AM_VkDescriptorSetLayoutBuilder& 
 	outRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 }
 
-void AM_VkRenderMethodMesh::Render_Imp(VkCommandBuffer aCommandBuffer, VkDescriptorSet aDescriptorSet, std::unordered_map<uint64_t, AM_Entity>& someEntites, const AM_Camera& aCamera)
+void AM_VkRenderMethodMesh::Render_Imp(AM_FrameRenderInfo& someInfo, std::vector<AM_Entity*>& someEntities, const TempBuffer* /*aBuffer*/)
 {
-	myPipeline.BindGraphics(aCommandBuffer);
-	PushConstantData push;
-	vkCmdBindDescriptorSets(aCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &aDescriptorSet, 0, nullptr);
-	for (auto& entry : someEntites)
+	VkCommandBuffer commandBuffer = someInfo.myCommandBuffer;
+	myPipeline.BindGraphics(commandBuffer);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &someInfo.myGlobalDescriptorSet, 0, nullptr);
+	for (AM_Entity* entity : someEntities)
 	{
-		auto& entity = entry.second;
-		if (entity.HasPointLightComponent() || entity.GetIsCube())
-			continue;
-		const TempBuffer* vertexBuffer = entity.GetTempVertexBuffer();
-		const TempBuffer* indexBuffer = entity.GetTempIndexBuffer();
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 1, 1, &entity->GetDescriptorSets()[someInfo.myFrameIndex], 0, nullptr);
+		const TempBuffer* vertexBuffer = entity->GetTempVertexBuffer();
+		const TempBuffer* indexBuffer = entity->GetTempIndexBuffer();
 		VkBuffer vertexBuffers[] = { vertexBuffer->myBuffer };
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(aCommandBuffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(aCommandBuffer, indexBuffer->myBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-		push.normalMat = entity.GetTransformComponent().GetNormalMatrix();
-		push.transform = entity.GetTransformComponent().GetMatrix();
-		vkCmdPushConstants(aCommandBuffer, myPipeline.GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
-		vkCmdDrawIndexed(aCommandBuffer, static_cast<uint32_t>(entity.GetIndices().size()), 1, 0, 0, 0);
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, indexBuffer->myBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(commandBuffer, entity->GetIndexBufferSize(), 1, 0, 0, 0);
 	}
 }
