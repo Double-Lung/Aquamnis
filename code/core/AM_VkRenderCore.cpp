@@ -8,8 +8,10 @@
 #include "AM_SimpleTimer.h"
 #include "AM_Texture.h"
 #include "AM_VkDescriptorSetWritesBuilder.h"
+#include "AM_Window.h"
 #include "AM_VmaUsage.h"
 #include "AM_EntityStorage.h"
+#include "AM_TempScene.h"
 #include <glm/glm.hpp>
 #include <cstdint>
 #include <cstdlib>
@@ -19,10 +21,10 @@
 #include <random>
 #include <unordered_map>
 
-AM_VkRenderCore::AM_VkRenderCore()
-	: myVkContext{}
+AM_VkRenderCore::AM_VkRenderCore(AM_Window& aWindowInstance)
+	: myWindowInstance(aWindowInstance)
+	, myVkContext{}
 	, myMipLevels(0)
-	, myCubeMapMipLevels(0)
 {
 }
 
@@ -577,7 +579,7 @@ VkDescriptorSetLayout AM_VkRenderCore::GePerEntitytDescriptorSetLayout(const AM_
 	}
 }
 
-void AM_VkRenderCore::GenerateDescriptorInfo(AM_VkDescriptorSetWritesBuilder& outBuilder, const AM_Entity& anEntity, int aFrameNumber)
+void AM_VkRenderCore::GeneratePerEntityDescriptorInfo(AM_VkDescriptorSetWritesBuilder& outBuilder, const AM_Entity& anEntity, int aFrameNumber)
 {
 	VkDescriptorBufferInfo bufferInfo{};
 	bufferInfo.buffer = anEntity.GetUniformBuffer()->myBuffer;
@@ -637,6 +639,10 @@ void AM_VkRenderCore::AllocatePerEntityUBO(AM_Entity& outEntity)
 	assert(allocationInfo.pMappedData != nullptr && "Uniform buffer is not mapped!");
 }
 
+
+
+
+
 void AM_VkRenderCore::AllocatePerEntityDescriptorSets(AM_Entity& outEntity)
 {
 	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, GePerEntitytDescriptorSetLayout(outEntity));
@@ -647,7 +653,7 @@ void AM_VkRenderCore::AllocatePerEntityDescriptorSets(AM_Entity& outEntity)
 	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		AM_VkDescriptorSetWritesBuilder writter{ myGlobalDescriptorPool };
-		GenerateDescriptorInfo(writter, outEntity, i);
+		GeneratePerEntityDescriptorInfo(writter, outEntity, i);
 		myVkContext.WriteToDescriptorSet(descriptorSets[i], writter.GetWrites());
 	}
 }
@@ -677,6 +683,15 @@ void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera
 
 	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
 	vmaCopyMemoryToAllocation(myVMA, &ubo, myUniformBuffer.myAllocation, currentImage * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
+}
+
+void AM_VkRenderCore::UpdateSceneUBO(AM_TempScene& aScene)
+{
+	// check if update is needed
+
+	GlobalUBO& ubo = aScene.GetUBO();
+	static_assert(sizeof(GlobalUBO) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
+	vmaCopyMemoryToAllocation(myVMA, &ubo, aScene.GetUniformBuffer()->myAllocation, myRenderContext->GetFrameIndex() * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(GlobalUBO));
 }
 
 void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
@@ -826,10 +841,6 @@ void AM_VkRenderCore::LoadVertexData(AM_Entity& outEntity, const char* aFilePath
 
 void AM_VkRenderCore::Setup()
 {
-	// #FIX_ME: need to move window out
-	// #FIX_ME: need to create global ubo
-	myWindowInstance.Init();
-
 	if (!CheckExtensionSupport())
 		throw std::runtime_error("extensions requested by GLFW, but not available!");
 
@@ -988,6 +999,55 @@ void AM_VkRenderCore::MainLoop()
 	vkDeviceWaitIdle(myVkContext.device);
 }
 
+void AM_VkRenderCore::InitScene(AM_TempScene& aScene)
+{
+	// create ubo
+	static constexpr uint64_t bufferSize = AM_VkRenderCoreConstants::UBO_ALIGNMENT * AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
+
+	VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	bufferInfo.size = bufferSize;
+	bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+	TempBuffer uniformBuffer;
+	VmaAllocationInfo allocationInfo;
+	VkResult result = vmaCreateBuffer(myVMA, &bufferInfo, &allocInfo, &uniformBuffer.myBuffer, &uniformBuffer.myAllocation, &allocationInfo);
+	aScene.SetUniformBuffer(uniformBuffer);
+
+	assert(result == VK_SUCCESS && "failed to create uniform buffer!");
+	assert(allocationInfo.pMappedData != nullptr && "Uniform buffer is not mapped!");
+
+	// create descriptor set layout
+	AM_VkDescriptorSetLayoutBuilder layoutBuilder;
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	layoutBuilder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
+	layoutBuilder.GetBindings(bindings);
+	VkDescriptorSetLayout descriptorSetLayout = myVkContext.CreateDescriptorSetLayout(bindings);
+	aScene.SetDescriptorSetLayout(descriptorSetLayout);
+
+	// create descriptor sets
+	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+	std::vector<VkDescriptorSet>& globalDescriptorSets = aScene.GetDescriptorSets();
+	globalDescriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, layouts, globalDescriptorSets);
+
+	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		AM_VkDescriptorSetWritesBuilder builder{ myGlobalDescriptorPool };
+
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = aScene.GetUniformBuffer()->myBuffer;
+		bufferInfo.offset = i * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
+		bufferInfo.range = sizeof(GlobalUBO); // or VK_WHOLE_SIZE
+
+		builder.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		myVkContext.WriteToDescriptorSet(globalDescriptorSets[i], builder.GetWrites());
+	}
+}
+
 AM_Entity* AM_VkRenderCore::LoadSkybox(const char** someTexturePaths, AM_EntityStorage& anEntityStorage)
 {
 	AM_Entity* skybox = anEntityStorage.Add();
@@ -1022,80 +1082,4 @@ AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char
 	AllocatePerEntityDescriptorSets(*entity);
 
 	return entity;
-}
-
-// #FIX_ME: need to move this out
-void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera)
-{
-	bool rotationChanged = false;
-	glm::vec3 rotation{ 0.f };
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_LEFT) == GLFW_PRESS)
-	{
-		rotationChanged = true;
-		rotation.y += 1.f;
-	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_RIGHT) == GLFW_PRESS)
-	{
-		rotationChanged = true;
-		rotation.y -= 1.f;
-	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_UP) == GLFW_PRESS)
-	{
-		rotationChanged = true;
-		rotation.x += 1.f;
-	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_DOWN) == GLFW_PRESS)
-	{
-		rotationChanged = true;
-		rotation.x -= 1.f;
-	}
-	if (rotationChanged)
-		aCamera.myTransformComp.myRotation += 1.5f * aDeltaTime * glm::normalize(rotation);
-
-	aCamera.myTransformComp.myRotation.x = glm::clamp(aCamera.myTransformComp.myRotation.x, -1.5f, 1.5f);
-	aCamera.myTransformComp.myRotation.y = glm::mod(aCamera.myTransformComp.myRotation.y, glm::two_pi<float>());
-
-	const float yaw = aCamera.myTransformComp.myRotation.y;
-	glm::vec3 forwardDir{ -sin(yaw), 0.f, -cos(yaw) }; // camera is facing -z axis by default
-	glm::vec3 rightDir{ -forwardDir.z, 0.f, forwardDir.x };
-	glm::vec3 upDir{ 0.f, 1.f, 0.f };
-
- 	bool translateChanged = false;
-	glm::vec3 translate{ 0.f };
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_A) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate -= rightDir;
-	} 
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_D) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate += rightDir;
-	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_W) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate += forwardDir;
-	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_S) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate -= forwardDir;
-	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_Q) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate += upDir;
-	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_E) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate -= upDir;
-	}
-
-	if (translateChanged)
-		aCamera.myTransformComp.myTranslation += 5.f * aDeltaTime * glm::normalize(translate);
-
-	if (translateChanged || rotationChanged)
-		aCamera.SetRotation(aCamera.myTransformComp.myTranslation, aCamera.myTransformComp.myRotation);
 }

@@ -3,7 +3,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 AM_Camera::AM_Camera()
-	: myTransformComp{}
+	: myTranslation{}
+	, myRotation{}
 	, myProjectionMatrix{1.0f}
 	, myViewMatrix{1.0f}
 	, myInverseViewMatrix{1.f}

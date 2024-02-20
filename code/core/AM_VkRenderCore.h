@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AM_VkSwapChain.h"
-#include "AM_Window.h"
 #include "TempBuffer.h"
 #include "TempImage.h"
 #include "AM_Entity.h"
@@ -18,7 +17,9 @@ class AM_VkRenderMethodCubeMap;
 class AM_VkRenderMethodPoint;
 class AM_VkDescriptorSetWritesBuilder;
 class AM_Camera;
+class AM_Window;
 class AM_EntityStorage;
+class AM_TempScene;
 
 struct VmaAllocationInfo;
 VK_DEFINE_HANDLE(VmaAllocation);
@@ -28,10 +29,11 @@ class AM_VkRenderCore
 public:
 	void Setup();
 	void MainLoop();
+	void InitScene(AM_TempScene& aScene);
 	AM_Entity* LoadSkybox(const char** someTexturePaths, AM_EntityStorage& anEntityStorage);
 	AM_Entity* LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, AM_Entity::EntityType aType);
 
-	AM_VkRenderCore();
+	explicit AM_VkRenderCore(AM_Window& aWindowInstance);
 	~AM_VkRenderCore();
 	
 private:
@@ -70,11 +72,13 @@ private:
 	void CreateIndexBuffer(AM_Entity& outEntity, std::vector<uint32_t>& someIndices);
 
 	VkDescriptorSetLayout GePerEntitytDescriptorSetLayout(const AM_Entity& anEntity);
-	void GenerateDescriptorInfo(AM_VkDescriptorSetWritesBuilder& outBuilder, const AM_Entity& anEntity, int aFrameNumber);
+	void GeneratePerEntityDescriptorInfo(AM_VkDescriptorSetWritesBuilder& outBuilder, const AM_Entity& anEntity, int aFrameNumber);
 	void AllocatePerEntityUBO(AM_Entity& outEntity);
 	void AllocatePerEntityDescriptorSets(AM_Entity& outEntity);
 
 	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime);
+	void UpdateEntityUBO(AM_Entity& anEntity);
+	void UpdateSceneUBO(AM_TempScene& aScene);
 
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
 	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
@@ -88,19 +92,13 @@ private:
 	void LoadModel(std::vector<Vertex>& outVertices, std::vector<uint32_t>& outIndices, const char* aFilePath);
 	void LoadVertexData(AM_Entity& outEntity, const char* aFilePath);
 
-	void UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera);
-
-	AM_Window myWindowInstance;
+	AM_Window& myWindowInstance;
 	AM_VkContext myVkContext;
 
 	std::vector<VkSemaphore> myTransferSemaphores;
-
 	VkDescriptorPool myGlobalDescriptorPool;
 
-	AM_EntityStorage* myEntityStorage = nullptr;
-	
 	uint32_t myMipLevels;
-	uint32_t myCubeMapMipLevels;
 	VmaAllocator myVMA = nullptr;
 	AM_VkRenderContext* myRenderContext = nullptr;
 	AM_VkRenderMethodMesh* myMeshRenderMethod = nullptr;
