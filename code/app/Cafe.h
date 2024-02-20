@@ -1,5 +1,7 @@
 #pragma once
 
+class AM_EntityStorage;
+class AM_VkRenderCore;
 class Cafe
 {
 public:
@@ -10,5 +12,6 @@ private:
 	void Update();
 	void LoadDefaultScene();
 
+	AM_EntityStorage* myEntityStorage;
 	AM_VkRenderCore* myRenderCore;
 };

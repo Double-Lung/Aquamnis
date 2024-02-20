@@ -6,12 +6,9 @@
 #include "AM_VkRenderMethodPoint.h"
 #include "AM_Camera.h"
 #include "AM_SimpleTimer.h"
-#include "AM_Particle.h"
-#include "AM_VertexInfo.h"
 #include "AM_Texture.h"
 #include "AM_VkDescriptorSetWritesBuilder.h"
 #include "AM_VmaUsage.h"
-#include "AM_Entity.h"
 #include "AM_EntityStorage.h"
 #include <glm/glm.hpp>
 #include <cstdint>
@@ -113,31 +110,6 @@ void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, 
 	viewInfo.subresourceRange.layerCount = aLayerCount;
 
 	outImageView = myVkContext.CreateImageView(viewInfo);
-}
-
-void AM_VkRenderCore::AllocatePerEntityDescriptorSets(AM_Entity& outEntity)
-{
-	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, myMeshRenderMethod->GetDescriptorSetLayout());
-	std::vector<VkDescriptorSet>& descriptorSets = outEntity.GetDescriptorSets();
-	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, layouts, descriptorSets);
-
-	for (size_t i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
-	{
-		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = outEntity.GetUniformBuffer()->myBuffer;
-		bufferInfo.offset = i * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
-		bufferInfo.range = sizeof(AM_Entity::EntityUBO); // or VK_WHOLE_SIZE
-
-		VkDescriptorImageInfo imageInfo{};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = outEntity.GetTexture().myImageView;
-		imageInfo.sampler = outEntity.GetTexture().mySampler;
-
-		AM_VkDescriptorSetWritesBuilder writter{ myGlobalDescriptorPool };
-		writter.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		writter.WriteImage(1, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		myVkContext.WriteToDescriptorSet(descriptorSets[i], writter.GetWrites());
-	}
 }
 
 void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1) // #FIX_ME: move to a common util class
@@ -584,6 +556,66 @@ void AM_VkRenderCore::CreateIndexBuffer(AM_Entity& outEntity, std::vector<uint32
 	outEntity.SetIndexBuffer(indexBuffer);
 }
 
+VkDescriptorSetLayout AM_VkRenderCore::GePerEntitytDescriptorSetLayout(const AM_Entity& anEntity)
+{
+	switch (anEntity.GetType())
+	{
+		case AM_Entity::MESH:
+			return myMeshRenderMethod->GetDescriptorSetLayout();
+		case AM_Entity::SKINNEDMESH:
+			assert(false && "Not implemented");
+		case AM_Entity::PARTICLE:
+			assert(false && "Not implemented");
+		case AM_Entity::BILLBOARD:
+			return myBillboardRenderMethod->GetDescriptorSetLayout();
+		case AM_Entity::SKYBOX:
+			return myCubeMapRenderMethod->GetDescriptorSetLayout();
+		case AM_Entity::POINT:
+			assert(false && "Not implemented");
+		case AM_Entity::LINE:
+			assert(false && "Not implemented");
+	}
+}
+
+void AM_VkRenderCore::GenerateDescriptorInfo(AM_VkDescriptorSetWritesBuilder& outBuilder, const AM_Entity& anEntity, int aFrameNumber)
+{
+	VkDescriptorBufferInfo bufferInfo{};
+	bufferInfo.buffer = anEntity.GetUniformBuffer()->myBuffer;
+	bufferInfo.offset = aFrameNumber * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
+	bufferInfo.range = sizeof(AM_Entity::EntityUBO); // or VK_WHOLE_SIZE
+
+	VkDescriptorImageInfo imageInfo{};
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageView = anEntity.GetTexture().myImageView;
+	imageInfo.sampler = anEntity.GetTexture().mySampler;
+
+	switch (anEntity.GetType())
+	{
+	case AM_Entity::MESH:
+	{
+		outBuilder.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		outBuilder.WriteImage(1, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		break;
+	}
+	case AM_Entity::SKINNEDMESH:
+		assert(false && "Not implemented");
+	case AM_Entity::PARTICLE:
+		assert(false && "Not implemented");
+	case AM_Entity::BILLBOARD:
+	{
+		outBuilder.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		break;
+	}
+	case AM_Entity::SKYBOX:
+		outBuilder.WriteImage(0, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		break;
+	case AM_Entity::POINT:
+		assert(false && "Not implemented");
+	case AM_Entity::LINE:
+		assert(false && "Not implemented");
+	}
+}
+
 void AM_VkRenderCore::AllocatePerEntityUBO(AM_Entity& outEntity)
 {
 	static constexpr uint64_t bufferSize = AM_VkRenderCoreConstants::UBO_ALIGNMENT * AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
@@ -605,6 +637,22 @@ void AM_VkRenderCore::AllocatePerEntityUBO(AM_Entity& outEntity)
 	assert(allocationInfo.pMappedData != nullptr && "Uniform buffer is not mapped!");
 }
 
+void AM_VkRenderCore::AllocatePerEntityDescriptorSets(AM_Entity& outEntity)
+{
+	std::vector<VkDescriptorSetLayout> layouts(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT, GePerEntitytDescriptorSetLayout(outEntity));
+	std::vector<VkDescriptorSet>& descriptorSets = outEntity.GetDescriptorSets();
+	descriptorSets.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
+	myVkContext.AllocateDescriptorSets(myGlobalDescriptorPool, layouts, descriptorSets);
+
+	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		AM_VkDescriptorSetWritesBuilder writter{ myGlobalDescriptorPool };
+		GenerateDescriptorInfo(writter, outEntity, i);
+		myVkContext.WriteToDescriptorSet(descriptorSets[i], writter.GetWrites());
+	}
+}
+
+// #FIX_ME: need to move this out
 void AM_VkRenderCore::UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime)
 {
 	UniformBufferObject ubo{};
@@ -776,68 +824,10 @@ void AM_VkRenderCore::LoadVertexData(AM_Entity& outEntity, const char* aFilePath
 	CreateIndexBuffer(outEntity, indices);
 }
 
-// #FIX_ME: move out
-void AM_VkRenderCore::LoadDefaultResources()
-{
-	AM_Entity* vikingRoomEntity = myEntityStorage->Add();
-	LoadVertexData(*vikingRoomEntity, "../data/models/vikingroom.obj");
-	vikingRoomEntity->myTranslation = { 12.f, 0.f, 0.f };
-	AM_Texture& vikingRoomTexture = vikingRoomEntity->GetTexture();
-	const char* textures[] = { AM_VkRenderCoreConstants::TEXTURE_PATH };
-	CreateTextureImage(vikingRoomTexture.myImage, textures, 1);
-	CreateImageView(vikingRoomTexture.myImageView, vikingRoomTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1);
-	CreateTextureSampler(vikingRoomTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
-	AllocatePerEntityUBO(*vikingRoomEntity);
-	AllocatePerEntityDescriptorSets(*vikingRoomEntity);
-
-	AM_Entity* vaseEntity = myEntityStorage->Add();
-	LoadVertexData(*vaseEntity, "../data/models/smooth_vase.obj");
-	vaseEntity->myTranslation = { -8.f, 0.f, 0.f };
-	vaseEntity->myRotation = { 3.14159f, 0.f, 0.f };
-	vaseEntity->myScale = { 20.f, 20.f, 20.f };
-	AllocatePerEntityUBO(*vaseEntity);
-	AllocatePerEntityDescriptorSets(*vaseEntity);
-
-	AM_Entity* quadEntity = myEntityStorage->Add();
-	LoadVertexData(*quadEntity, "../data/models/quad.obj");
-	quadEntity->myTranslation = { 0.f, -1.f, 0.f };
-	quadEntity->myScale = { 42.f, 1.f, 42.f };
-	AllocatePerEntityUBO(*quadEntity);
-	AllocatePerEntityDescriptorSets(*quadEntity);
-
-	AM_Entity* skybox = myEntityStorage->Add();
-	skybox->SetType(AM_Entity::SKYBOX);
-	LoadVertexData(*skybox, "../data/models/cube.obj");
-	skybox->myTranslation = { 0.f, 0.f, 0.f };
-	skybox->myScale = { 1.f, 1.f, 1.f };
-	skybox->SetIsSkybox(true);
-	AM_Texture& skyboxTexture = skybox->GetTexture();
-	CreateTextureImage(skyboxTexture.myImage, AM_VkRenderCoreConstants::CUBEMAP_TEXTURE_PATH, 6);
-	CreateImageView(skyboxTexture.myImageView, skyboxTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 0, 6);
-	CreateTextureSampler(skyboxTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER);
-	AllocatePerEntityUBO(*skybox);
-	AllocatePerEntityDescriptorSets(*skybox);
-
-	AM_Entity* pointLight1 = myEntityStorage->Add();
-	pointLight1->SetType(AM_Entity::BILLBOARD);
-	pointLight1->SetIsEmissive(true);
-	pointLight1->myTranslation = { -5.f, 2.f, -.7f };
-	pointLight1->SetColor({ 1.f, 0.1f, 0.1f });
-	AllocatePerEntityUBO(*pointLight1);
-	AllocatePerEntityDescriptorSets(*pointLight1);
-
-	AM_Entity* pointLight2 = myEntityStorage->Add();
-	pointLight1->SetType(AM_Entity::BILLBOARD);
-	pointLight2->SetIsEmissive(true);
-	pointLight2->myTranslation = { -5.f, 2.f, .7f };
-	pointLight2->SetColor({ 1.f, 1.f, 0.1f });
-	AllocatePerEntityUBO(*pointLight2);
-	AllocatePerEntityDescriptorSets(*pointLight2);
-}
-
 void AM_VkRenderCore::Setup()
 {
-	// need a window layer in the future
+	// #FIX_ME: need to move window out
+	// #FIX_ME: need to create global ubo
 	myWindowInstance.Init();
 
 	if (!CheckExtensionSupport())
@@ -942,7 +932,7 @@ void AM_VkRenderCore::Setup()
 		attriDesc.data());
 
 	myBillboardRenderMethod = new AM_VkRenderMethodBillboard(
-		myVkContext, 
+		myVkContext,
 		myRenderContext->GetRenderPass(),
 		"../data/shader_bytecode/pointlight.vert.spv",
 		"../data/shader_bytecode/pointlight.frag.spv", 
@@ -958,10 +948,9 @@ void AM_VkRenderCore::Setup()
 		static_cast<uint32_t>(attriDesc.size()),
 		&bindingDesc,
 		attriDesc.data());
-
-	LoadDefaultResources();
 }
 
+// #FIX_ME: need to move this out
 void AM_VkRenderCore::MainLoop()
 {
 	AM_Camera camera;
@@ -999,6 +988,43 @@ void AM_VkRenderCore::MainLoop()
 	vkDeviceWaitIdle(myVkContext.device);
 }
 
+AM_Entity* AM_VkRenderCore::LoadSkybox(const char** someTexturePaths, AM_EntityStorage& anEntityStorage)
+{
+	AM_Entity* skybox = anEntityStorage.Add();
+	skybox->SetType(AM_Entity::SKYBOX);
+	skybox->SetIsSkybox(true);
+	LoadVertexData(*skybox, "../data/models/cube.obj");
+	AM_Texture& skyboxTexture = skybox->GetTexture();
+	CreateTextureImage(skyboxTexture.myImage, someTexturePaths, 6);
+	CreateImageView(skyboxTexture.myImageView, skyboxTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 0, 6);
+	CreateTextureSampler(skyboxTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER);
+	AllocatePerEntityDescriptorSets(*skybox);
+	return skybox;
+}
+
+AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, AM_Entity::EntityType aType)
+{
+	AM_Entity* entity = myEntityStorage->Add();
+	entity->SetType(aType);
+
+	if (aModelPath)
+		LoadVertexData(*entity, aModelPath);
+
+	if (someTexturePaths)
+	{
+		AM_Texture& entityTexture = entity->GetTexture();
+		CreateTextureImage(entityTexture.myImage, someTexturePaths, 1);
+		CreateImageView(entityTexture.myImageView, entityTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1);
+		CreateTextureSampler(entityTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
+	}
+
+	AllocatePerEntityUBO(*entity);
+	AllocatePerEntityDescriptorSets(*entity);
+
+	return entity;
+}
+
+// #FIX_ME: need to move this out
 void AM_VkRenderCore::UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera)
 {
 	bool rotationChanged = false;

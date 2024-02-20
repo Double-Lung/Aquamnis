@@ -4,6 +4,9 @@
 #include "AM_Window.h"
 #include "TempBuffer.h"
 #include "TempImage.h"
+#include "AM_Entity.h"
+#include "AM_VertexInfo.h"
+#include "AM_Particle.h"
 #include <glm/glm.hpp>
 #include <array>
 #include <string>
@@ -13,8 +16,8 @@ class AM_VkRenderMethodMesh;
 class AM_VkRenderMethodBillboard;
 class AM_VkRenderMethodCubeMap;
 class AM_VkRenderMethodPoint;
+class AM_VkDescriptorSetWritesBuilder;
 class AM_Camera;
-class AM_Entity;
 class AM_EntityStorage;
 
 struct VmaAllocationInfo;
@@ -25,6 +28,9 @@ class AM_VkRenderCore
 public:
 	void Setup();
 	void MainLoop();
+	AM_Entity* LoadSkybox(const char** someTexturePaths, AM_EntityStorage& anEntityStorage);
+	AM_Entity* LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, AM_Entity::EntityType aType);
+
 	AM_VkRenderCore();
 	~AM_VkRenderCore();
 	
@@ -49,7 +55,7 @@ private:
 	bool CheckExtensionSupport();
 	bool CheckInstanceLayerSupport();
 	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
-	void AllocatePerEntityDescriptorSets(AM_Entity& outEntity);
+	
 	void CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1);
 	void CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp);
 	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
@@ -63,7 +69,11 @@ private:
 	void CreateVertexBuffer(AM_Entity& outEntity, std::vector<Vertex>& someVertices);
 	void CreateIndexBuffer(AM_Entity& outEntity, std::vector<uint32_t>& someIndices);
 
+	VkDescriptorSetLayout GePerEntitytDescriptorSetLayout(const AM_Entity& anEntity);
+	void GenerateDescriptorInfo(AM_VkDescriptorSetWritesBuilder& outBuilder, const AM_Entity& anEntity, int aFrameNumber);
 	void AllocatePerEntityUBO(AM_Entity& outEntity);
+	void AllocatePerEntityDescriptorSets(AM_Entity& outEntity);
+
 	void UpdateUniformBuffer(uint32_t currentImage, const AM_Camera& aCamera, std::unordered_map<uint64_t, AM_Entity>& someEntites, float aDeltaTime);
 
 	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
@@ -77,8 +87,6 @@ private:
 	bool HasStencilComponent(VkFormat format);
 	void LoadModel(std::vector<Vertex>& outVertices, std::vector<uint32_t>& outIndices, const char* aFilePath);
 	void LoadVertexData(AM_Entity& outEntity, const char* aFilePath);
-
-	void LoadDefaultResources();
 
 	void UpdateCameraTransform(float aDeltaTime, AM_Camera& aCamera);
 
