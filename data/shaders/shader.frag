@@ -1,4 +1,5 @@
 #version 450
+#extension GL_KHR_vulkan_glsl: enable
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
@@ -71,5 +72,5 @@ void main() {
     }
 
     float directLight = max(dot(surfaceNormal, normalize(globalUBO.directLightDirection)), 0.0);
-    outColor = vec4(fragColor * (diffuseLight + specularLight), 1.0); // texture(texSampler, fragTexCoord) * 
+    outColor = texture(texSampler, fragTexCoord); //vec4(fragColor * (diffuseLight + specularLight), 1.0); // texture(texSampler, fragTexCoord) * 
 }

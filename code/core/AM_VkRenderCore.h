@@ -93,9 +93,11 @@ private:
 	void LoadModel(std::vector<Vertex>& outVertices, std::vector<uint32_t>& outIndices, const char* aFilePath);
 	void LoadVertexData(AM_Entity& outEntity, const char* aFilePath);
 	void CreateRenderMethods(VkDescriptorSetLayout aGlobalLayout);
+	void LoadDefaultTexture();
 
 	AM_Window& myWindowInstance;
 	AM_VkContext myVkContext;
+	AM_Texture myDefaultTexture;
 	std::vector<VkSemaphore> myTransferSemaphores;
 	VkDescriptorPool myGlobalDescriptorPool;
 	VmaAllocator myVMA = nullptr;
@@ -103,6 +105,7 @@ private:
 	AM_VkRenderMethodMesh* myMeshRenderMethod = nullptr;
 	AM_VkRenderMethodBillboard* myBillboardRenderMethod = nullptr;
 	AM_VkRenderMethodCubeMap* myCubeMapRenderMethod = nullptr;
+	
 	uint32_t myMipLevels;
 };
 

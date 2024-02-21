@@ -37,12 +37,19 @@ uniform EntityUBO
 	float radius;
 } entityUBO;
 
+layout(push_constant)
+uniform Push
+{
+    mat4 normalMat;
+    mat4 transform;
+} push;
+
 void main() 
 {
-    vec4 worldPosition = entityUBO.transform * vec4(inPosition, 1.0);
-    gl_Position = globalUBO.proj * globalUBO.view * worldPosition;
+    vec4 worldPosition = push.transform * vec4(inPosition, 1.0);
+    gl_Position = push.normalMat * worldPosition; // globalUBO.proj * globalUBO.view * worldPosition;
 
-    fragNormalWorld = normalize(mat3(entityUBO.normalMat) * inNormal);
+    fragNormalWorld = normalize(mat3(push.normalMat) * inNormal);
     fragPosWorld = worldPosition.xyz;
     fragColor = inColor;
     fragTexCoord = inTexCoord;

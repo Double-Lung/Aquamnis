@@ -42,15 +42,27 @@ void AM_VkRenderMethodMesh::Render_Imp(AM_FrameRenderInfo& someInfo, std::vector
 	VkCommandBuffer commandBuffer = someInfo.myCommandBuffer;
 	myPipeline.BindGraphics(commandBuffer);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 0, 1, &someInfo.myGlobalDescriptorSet, 0, nullptr);
+
+	PushConstantData push;
+
+	auto proj = someInfo.myCamera->GetProjectionMatrix();
+	auto view = someInfo.myCamera->GetViewMatrix();
+
+	glm::mat4 projViewMat = proj * view;
 	for (AM_Entity* entity : someEntities)
 	{
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 1, 1, &entity->GetDescriptorSets()[someInfo.myFrameIndex], 0, nullptr);
+
 		const TempBuffer* vertexBuffer = entity->GetTempVertexBuffer();
 		const TempBuffer* indexBuffer = entity->GetTempIndexBuffer();
 		VkBuffer vertexBuffers[] = { vertexBuffer->myBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffer->myBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+		push.normalMat = projViewMat; // entity->GetNormalMatrix();
+		push.transform = entity->GetMatrix();
+		vkCmdPushConstants(commandBuffer, myPipeline.GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
 		vkCmdDrawIndexed(commandBuffer, entity->GetIndexBufferSize(), 1, 0, 0, 0);
 	}
 }

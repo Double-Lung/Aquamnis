@@ -8,4 +8,5 @@ struct AM_Texture
 	VkImageView myImageView{ nullptr };
 	VkSampler mySampler{ nullptr };
 	uint32_t myMipLevelCount{0};
+	bool myIsDefault{false};
 };

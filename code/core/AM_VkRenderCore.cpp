@@ -25,6 +25,7 @@
 AM_VkRenderCore::AM_VkRenderCore(AM_Window& aWindowInstance)
 	: myWindowInstance(aWindowInstance)
 	, myVkContext{}
+	, myDefaultTexture{}
 	, myGlobalDescriptorPool{nullptr}
 	, myVMA{nullptr}
 	, myRenderContext{ nullptr }
@@ -41,6 +42,11 @@ AM_VkRenderCore::~AM_VkRenderCore()
 	delete myBillboardRenderMethod;
 	delete myMeshRenderMethod;
 	delete myRenderContext;
+
+	vmaDestroyImage(myVMA, myDefaultTexture.myImage.myImage, myDefaultTexture.myImage.myAllocation);
+	myVkContext.DestroyImageView(myDefaultTexture.myImageView);
+	myVkContext.DestroySampler(myDefaultTexture.mySampler);
+
 	vmaDestroyAllocator(myVMA);
 	myVkContext.DestroyDescriptorPool(myGlobalDescriptorPool);
 
@@ -162,7 +168,7 @@ void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** someP
 	postCopyTransferMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	postCopyTransferMemoryBarrier.subresourceRange.levelCount = myMipLevels;
 	postCopyTransferMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	postCopyTransferMemoryBarrier.subresourceRange.layerCount = 1;
+	postCopyTransferMemoryBarrier.subresourceRange.layerCount = aLayerCount;
 	postCopyTransferMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
 	vkCmdPipelineBarrier(
@@ -192,7 +198,7 @@ void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** someP
 	postCopyGraphicsMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	postCopyGraphicsMemoryBarrier.subresourceRange.levelCount = myMipLevels;
 	postCopyGraphicsMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	postCopyGraphicsMemoryBarrier.subresourceRange.layerCount = 1;
+	postCopyGraphicsMemoryBarrier.subresourceRange.layerCount = aLayerCount;
 	postCopyGraphicsMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
 	vkCmdPipelineBarrier(
@@ -641,8 +647,11 @@ void AM_VkRenderCore::AllocatePerEntityDescriptorSets(AM_Entity& outEntity)
 
 void AM_VkRenderCore::WriteEntityUniformBuffer(AM_Entity& anEntity)
 {
-	if (!anEntity.GetShouldUpdateUniformBuffer())
+	if (!anEntity.GetUniformBuffer()->myBuffer)
 		return;
+
+ 	if (!anEntity.GetShouldUpdateUniformBuffer())
+ 		return;
 
 	AM_Entity::EntityUBO& ubo = anEntity.GetUBO();
 	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
@@ -653,8 +662,8 @@ void AM_VkRenderCore::WriteEntityUniformBuffer(AM_Entity& anEntity)
 
 void AM_VkRenderCore::WriteSceneUbiformBuffer(AM_TempScene& aScene)
 {
-	if (!aScene.GetShouldUpdateUniformBuffer())
-		return;
+// 	if (!aScene.GetShouldUpdateUniformBuffer())
+// 		return;
 	
 	GlobalUBO& ubo = aScene.GetUBO();
 	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
@@ -847,6 +856,14 @@ void AM_VkRenderCore::CreateRenderMethods(VkDescriptorSetLayout aGlobalLayout)
 		attriDesc.data());
 }
 
+void AM_VkRenderCore::LoadDefaultTexture()
+{
+	const char* defaultTexture[] = { "../data/textures/default.png" };
+	CreateTextureImage(myDefaultTexture.myImage, defaultTexture, 1);
+	CreateImageView(myDefaultTexture.myImageView, myDefaultTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
+	CreateTextureSampler(myDefaultTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
+}
+
 void AM_VkRenderCore::Setup()
 {
 	if (!CheckExtensionSupport())
@@ -933,6 +950,7 @@ void AM_VkRenderCore::Setup()
 		semaphore = myVkContext.CreateSemaphore();
 
 	myRenderContext = new AM_VkRenderContext(myVkContext, myWindowInstance, myVMA);
+	LoadDefaultTexture();
 }
 
 void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_EntityStorage& anEntityStorage)
@@ -962,14 +980,15 @@ void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_Entity
 
 		myRenderContext->BeginRenderPass(commandBufer);
 
-		std::vector<AM_Entity*> entities = { anEntityStorage.GetIfExist(aScene.GetSkyboxId()) };
-		myCubeMapRenderMethod->Render(info, entities);
+// 		std::vector<AM_Entity*> entities = { anEntityStorage.GetIfExist(aScene.GetSkyboxId()) };
+// 		myCubeMapRenderMethod->Render(info, entities);
 
+		std::vector<AM_Entity*> entities;
 		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::MESH);
 		myMeshRenderMethod->Render(info, entities);
 
-		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::BILLBOARD);
-		myBillboardRenderMethod->Render(info, entities);
+// 		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::BILLBOARD);
+// 		myBillboardRenderMethod->Render(info, entities);
 
 		myRenderContext->EndRenderPass(commandBufer);
 		myRenderContext->EndFrame();
@@ -1060,6 +1079,12 @@ AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char
 		CreateTextureImage(entityTexture.myImage, someTexturePaths, 1);
 		CreateImageView(entityTexture.myImageView, entityTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
 		CreateTextureSampler(entityTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
+	}
+	else
+	{
+		AM_Texture& entityTexture = entity->GetTexture();
+		entityTexture = myDefaultTexture;
+		entityTexture.myIsDefault = true;
 	}
 
 	AllocatePerEntityUBO(*entity);

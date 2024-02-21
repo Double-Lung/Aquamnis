@@ -31,7 +31,7 @@ AM_Entity* AM_EntityStorage::GetIfExist(uint64_t anId)
 	return nullptr;
 }
 
-void AM_EntityStorage::GetEntitiesOfType(std::vector<AM_Entity*> outEntities, AM_Entity::EntityType aType)
+void AM_EntityStorage::GetEntitiesOfType(std::vector<AM_Entity*>& outEntities, AM_Entity::EntityType aType)
 {
 	outEntities.clear();
 	for (auto& kv : myEntities)

@@ -48,7 +48,7 @@ void Cafe::MainLoop()
 		// entity update logic should be here
 		// it is not needed right now since the scene is fully static
 
-		myRenderCore->Render(*myDefaultScene->GetCamera(), *myDefaultScene, *myEntityStorage);
+		myRenderCore->Render(*myMainCamera, *myDefaultScene, *myEntityStorage);
 
 		if (myWindowInstance.ShouldUpdateCamera())
 		{
@@ -162,6 +162,7 @@ void Cafe::LoadDefaultScene()
 	camera->SetPerspectiveProjection(0.7854f, (float)width / (float)height, 0.1f, 100.f);
 	camera->SetRotation(camera->myTranslation, camera->myRotation);
 	myDefaultScene->SetCamera(camera);
+	myMainCamera = camera;
 
 	myEntityStorage = new AM_EntityStorage();
 	static const char* vikingRoomTextures[] = { "../data/textures/vikingroom.png" };
@@ -170,57 +171,57 @@ void Cafe::LoadDefaultScene()
 	vikingRoom->UpdateUBO_Transform();
 	myDefaultScene->AddMeshObject(vikingRoom->GetId());
 
-	AM_Entity* vase = myRenderCore->LoadEntity(nullptr, "../data/models/smooth_vase.obj", *myEntityStorage, AM_Entity::MESH);
-	vase->myTranslation = { -8.f, 0.f, 0.f };
-	vase->myScale = { 20.f, 20.f, 20.f };
-	vase->UpdateUBO_Transform();
-	myDefaultScene->AddMeshObject(vase->GetId());
+// 	AM_Entity* vase = myRenderCore->LoadEntity(nullptr, "../data/models/smooth_vase.obj", *myEntityStorage, AM_Entity::MESH);
+// 	vase->myTranslation = { -8.f, 0.f, 0.f };
+// 	vase->myScale = { 20.f, 20.f, 20.f };
+// 	vase->UpdateUBO_Transform();
+// 	myDefaultScene->AddMeshObject(vase->GetId());
 
-	AM_Entity* quad = myRenderCore->LoadEntity(nullptr, "../data/models/quad.obj", *myEntityStorage, AM_Entity::MESH);
-	quad->myTranslation = { 0.f, -1.f, 0.f };
-	quad->myScale = { 42.f, 1.f, 42.f };
-	quad->UpdateUBO_Transform();
-	myDefaultScene->AddMeshObject(quad->GetId());
+// 	AM_Entity* quad = myRenderCore->LoadEntity(nullptr, "../data/models/quad.obj", *myEntityStorage, AM_Entity::MESH);
+// 	quad->myTranslation = { 0.f, -1.f, 0.f };
+// 	quad->myScale = { 42.f, 1.f, 42.f };
+// 	quad->UpdateUBO_Transform();
+// 	myDefaultScene->AddMeshObject(quad->GetId());
 
-	static const char* CUBEMAP_TEXTURE_PATH[6] =
-	{
-		"../data/textures/cubemaps/Yokohama/posx.jpg",
-		"../data/textures/cubemaps/Yokohama/negx.jpg",
-		"../data/textures/cubemaps/Yokohama/posy.jpg",
-		"../data/textures/cubemaps/Yokohama/negy.jpg",
-		"../data/textures/cubemaps/Yokohama/posz.jpg",
-		"../data/textures/cubemaps/Yokohama/negz.jpg"
-	};
+// 	const char* CUBEMAP_TEXTURE_PATH[6] =
+// 	{
+// 		"../data/textures/cubemaps/Yokohama/posx.jpg",
+// 		"../data/textures/cubemaps/Yokohama/negx.jpg",
+// 		"../data/textures/cubemaps/Yokohama/posy.jpg",
+// 		"../data/textures/cubemaps/Yokohama/negy.jpg",
+// 		"../data/textures/cubemaps/Yokohama/posz.jpg",
+// 		"../data/textures/cubemaps/Yokohama/negz.jpg"
+// 	};
+// 
+// 	AM_Entity* skybox = myRenderCore->LoadSkybox(CUBEMAP_TEXTURE_PATH, *myEntityStorage);
+// 	myDefaultScene->AddSkybox(skybox->GetId());
 
-	AM_Entity* skybox = myRenderCore->LoadSkybox(CUBEMAP_TEXTURE_PATH, *myEntityStorage);
-	myDefaultScene->AddSkybox(skybox->GetId());
+// 	AM_Entity* pointLight1 = myRenderCore->LoadEntity(nullptr, nullptr, *myEntityStorage, AM_Entity::BILLBOARD);
+// 	pointLight1->myTranslation = { -5.f, 2.f, -.7f };
+// 	pointLight1->myScale = { .1f, .1f, .1f };
+// 	pointLight1->SetIsEmissive(true);
+// 	pointLight1->SetTransparency(true);
+// 	pointLight1->SetColor({ 1.f, 0.1f, 0.1f });
+// 	pointLight1->SetLightIntensity(1.f);
+// 	pointLight1->UpdateUBO_Transform();
+// 	pointLight1->UpdateUBO_Color();
 
-	AM_Entity* pointLight1 = myRenderCore->LoadEntity(nullptr, nullptr, *myEntityStorage, AM_Entity::BILLBOARD);
-	pointLight1->myTranslation = { -5.f, 2.f, -.7f };
-	pointLight1->myScale = { .1f, .1f, .1f };
-	pointLight1->SetIsEmissive(true);
-	pointLight1->SetTransparency(true);
-	pointLight1->SetColor({ 1.f, 0.1f, 0.1f });
-	pointLight1->SetLightIntensity(1.f);
-	pointLight1->UpdateUBO_Transform();
-	pointLight1->UpdateUBO_Color();
+// 	AM_Entity* pointLight2 = myRenderCore->LoadEntity(nullptr, nullptr, *myEntityStorage, AM_Entity::BILLBOARD);
+// 	pointLight2->myTranslation = { -5.f, 2.f, .7f };
+// 	pointLight2->myScale = { .1f, .1f, .1f };
+// 	pointLight2->SetIsEmissive(true);
+// 	pointLight2->SetTransparency(true);
+// 	pointLight1->SetColor({ 1.f, 1.0f, 0.1f });
+// 	pointLight2->SetLightIntensity(1.f);
+// 	pointLight1->UpdateUBO_Transform();
+// 	pointLight1->UpdateUBO_Color();
 
-	AM_Entity* pointLight2 = myRenderCore->LoadEntity(nullptr, nullptr, *myEntityStorage, AM_Entity::BILLBOARD);
-	pointLight2->myTranslation = { -5.f, 2.f, .7f };
-	pointLight2->myScale = { .1f, .1f, .1f };
-	pointLight2->SetIsEmissive(true);
-	pointLight2->SetTransparency(true);
-	pointLight1->SetColor({ 1.f, 1.0f, 0.1f });
-	pointLight2->SetLightIntensity(1.f);
-	pointLight1->UpdateUBO_Transform();
-	pointLight1->UpdateUBO_Color();
-
-	myDefaultScene->AddPointLight(pointLight1->GetId());
-	myDefaultScene->AddPointLight(pointLight2->GetId());
+// 	myDefaultScene->AddPointLight(pointLight1->GetId());
+// 	myDefaultScene->AddPointLight(pointLight2->GetId());
 
 	myDefaultScene->UpdateUBO_DirectLighting({ 1.f, 1.f, 1.f });
 	myDefaultScene->UpdateUBO_AmbientColor({ 1.f, 1.f, 1.f, 0.03f });
 	myDefaultScene->UpdateUBO_Camera();
-	myDefaultScene->UpdateUBO_PointLights(*myEntityStorage);
+//	myDefaultScene->UpdateUBO_PointLights(*myEntityStorage);
 }
 

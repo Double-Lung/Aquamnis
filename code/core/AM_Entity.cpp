@@ -106,9 +106,12 @@ void AM_Entity::DestroyVkResources(AM_VkContext& aVkContext, VmaAllocator anAllo
 	vmaDestroyBuffer(anAllocator, myTempVertexBuffer.myBuffer, myTempVertexBuffer.myAllocation);
 	vmaDestroyBuffer(anAllocator, myTempIndexBuffer.myBuffer, myTempIndexBuffer.myAllocation);
 	vmaDestroyBuffer(anAllocator, myTempUniformBuffer.myBuffer, myTempUniformBuffer.myAllocation);
-	vmaDestroyImage(anAllocator, myTexture.myImage.myImage, myTexture.myImage.myAllocation);
-	aVkContext.DestroyImageView(myTexture.myImageView);
-	aVkContext.DestroySampler(myTexture.mySampler);
+	if (!myTexture.myIsDefault)
+	{
+		vmaDestroyImage(anAllocator, myTexture.myImage.myImage, myTexture.myImage.myAllocation);
+		aVkContext.DestroyImageView(myTexture.myImageView);
+		aVkContext.DestroySampler(myTexture.mySampler);
+	}
 }
 
 void AM_Entity::UpdateUBO_Transform()
