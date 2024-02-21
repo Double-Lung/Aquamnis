@@ -6,19 +6,19 @@
 
 struct PointLightData
 {
-	glm::vec4 color{};
-	glm::vec3 position{};
+	alignas(16) glm::vec4 color{};
+	alignas(16) glm::vec4 position{};
 };
 
 struct GlobalUBO
 {
-	PointLightData pointLightData[10];
-	glm::mat4 viewMat{};
-	glm::mat4 invViewMat{};
-	glm::mat4 projectionMat{};
-	glm::vec4 ambientColor{};
-	glm::vec3 directLightDirection{};
-	int numPointLight{ 0 };
+	PointLightData pointLightData[8];
+	alignas(16) glm::mat4 viewMat{};
+	alignas(16) glm::mat4 projectionMat{};
+	alignas(16) glm::mat4 invViewMat{};
+	alignas(16) glm::vec4 ambientColor{};
+	alignas(16) glm::vec3 directLightDirection{};
+	alignas(4) int numPointLight{ 0 };
 };
 
 class AM_Camera;
@@ -32,7 +32,7 @@ public:
 		, myDescriptorSetLayout(nullptr)
 		, myCamera(nullptr)
 		, mySkybox(0)
-		, myShouldUpdateUniformBuffer(false)
+		, myShouldUpdateUniformBuffer(0)
 	{
 	}
 
@@ -64,8 +64,8 @@ public:
 	void AddSkybox(uint64_t anId);
 
 	uint64_t GetSkyboxId() const { return mySkybox; }
-	void ResetUpdateFlag() { myShouldUpdateUniformBuffer = false; }
-	bool GetShouldUpdateUniformBuffer() const { return myShouldUpdateUniformBuffer; }
+	void ResetUpdateFlag(uint32_t aFrameIndex);
+	bool GetShouldUpdateUniformBuffer(uint32_t aFrameIndex) const;
 
 private:
 	GlobalUBO myUBO;
@@ -76,5 +76,5 @@ private:
 	VkDescriptorSetLayout myDescriptorSetLayout;
 	AM_Camera* myCamera;
 	uint64_t mySkybox;
-	bool myShouldUpdateUniformBuffer : 1;
+	uint8_t myShouldUpdateUniformBuffer;
 };

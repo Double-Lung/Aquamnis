@@ -54,7 +54,7 @@ void Cafe::MainLoop()
 		{
 			int width, height;
 			myWindowInstance.GetFramebufferSize(width, height);
-			myDefaultScene->GetCamera()->SetPerspectiveProjection(0.7854f, (float)width / (float)height, 0.1f, 100.f);
+			myMainCamera->SetPerspectiveProjection(0.7854f, (float)width / (float)height, 0.1f, 100.f);
 			myWindowInstance.ResetCameraUpdateFlag();
 			myDefaultScene->UpdateUBO_Camera();
 		}
@@ -153,16 +153,15 @@ void Cafe::LoadDefaultScene()
 	myDefaultScene = new AM_TempScene();
 	myRenderCore->InitScene(*myDefaultScene);
 
-	AM_Camera* camera = new AM_Camera();
-	camera->myTranslation = { 0.f, 15.f, 35.f };
-	camera->myRotation = { 0.f, 0.f, 0.f };
+	myMainCamera = new AM_Camera();
+	myMainCamera->myTranslation = { 0.f, 15.f, 35.f };
+	myMainCamera->myRotation = { 0.f, 0.f, 0.f };
 
 	int width, height;
 	myWindowInstance.GetFramebufferSize(width, height);
-	camera->SetPerspectiveProjection(0.7854f, (float)width / (float)height, 0.1f, 100.f);
-	camera->SetRotation(camera->myTranslation, camera->myRotation);
-	myDefaultScene->SetCamera(camera);
-	myMainCamera = camera;
+	myMainCamera->SetPerspectiveProjection(0.7854f, (float)width / (float)height, 0.1f, 100.f);
+	myMainCamera->SetRotation(myMainCamera->myTranslation, myMainCamera->myRotation);
+	myDefaultScene->SetCamera(myMainCamera);
 
 	myEntityStorage = new AM_EntityStorage();
 	static const char* vikingRoomTextures[] = { "../data/textures/vikingroom.png" };
@@ -171,30 +170,30 @@ void Cafe::LoadDefaultScene()
 	vikingRoom->UpdateUBO_Transform();
 	myDefaultScene->AddMeshObject(vikingRoom->GetId());
 
-// 	AM_Entity* vase = myRenderCore->LoadEntity(nullptr, "../data/models/smooth_vase.obj", *myEntityStorage, AM_Entity::MESH);
-// 	vase->myTranslation = { -8.f, 0.f, 0.f };
-// 	vase->myScale = { 20.f, 20.f, 20.f };
-// 	vase->UpdateUBO_Transform();
-// 	myDefaultScene->AddMeshObject(vase->GetId());
+	AM_Entity* vase = myRenderCore->LoadEntity(nullptr, "../data/models/smooth_vase.obj", *myEntityStorage, AM_Entity::MESH);
+	vase->myTranslation = { -8.f, 0.f, 0.f };
+	vase->myScale = { 20.f, 20.f, 20.f };
+	vase->UpdateUBO_Transform();
+	myDefaultScene->AddMeshObject(vase->GetId());
 
-// 	AM_Entity* quad = myRenderCore->LoadEntity(nullptr, "../data/models/quad.obj", *myEntityStorage, AM_Entity::MESH);
-// 	quad->myTranslation = { 0.f, -1.f, 0.f };
-// 	quad->myScale = { 42.f, 1.f, 42.f };
-// 	quad->UpdateUBO_Transform();
-// 	myDefaultScene->AddMeshObject(quad->GetId());
+	AM_Entity* quad = myRenderCore->LoadEntity(nullptr, "../data/models/quad.obj", *myEntityStorage, AM_Entity::MESH);
+	quad->myTranslation = { 0.f, -1.f, 0.f };
+	quad->myScale = { 42.f, 1.f, 42.f };
+	quad->UpdateUBO_Transform();
+	myDefaultScene->AddMeshObject(quad->GetId());
 
-// 	const char* CUBEMAP_TEXTURE_PATH[6] =
-// 	{
-// 		"../data/textures/cubemaps/Yokohama/posx.jpg",
-// 		"../data/textures/cubemaps/Yokohama/negx.jpg",
-// 		"../data/textures/cubemaps/Yokohama/posy.jpg",
-// 		"../data/textures/cubemaps/Yokohama/negy.jpg",
-// 		"../data/textures/cubemaps/Yokohama/posz.jpg",
-// 		"../data/textures/cubemaps/Yokohama/negz.jpg"
-// 	};
-// 
-// 	AM_Entity* skybox = myRenderCore->LoadSkybox(CUBEMAP_TEXTURE_PATH, *myEntityStorage);
-// 	myDefaultScene->AddSkybox(skybox->GetId());
+	const char* CUBEMAP_TEXTURE_PATH[6] =
+	{
+		"../data/textures/cubemaps/Yokohama/posx.jpg",
+		"../data/textures/cubemaps/Yokohama/negx.jpg",
+		"../data/textures/cubemaps/Yokohama/posy.jpg",
+		"../data/textures/cubemaps/Yokohama/negy.jpg",
+		"../data/textures/cubemaps/Yokohama/posz.jpg",
+		"../data/textures/cubemaps/Yokohama/negz.jpg"
+	};
+
+	AM_Entity* skybox = myRenderCore->LoadSkybox(CUBEMAP_TEXTURE_PATH, *myEntityStorage);
+	myDefaultScene->AddSkybox(skybox->GetId());
 
 // 	AM_Entity* pointLight1 = myRenderCore->LoadEntity(nullptr, nullptr, *myEntityStorage, AM_Entity::BILLBOARD);
 // 	pointLight1->myTranslation = { -5.f, 2.f, -.7f };

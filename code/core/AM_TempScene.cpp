@@ -5,10 +5,10 @@
 void AM_TempScene::UpdateUBO_Camera()
 {
 	myUBO.viewMat = myCamera->GetViewMatrix();
-	myUBO.invViewMat = myCamera->GetInverseViewMatrix();
 	myUBO.projectionMat = myCamera->GetProjectionMatrix();
+	myUBO.invViewMat = myCamera->GetInverseViewMatrix();
 
-	myShouldUpdateUniformBuffer = true;
+	myShouldUpdateUniformBuffer = 0x3;
 }
 
 void AM_TempScene::UpdateUBO_PointLights(AM_EntityStorage& anEntityStorage)
@@ -21,26 +21,26 @@ void AM_TempScene::UpdateUBO_PointLights(AM_EntityStorage& anEntityStorage)
 		if (!pointLight || !pointLight->IsEmissive() || lightIntensity < 0.0001f)
 			continue;
 
-		myUBO.pointLightData[numLights].position = pointLight->myTranslation;
+		myUBO.pointLightData[numLights].position = glm::vec4(pointLight->myTranslation, 1.f);
 		myUBO.pointLightData[numLights].color = glm::vec4(pointLight->GetColor(), pointLight->GetLightIntensity());
 		++numLights;
 	}
 
 	myUBO.numPointLight = numLights;
 
-	myShouldUpdateUniformBuffer = true;
+	myShouldUpdateUniformBuffer = 0x3;
 }
 
 void AM_TempScene::UpdateUBO_DirectLighting(const glm::vec3& aLightDirection)
 {
 	myUBO.directLightDirection = aLightDirection;
-	myShouldUpdateUniformBuffer = true;
+	myShouldUpdateUniformBuffer = 0x3;
 }
 
 void AM_TempScene::UpdateUBO_AmbientColor(const glm::vec4& aColor)
 {
 	myUBO.ambientColor = aColor;
-	myShouldUpdateUniformBuffer = true;
+	myShouldUpdateUniformBuffer = 0x3;
 }
 
 void AM_TempScene::AddMeshObject(uint64_t anId)
@@ -56,4 +56,14 @@ void AM_TempScene::AddPointLight(uint64_t anId)
 void AM_TempScene::AddSkybox(uint64_t anId)
 {
 	mySkybox = anId;
+}
+
+bool AM_TempScene::GetShouldUpdateUniformBuffer(uint32_t aFrameIndex) const
+{
+	return myShouldUpdateUniformBuffer & (0x1 << aFrameIndex);
+}
+
+void AM_TempScene::ResetUpdateFlag(uint32_t aFrameIndex)
+{
+	myShouldUpdateUniformBuffer &= ~(0x1 << aFrameIndex);
 }

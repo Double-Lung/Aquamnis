@@ -11,16 +11,16 @@ layout(location = 0) out vec4 outColor;
 struct PointLight
 {
     vec4 color;
-    vec3 position;
+    vec4 position;
 };
 
 layout(set = 0, binding = 0) 
 uniform GlobalUBO
 {
-    PointLight pointLights[10];
+    PointLight pointLights[8];
     mat4 view;
-    mat4 invView;
     mat4 proj;
+    mat4 invView;
     vec4 ambientColor;
     vec3 directLightDirection;
     int numLights;
@@ -39,12 +39,12 @@ layout(set = 1, binding = 1)
 uniform sampler2D texSampler;
 
 void main() {
-    vec3 diffuseLight = globalUBO.ambientColor.xyz * globalUBO.ambientColor.w;
-    vec3 specularLight = vec3(0.0);
-    vec3 surfaceNormal = normalize(fragNormalWorld);
+    // vec3 diffuseLight = globalUBO.ambientColor.xyz * globalUBO.ambientColor.w;
+    // vec3 specularLight = vec3(0.0);
+    // vec3 surfaceNormal = normalize(fragNormalWorld);
 
-    vec3 cameraPosWorld = globalUBO.invView[3].xyz;
-    vec3 viewDir = normalize(cameraPosWorld - fragPosWorld);
+    // vec3 cameraPosWorld = globalUBO.invView[3].xyz;
+    // vec3 viewDir = normalize(cameraPosWorld - fragPosWorld);
 
     // global specular Light
     // vec3 halfAngleVecG = normalize(DIRECTION_TO_LIGHT + viewDir);
@@ -52,7 +52,7 @@ void main() {
     // blinnTermG = clamp(blinnTermG, 0, 1);
     // blinnTermG = pow(blinnTermG, 32.0);
     // specularLight += vec3(1.f, 1.f, 1.f) * blinnTermG;
-
+    /*
     for (int i = 0; i < globalUBO.numLights; ++i)
     {
         PointLight light = globalUBO.pointLights[i];
@@ -69,8 +69,8 @@ void main() {
         blinnTerm = clamp(blinnTerm, 0, 1);
         blinnTerm = pow(blinnTerm, 32.0);
         specularLight += singleLightColor * blinnTerm;
-    }
+    }*/
 
-    float directLight = max(dot(surfaceNormal, normalize(globalUBO.directLightDirection)), 0.0);
+    //float directLight = max(dot(surfaceNormal, normalize(globalUBO.directLightDirection)), 0.0);
     outColor = texture(texSampler, fragTexCoord); //vec4(fragColor * (diffuseLight + specularLight), 1.0); // texture(texSampler, fragTexCoord) * 
 }

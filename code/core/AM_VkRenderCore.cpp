@@ -650,26 +650,28 @@ void AM_VkRenderCore::WriteEntityUniformBuffer(AM_Entity& anEntity)
 	if (!anEntity.GetUniformBuffer()->myBuffer)
 		return;
 
- 	if (!anEntity.GetShouldUpdateUniformBuffer())
- 		return;
+	uint32_t frameIdx = myRenderContext->GetFrameIndex();
+	if (!anEntity.GetShouldUpdateUniformBuffer(frameIdx))
+		return;
 
 	AM_Entity::EntityUBO& ubo = anEntity.GetUBO();
 	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
-	vmaCopyMemoryToAllocation(myVMA, &ubo, anEntity.GetUniformBuffer()->myAllocation, myRenderContext->GetFrameIndex() * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
+	vmaCopyMemoryToAllocation(myVMA, &ubo, anEntity.GetUniformBuffer()->myAllocation, frameIdx * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
 
-	anEntity.ResetUpdateFlag();
+	anEntity.ResetUpdateFlag(frameIdx);
 }
 
 void AM_VkRenderCore::WriteSceneUbiformBuffer(AM_TempScene& aScene)
 {
-// 	if (!aScene.GetShouldUpdateUniformBuffer())
-// 		return;
+	uint32_t frameIdx = myRenderContext->GetFrameIndex();
+	if (!aScene.GetShouldUpdateUniformBuffer(frameIdx))
+		return;
 	
 	GlobalUBO& ubo = aScene.GetUBO();
 	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
-	vmaCopyMemoryToAllocation(myVMA, &ubo, aScene.GetUniformBuffer()->myAllocation, myRenderContext->GetFrameIndex() * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
+	vmaCopyMemoryToAllocation(myVMA, &ubo, aScene.GetUniformBuffer()->myAllocation, frameIdx * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
 
-	aScene.ResetUpdateFlag();
+	aScene.ResetUpdateFlag(frameIdx);
 }
 
 void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
@@ -980,10 +982,9 @@ void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_Entity
 
 		myRenderContext->BeginRenderPass(commandBufer);
 
-// 		std::vector<AM_Entity*> entities = { anEntityStorage.GetIfExist(aScene.GetSkyboxId()) };
-// 		myCubeMapRenderMethod->Render(info, entities);
+		std::vector<AM_Entity*> entities = { anEntityStorage.GetIfExist(aScene.GetSkyboxId()) };
+		myCubeMapRenderMethod->Render(info, entities);
 
-		std::vector<AM_Entity*> entities;
 		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::MESH);
 		myMeshRenderMethod->Render(info, entities);
 
@@ -1002,7 +1003,6 @@ void AM_VkRenderCore::OnEnd()
 
 void AM_VkRenderCore::InitScene(AM_TempScene& aScene)
 {
-	// create ubo
 	static constexpr uint64_t bufferSize = AM_VkRenderCoreConstants::UBO_ALIGNMENT * AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT;
 
 	VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -1040,7 +1040,7 @@ void AM_VkRenderCore::InitScene(AM_TempScene& aScene)
 		AM_VkDescriptorSetWritesBuilder builder{ myGlobalDescriptorPool };
 
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = aScene.GetUniformBuffer()->myBuffer;
+		bufferInfo.buffer = uniformBuffer.myBuffer;
 		bufferInfo.offset = i * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
 		bufferInfo.range = sizeof(GlobalUBO); // or VK_WHOLE_SIZE
 

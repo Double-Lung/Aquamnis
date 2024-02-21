@@ -25,10 +25,10 @@ public:
 
 	struct EntityUBO
 	{
-		glm::mat4 transform{ 1.f };
-		glm::mat4 normalMat{1.f};
-		glm::vec4 color{1.f,1.f,1.f,1.f};
-		float radius{1.f};
+		alignas(16) glm::mat4 transform{ 1.f };
+		alignas(16) glm::mat4 normalMat{1.f};
+		alignas(16) glm::vec4 color{1.f,1.f,1.f,1.f};
+		alignas(4) float radius{1.f};
 	};
 
 	AM_Entity(AM_Entity&& anEntity) noexcept
@@ -83,8 +83,8 @@ public:
 
 	EntityUBO& GetUBO() { return myUBO; }
 	const EntityUBO& GetUBO() const { return myUBO; }
-	void ResetUpdateFlag() { myShouldUpdateUniformBuffer = false; }
-	bool GetShouldUpdateUniformBuffer() const { return myShouldUpdateUniformBuffer; }
+	void ResetUpdateFlag(uint32_t aFrameIndex);
+	bool GetShouldUpdateUniformBuffer(uint32_t aFrameIndex) const;
 
 	glm::vec3 myTranslation{ 0.f, 0.f, 0.f };
 	glm::vec3 myScale{ 1.f, 1.f, 1.f };
@@ -132,9 +132,9 @@ private:
 	float myLightIntensity;
 	uint32_t myIndexBufferSize;
 	EntityType myType;
+	uint8_t myShouldUpdateUniformBuffer;
 	bool myIsSkybox : 1;
 	bool myIsEmissive : 1;
 	bool myIsTransparent : 1;
-	bool myShouldUpdateUniformBuffer : 1;
 };
 

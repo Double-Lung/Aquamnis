@@ -16,10 +16,10 @@ AM_Entity::AM_Entity(uint64_t anID)
 	, myLightIntensity(0.f)
 	, myIndexBufferSize(0)
 	, myType(EntityType::MESH)
+	, myShouldUpdateUniformBuffer(0)
 	, myIsSkybox(false)
 	, myIsEmissive(false)
 	, myIsTransparent(false)
-	, myShouldUpdateUniformBuffer(false)
 {
 }
 
@@ -119,11 +119,21 @@ void AM_Entity::UpdateUBO_Transform()
 	myUBO.transform = GetMatrix();
 	myUBO.normalMat = GetNormalMatrix();
 	myUBO.radius = myScale.x;
-	myShouldUpdateUniformBuffer = true;
+	myShouldUpdateUniformBuffer = 0x3;
 }
 
 void AM_Entity::UpdateUBO_Color()
 {
 	myUBO.color = glm::vec4(myColor, 1.f);
-	myShouldUpdateUniformBuffer = true;
+	myShouldUpdateUniformBuffer = 0x3;
+}
+
+void AM_Entity::ResetUpdateFlag(uint32_t aFrameIndex)
+{
+	myShouldUpdateUniformBuffer &= ~(0x1 << aFrameIndex);
+}
+
+bool AM_Entity::GetShouldUpdateUniformBuffer(uint32_t aFrameIndex) const
+{
+	return myShouldUpdateUniformBuffer & (0x1 << aFrameIndex);
 }
