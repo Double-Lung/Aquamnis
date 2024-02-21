@@ -19,12 +19,12 @@ AM_VkPipeline::~AM_VkPipeline()
 	vkDestroyDescriptorSetLayout(myVkContext.device, myDescriptorSetLayout, nullptr);
 }
 
-void AM_VkPipeline::CreatePipeline(const std::string& aVertShaderPath, const std::string& aFragShaderPath, AM_VkDescriptorSetLayoutBuilder& aBuilder, VkGraphicsPipelineCreateInfo& aPipelineCreateInfo, const VkPushConstantRange* aPushConstantRange)
+void AM_VkPipeline::CreatePipeline(const std::string& aVertShaderPath, const std::string& aFragShaderPath, VkDescriptorSetLayout aGlobalLayout, AM_VkDescriptorSetLayoutBuilder& aBuilder, VkGraphicsPipelineCreateInfo& aPipelineCreateInfo, const VkPushConstantRange* aPushConstantRange)
 {
 	assert(myPipeline == nullptr && "Trying to create pipeline again!");
 
 	CreateDescriptorSetLayout(aBuilder);
-	CreatePipelineLayout(aPushConstantRange);
+	CreatePipelineLayout(aGlobalLayout, aPushConstantRange);
 
 	std::vector<char> vertCode;
 	std::vector<char> fragCode;
@@ -65,12 +65,12 @@ void AM_VkPipeline::CreatePipeline(const std::string& aVertShaderPath, const std
 	vkDestroyShaderModule(myVkContext.device, vertModule, nullptr);
 }
 
-void AM_VkPipeline::CreatePipeline(const std::string& aCompShaderPath, AM_VkDescriptorSetLayoutBuilder& aBuilder, VkComputePipelineCreateInfo& aPipelineCreateInfo, const VkPushConstantRange* aPushConstantRange)
+void AM_VkPipeline::CreatePipeline(const std::string& aCompShaderPath, VkDescriptorSetLayout aGlobalLayout, AM_VkDescriptorSetLayoutBuilder& aBuilder, VkComputePipelineCreateInfo& aPipelineCreateInfo, const VkPushConstantRange* aPushConstantRange)
 {
 	assert(myPipeline == nullptr && "Trying to create pipeline again!");
 
 	CreateDescriptorSetLayout(aBuilder);
-	CreatePipelineLayout(aPushConstantRange);
+	CreatePipelineLayout(aGlobalLayout, aPushConstantRange);
 
 	std::vector<char> compCode;
 	AM_RenderUtils::ReadFile(compCode, aCompShaderPath);
@@ -110,14 +110,15 @@ void AM_VkPipeline::CreateDescriptorSetLayout(AM_VkDescriptorSetLayoutBuilder& a
 	myDescriptorSetLayout = myVkContext.CreateDescriptorSetLayout(bindings);
 }
 
-void AM_VkPipeline::CreatePipelineLayout(const VkPushConstantRange* aPushConstantRange)
+void AM_VkPipeline::CreatePipelineLayout(VkDescriptorSetLayout aGlobalLayout, const VkPushConstantRange* aPushConstantRange)
 {
 	assert(myDescriptorSetLayout && "Invalid descriptor set layout!");
+	std::vector<VkDescriptorSetLayout> layouts = { aGlobalLayout, myDescriptorSetLayout };
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1; // Optional
-	pipelineLayoutInfo.pSetLayouts = &myDescriptorSetLayout;
+	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(layouts.size());
+	pipelineLayoutInfo.pSetLayouts = layouts.data();
 	pipelineLayoutInfo.pushConstantRangeCount = aPushConstantRange ? 1 : 0;
 	pipelineLayoutInfo.pPushConstantRanges = aPushConstantRange;
 

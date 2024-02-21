@@ -33,6 +33,8 @@ public:
 	void InitScene(AM_TempScene& aScene);
 	AM_Entity* LoadSkybox(const char** someTexturePaths, AM_EntityStorage& anEntityStorage);
 	AM_Entity* LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, AM_Entity::EntityType aType);
+	void DestroyEntities(AM_EntityStorage& anEntityStorage);
+	void DestroyScene(AM_TempScene& aScene);
 
 	explicit AM_VkRenderCore(AM_Window& aWindowInstance);
 	~AM_VkRenderCore();
@@ -59,7 +61,7 @@ private:
 	bool CheckInstanceLayerSupport();
 	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount);
 	
-	void CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1);
+	void CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1, VkImageCreateFlags someFlags = 0);
 	void CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp);
 	void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels);
 
@@ -73,7 +75,6 @@ private:
 	void CreateIndexBuffer(AM_Entity& outEntity, std::vector<uint32_t>& someIndices);
 
 	VkDescriptorSetLayout GePerEntitytDescriptorSetLayout(const AM_Entity& anEntity);
-	void GeneratePerEntityDescriptorInfo(AM_VkDescriptorSetWritesBuilder& outBuilder, const AM_Entity& anEntity, int aFrameNumber);
 	void AllocatePerEntityUBO(AM_Entity& outEntity);
 	void AllocatePerEntityDescriptorSets(AM_Entity& outEntity);
 
@@ -91,18 +92,18 @@ private:
 	bool HasStencilComponent(VkFormat format);
 	void LoadModel(std::vector<Vertex>& outVertices, std::vector<uint32_t>& outIndices, const char* aFilePath);
 	void LoadVertexData(AM_Entity& outEntity, const char* aFilePath);
+	void CreateRenderMethods(VkDescriptorSetLayout aGlobalLayout);
 
 	AM_Window& myWindowInstance;
 	AM_VkContext myVkContext;
-
 	std::vector<VkSemaphore> myTransferSemaphores;
 	VkDescriptorPool myGlobalDescriptorPool;
-
-	uint32_t myMipLevels;
 	VmaAllocator myVMA = nullptr;
 	AM_VkRenderContext* myRenderContext = nullptr;
 	AM_VkRenderMethodMesh* myMeshRenderMethod = nullptr;
 	AM_VkRenderMethodBillboard* myBillboardRenderMethod = nullptr;
 	AM_VkRenderMethodCubeMap* myCubeMapRenderMethod = nullptr;
+	uint32_t myMipLevels;
 };
+
 

@@ -13,12 +13,14 @@ public:
 	void CreatePipeline(
 		const std::string& aVertShaderPath, 
 		const std::string& aFragShaderPath, 
+		VkDescriptorSetLayout aGlobalLayout,
 		AM_VkDescriptorSetLayoutBuilder& aBuilder, 
 		VkGraphicsPipelineCreateInfo& aPipelineCreateInfo,
 		const VkPushConstantRange* aPushConstantRange = nullptr);
 
 	void CreatePipeline(
 		const std::string& aCompShaderPath, 
+		VkDescriptorSetLayout aGlobalLayout,
 		AM_VkDescriptorSetLayoutBuilder& aBuilder, 
 		VkComputePipelineCreateInfo& aPipelineCreateInfo,
 		const VkPushConstantRange* aPushConstantRange = nullptr);
@@ -32,7 +34,7 @@ public:
 private:
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);
 	void CreateDescriptorSetLayout(AM_VkDescriptorSetLayoutBuilder& aBuilder);
-	void CreatePipelineLayout(const VkPushConstantRange* aPushConstantRange = nullptr);
+	void CreatePipelineLayout(VkDescriptorSetLayout aGlobalLayout, const VkPushConstantRange* aPushConstantRange = nullptr);
 
 	AM_VkContext& myVkContext;
 	VkDescriptorSetLayout myDescriptorSetLayout;

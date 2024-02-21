@@ -9,27 +9,27 @@ layout(location = 0) out vec3 outUVW;
 
 struct PointLight
 {
-    vec4 position;
     vec4 color;
+    vec3 position;
 };
 
 layout(set = 0, binding = 0) 
-uniform UniformBufferObject 
+uniform GlobalUBO
 {
+    PointLight pointLights[10];
     mat4 view;
-    mat4 proj;
     mat4 invView;
+    mat4 proj;
     vec4 ambientColor;
-    PointLight pointLights[8];
+    vec3 directLightDirection;
     int numLights;
-    float deltaTime;
-} ubo;
+} globalUBO;
 
 void main() 
 {
 	outUVW = inPos;
 
 	// Remove translation from view matrix
-	mat4 viewMat = mat4(mat3(ubo.view));
-	gl_Position = ubo.proj * viewMat * vec4(inPos.xyz, 1.0);
+	mat4 viewMat = mat4(mat3(globalUBO.view));
+	gl_Position = globalUBO.proj * viewMat * vec4(inPos.xyz, 1.0);
 }

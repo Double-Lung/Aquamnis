@@ -9,6 +9,7 @@ AM_VkRenderMethodMesh::AM_VkRenderMethodMesh(
 	const VkRenderPass aRenderPass, 
 	const std::string& aVertexShaderPath,
 	const std::string& aFragmentShaderPath,
+	VkDescriptorSetLayout aGlobalLayout,
 	uint32_t aBindingDescriptionCount /*= 1*/, 
 	uint32_t anAttributeDescriptionCount /*= 1*/, 
 	const VkVertexInputBindingDescription* aBindingDescription /*= nullptr*/, 
@@ -21,7 +22,8 @@ AM_VkRenderMethodMesh::AM_VkRenderMethodMesh(
 		aBindingDescriptionCount,
 		anAttributeDescriptionCount,
 		aBindingDescription,
-		anAttributeDescription)
+		anAttributeDescription,
+		aGlobalLayout)
 {
 }
 

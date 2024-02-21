@@ -5,7 +5,7 @@
 class AM_ComputeParticle
 {
 public:
-	AM_ComputeParticle(AM_VkContext& aVkContext, const std::string& aComputeShaderPath);
+	AM_ComputeParticle(AM_VkContext& aVkContext, const std::string& aComputeShaderPath, VkDescriptorSetLayout aGlobalLayout);
 	AM_ComputeParticle(const AM_ComputeParticle&) = delete;
 	AM_ComputeParticle& operator=(const AM_ComputeParticle&) = delete;
 

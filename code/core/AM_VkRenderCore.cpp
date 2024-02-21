@@ -25,7 +25,13 @@
 AM_VkRenderCore::AM_VkRenderCore(AM_Window& aWindowInstance)
 	: myWindowInstance(aWindowInstance)
 	, myVkContext{}
-	, myMipLevels(0)
+	, myGlobalDescriptorPool{nullptr}
+	, myVMA{nullptr}
+	, myRenderContext{ nullptr }
+	, myMeshRenderMethod{ nullptr }
+	, myBillboardRenderMethod{ nullptr }
+	, myCubeMapRenderMethod{ nullptr }
+	, myMipLevels(1)
 {
 }
 
@@ -35,26 +41,7 @@ AM_VkRenderCore::~AM_VkRenderCore()
 	delete myBillboardRenderMethod;
 	delete myMeshRenderMethod;
 	delete myRenderContext;
-
-	for (auto& entity : myEntities)
-	{
-		if (auto* indexBuffer = entity.second.GetTempIndexBuffer())
-			vmaDestroyBuffer(myVMA, indexBuffer->myBuffer, indexBuffer->myAllocation);
-		if (auto* vertexBuffer = entity.second.GetTempVertexBuffer())
-			vmaDestroyBuffer(myVMA, vertexBuffer->myBuffer, vertexBuffer->myAllocation);
-	}
-
-	vmaDestroyBuffer(myVMA, myUniformBuffer.myBuffer, myUniformBuffer.myAllocation);
-	vmaDestroyImage(myVMA, myTextureImage.myImage, myTextureImage.myAllocation);
-	vmaDestroyImage(myVMA, myCubeMapImage.myImage, myCubeMapImage.myAllocation);
 	vmaDestroyAllocator(myVMA);
-
-	myVkContext.DestroyImageView(myCubeMapImageView);
-	myVkContext.DestroyImageView(myTextureImageView);
-
-	myVkContext.DestroySampler(myTextureSampler);
-	myVkContext.DestroySampler(myCubeMapSampler);
-
 	myVkContext.DestroyDescriptorPool(myGlobalDescriptorPool);
 
 	for (VkSemaphore semaphore : myTransferSemaphores)
@@ -115,7 +102,7 @@ void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, 
 	outImageView = myVkContext.CreateImageView(viewInfo);
 }
 
-void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount = 1) // #FIX_ME: move to a common util class
+void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount, VkImageCreateFlags someFlags) // #FIX_ME: move to a common util class
 {
 	int texWidth = 0, texHeight = 0, texChannels = 0;
 	std::vector<void*> imageLayers(aLayerCount, nullptr);
@@ -128,7 +115,7 @@ void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** someP
 	}
 
 	//myMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;  // #FIX_ME: add back mipmap
-	uint64_t stride = static_cast<uint64_t>(texWidth) * static_cast<uint64_t>(texHeight) * static_cast<uint64_t>(texChannels);
+	uint64_t stride = static_cast<uint64_t>(texWidth) * static_cast<uint64_t>(texHeight) * static_cast<uint64_t>(STBI_rgb_alpha);
 	uint64_t bufferSize = stride * static_cast<uint64_t>(aLayerCount);
 
 	TempBuffer stagingBuffer;
@@ -143,14 +130,14 @@ void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** someP
 	imageInfo.extent.height = (uint32_t)texHeight;
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = myMipLevels;
-	imageInfo.arrayLayers = 1;
+	imageInfo.arrayLayers = aLayerCount;
 	imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	imageInfo.flags = 0; // Optional
+	imageInfo.flags = someFlags;
 
 	VmaAllocationCreateInfo allocationInfo{};
 	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -566,57 +553,13 @@ VkDescriptorSetLayout AM_VkRenderCore::GePerEntitytDescriptorSetLayout(const AM_
 	{
 		case AM_Entity::MESH:
 			return myMeshRenderMethod->GetDescriptorSetLayout();
-		case AM_Entity::SKINNEDMESH:
-			assert(false && "Not implemented");
-		case AM_Entity::PARTICLE:
-			assert(false && "Not implemented");
 		case AM_Entity::BILLBOARD:
 			return myBillboardRenderMethod->GetDescriptorSetLayout();
 		case AM_Entity::SKYBOX:
 			return myCubeMapRenderMethod->GetDescriptorSetLayout();
-		case AM_Entity::POINT:
+		default:
 			assert(false && "Not implemented");
-		case AM_Entity::LINE:
-			assert(false && "Not implemented");
-	}
-}
-
-void AM_VkRenderCore::GeneratePerEntityDescriptorInfo(AM_VkDescriptorSetWritesBuilder& outBuilder, const AM_Entity& anEntity, int aFrameNumber)
-{
-	VkDescriptorBufferInfo bufferInfo{};
-	bufferInfo.buffer = anEntity.GetUniformBuffer()->myBuffer;
-	bufferInfo.offset = aFrameNumber * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
-	bufferInfo.range = sizeof(AM_Entity::EntityUBO); // or VK_WHOLE_SIZE
-
-	VkDescriptorImageInfo imageInfo{};
-	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView = anEntity.GetTexture().myImageView;
-	imageInfo.sampler = anEntity.GetTexture().mySampler;
-
-	switch (anEntity.GetType())
-	{
-	case AM_Entity::MESH:
-	{
-		outBuilder.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		outBuilder.WriteImage(1, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		break;
-	}
-	case AM_Entity::SKINNEDMESH:
-		assert(false && "Not implemented");
-	case AM_Entity::PARTICLE:
-		assert(false && "Not implemented");
-	case AM_Entity::BILLBOARD:
-	{
-		outBuilder.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		break;
-	}
-	case AM_Entity::SKYBOX:
-		outBuilder.WriteImage(0, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		break;
-	case AM_Entity::POINT:
-		assert(false && "Not implemented");
-	case AM_Entity::LINE:
-		assert(false && "Not implemented");
+			return nullptr;
 	}
 }
 
@@ -650,15 +593,62 @@ void AM_VkRenderCore::AllocatePerEntityDescriptorSets(AM_Entity& outEntity)
 
 	for (int i = 0; i < AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		AM_VkDescriptorSetWritesBuilder writter{ myGlobalDescriptorPool };
-		GeneratePerEntityDescriptorInfo(writter, outEntity, i);
-		myVkContext.WriteToDescriptorSet(descriptorSets[i], writter.GetWrites());
+		AM_VkDescriptorSetWritesBuilder builder{ myGlobalDescriptorPool };
+
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = outEntity.GetUniformBuffer()->myBuffer;
+		bufferInfo.offset = i * AM_VkRenderCoreConstants::UBO_ALIGNMENT;
+		bufferInfo.range = sizeof(AM_Entity::EntityUBO); // or VK_WHOLE_SIZE
+
+		VkDescriptorImageInfo imageInfo{};
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo.imageView = outEntity.GetTexture().myImageView;
+		imageInfo.sampler = outEntity.GetTexture().mySampler;
+
+		switch (outEntity.GetType())
+		{
+		case AM_Entity::MESH:
+		{
+			if (bufferInfo.buffer)
+				builder.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+			if (imageInfo.imageView)
+				builder.WriteImage(1, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+			break;
+		}
+		case AM_Entity::SKINNEDMESH:
+			assert(false && "Not implemented");
+		case AM_Entity::PARTICLE:
+			assert(false && "Not implemented");
+		case AM_Entity::BILLBOARD:
+		{
+			if (bufferInfo.buffer)
+				builder.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+			break;
+		}
+		case AM_Entity::SKYBOX:
+			if (imageInfo.imageView)
+				builder.WriteImage(0, &imageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+			break;
+		case AM_Entity::POINT:
+			assert(false && "Not implemented");
+		case AM_Entity::LINE:
+			assert(false && "Not implemented");
+		}
+
+		myVkContext.WriteToDescriptorSet(descriptorSets[i], builder.GetWrites());
 	}
 }
 
 void AM_VkRenderCore::WriteEntityUniformBuffer(AM_Entity& anEntity)
 {
+	if (!anEntity.GetShouldUpdateUniformBuffer())
+		return;
 
+	AM_Entity::EntityUBO& ubo = anEntity.GetUBO();
+	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
+	vmaCopyMemoryToAllocation(myVMA, &ubo, anEntity.GetUniformBuffer()->myAllocation, myRenderContext->GetFrameIndex() * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
+
+	anEntity.ResetUpdateFlag();
 }
 
 void AM_VkRenderCore::WriteSceneUbiformBuffer(AM_TempScene& aScene)
@@ -667,8 +657,10 @@ void AM_VkRenderCore::WriteSceneUbiformBuffer(AM_TempScene& aScene)
 		return;
 	
 	GlobalUBO& ubo = aScene.GetUBO();
-	static_assert(sizeof(GlobalUBO) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
-	vmaCopyMemoryToAllocation(myVMA, &ubo, aScene.GetUniformBuffer()->myAllocation, myRenderContext->GetFrameIndex() * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(GlobalUBO));
+	static_assert(sizeof(ubo) <= AM_VkRenderCoreConstants::UBO_ALIGNMENT, "UBO size is larger than alignment!!!");
+	vmaCopyMemoryToAllocation(myVMA, &ubo, aScene.GetUniformBuffer()->myAllocation, myRenderContext->GetFrameIndex() * AM_VkRenderCoreConstants::UBO_ALIGNMENT, sizeof(ubo));
+
+	aScene.ResetUpdateFlag();
 }
 
 void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
@@ -816,6 +808,45 @@ void AM_VkRenderCore::LoadVertexData(AM_Entity& outEntity, const char* aFilePath
 	CreateIndexBuffer(outEntity, indices);
 }
 
+void AM_VkRenderCore::CreateRenderMethods(VkDescriptorSetLayout aGlobalLayout)
+{
+	auto bindingDesc = Vertex::GetBindingDescription();
+	auto attriDesc = Vertex::GetAttributeDescriptions();
+	auto bindingDesc2 = Particle::GetBindingDescription();
+	auto attriDesc2 = Particle::GetAttributeDescriptions();
+
+	myMeshRenderMethod = new AM_VkRenderMethodMesh(
+		myVkContext,
+		myRenderContext->GetRenderPass(),
+		"../data/shader_bytecode/shader.vert.spv",
+		"../data/shader_bytecode/shader.frag.spv",
+		aGlobalLayout,
+		1,
+		static_cast<uint32_t>(attriDesc.size()),
+		&bindingDesc,
+		attriDesc.data());
+
+	myBillboardRenderMethod = new AM_VkRenderMethodBillboard(
+		myVkContext,
+		myRenderContext->GetRenderPass(),
+		"../data/shader_bytecode/pointlight.vert.spv",
+		"../data/shader_bytecode/pointlight.frag.spv",
+		aGlobalLayout,
+		0,
+		0);
+
+	myCubeMapRenderMethod = new AM_VkRenderMethodCubeMap(
+		myVkContext,
+		myRenderContext->GetRenderPass(),
+		"../data/shader_bytecode/skybox.vert.spv",
+		"../data/shader_bytecode/skybox.frag.spv",
+		aGlobalLayout,
+		1,
+		static_cast<uint32_t>(attriDesc.size()),
+		&bindingDesc,
+		attriDesc.data());
+}
+
 void AM_VkRenderCore::Setup()
 {
 	if (!CheckExtensionSupport())
@@ -880,62 +911,28 @@ void AM_VkRenderCore::Setup()
 	std::vector<VkDescriptorPoolSize> descriptorPoolSizes;
 	descriptorPoolSizes.resize(7);
 	descriptorPoolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorPoolSizes[0].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 4;
+	descriptorPoolSizes[0].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 16;
 	descriptorPoolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorPoolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 4;
+	descriptorPoolSizes[1].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 16;
 	descriptorPoolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	descriptorPoolSizes[2].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
+	descriptorPoolSizes[2].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 1;
 	descriptorPoolSizes[3].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-	descriptorPoolSizes[3].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 4;
+	descriptorPoolSizes[3].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 1;
 	descriptorPoolSizes[4].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	descriptorPoolSizes[4].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 4;
+	descriptorPoolSizes[4].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 1;
 	descriptorPoolSizes[5].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-	descriptorPoolSizes[5].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
+	descriptorPoolSizes[5].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 1;
 	descriptorPoolSizes[6].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
-	descriptorPoolSizes[6].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 2;
+	descriptorPoolSizes[6].descriptorCount = static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 1;
 
 	// maxSet = total set count * MAX_FRAMES_IN_FLIGHT
-	myGlobalDescriptorPool = myVkContext.CreateDescriptorPool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 3, 0, descriptorPoolSizes);
+	myGlobalDescriptorPool = myVkContext.CreateDescriptorPool(static_cast<uint32_t>(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT) * 16, 0, descriptorPoolSizes);
 
 	myTransferSemaphores.resize(AM_VkRenderCoreConstants::MAX_FRAMES_IN_FLIGHT);
 	for (VkSemaphore& semaphore : myTransferSemaphores)
 		semaphore = myVkContext.CreateSemaphore();
 
 	myRenderContext = new AM_VkRenderContext(myVkContext, myWindowInstance, myVMA);
-
-
-	auto bindingDesc = Vertex::GetBindingDescription();
-	auto attriDesc = Vertex::GetAttributeDescriptions();
-	auto bindingDesc2 = Particle::GetBindingDescription();
-	auto attriDesc2 = Particle::GetAttributeDescriptions();
-
-	myMeshRenderMethod = new AM_VkRenderMethodMesh(
-		myVkContext, 
-		myRenderContext->GetRenderPass(),
-		"../data/shader_bytecode/shader.vert.spv",
-		"../data/shader_bytecode/shader.frag.spv",
-		1,
-		static_cast<uint32_t>(attriDesc.size()),
-		&bindingDesc,
-		attriDesc.data());
-
-	myBillboardRenderMethod = new AM_VkRenderMethodBillboard(
-		myVkContext,
-		myRenderContext->GetRenderPass(),
-		"../data/shader_bytecode/pointlight.vert.spv",
-		"../data/shader_bytecode/pointlight.frag.spv", 
-		0,
-		0);
-
-	myCubeMapRenderMethod = new AM_VkRenderMethodCubeMap(
-		myVkContext, 
-		myRenderContext->GetRenderPass(),
-		"../data/shader_bytecode/skybox.vert.spv",
-		"../data/shader_bytecode/skybox.frag.spv", 
-		1,
-		static_cast<uint32_t>(attriDesc.size()),
-		&bindingDesc,
-		attriDesc.data());
 }
 
 void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_EntityStorage& anEntityStorage)
@@ -943,6 +940,11 @@ void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_Entity
 	if (auto commandBufer = myRenderContext->BeginFrame())
 	{
 		WriteSceneUbiformBuffer(aScene);
+		for (auto& kv : anEntityStorage.GetStorage())
+		{
+			AM_Entity* entity = kv.second;
+			WriteEntityUniformBuffer(*entity);
+		}
 
 		/*
 		* compute work needs to be submitted before starting any render pass
@@ -1026,6 +1028,8 @@ void AM_VkRenderCore::InitScene(AM_TempScene& aScene)
 		builder.WriteBuffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 		myVkContext.WriteToDescriptorSet(globalDescriptorSets[i], builder.GetWrites());
 	}
+
+	CreateRenderMethods(descriptorSetLayout);
 }
 
 AM_Entity* AM_VkRenderCore::LoadSkybox(const char** someTexturePaths, AM_EntityStorage& anEntityStorage)
@@ -1035,8 +1039,8 @@ AM_Entity* AM_VkRenderCore::LoadSkybox(const char** someTexturePaths, AM_EntityS
 	skybox->SetIsSkybox(true);
 	LoadVertexData(*skybox, "../data/models/cube.obj");
 	AM_Texture& skyboxTexture = skybox->GetTexture();
-	CreateTextureImage(skyboxTexture.myImage, someTexturePaths, 6);
-	CreateImageView(skyboxTexture.myImageView, skyboxTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 0, 6);
+	CreateTextureImage(skyboxTexture.myImage, someTexturePaths, 6, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
+	CreateImageView(skyboxTexture.myImageView, skyboxTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 6);
 	CreateTextureSampler(skyboxTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER);
 	AllocatePerEntityDescriptorSets(*skybox);
 	return skybox;
@@ -1054,7 +1058,7 @@ AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char
 	{
 		AM_Texture& entityTexture = entity->GetTexture();
 		CreateTextureImage(entityTexture.myImage, someTexturePaths, 1);
-		CreateImageView(entityTexture.myImageView, entityTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1);
+		CreateImageView(entityTexture.myImageView, entityTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
 		CreateTextureSampler(entityTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
 	}
 
@@ -1062,4 +1066,16 @@ AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char
 	AllocatePerEntityDescriptorSets(*entity);
 
 	return entity;
+}
+
+void AM_VkRenderCore::DestroyEntities(AM_EntityStorage& anEntityStorage)
+{
+	anEntityStorage.DestroyEntities(myVkContext, myVMA);
+}
+
+void AM_VkRenderCore::DestroyScene(AM_TempScene& aScene)
+{
+	myVkContext.DestroyDescriptorSetLayout(aScene.GetDescriptorSetLayout());
+	if (auto* uniformBuffer = aScene.GetUniformBuffer())
+		vmaDestroyBuffer(myVMA, uniformBuffer->myBuffer, uniformBuffer->myAllocation);
 }

@@ -1,4 +1,5 @@
 #include "AM_EntityStorage.h"
+#include "AM_VmaUsage.h"
 
 AM_EntityStorage::AM_EntityStorage()
 {
@@ -40,4 +41,11 @@ void AM_EntityStorage::GetEntitiesOfType(std::vector<AM_Entity*> outEntities, AM
 			continue;
 		outEntities.push_back(entity);
 	}
+}
+
+void AM_EntityStorage::DestroyEntities(AM_VkContext& aVkContext, VmaAllocator anAllocator)
+{
+	for (auto& kv : myEntities)
+		kv.second->DestroyVkResources(aVkContext, anAllocator);
+	myEntities.clear();
 }

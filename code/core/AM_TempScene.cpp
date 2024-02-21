@@ -13,7 +13,7 @@ void AM_TempScene::UpdateUBO_Camera()
 
 void AM_TempScene::UpdateUBO_PointLights(AM_EntityStorage& anEntityStorage)
 {
-	unsigned char numLights = 0;
+	int numLights = 0;
 	for (uint64_t id : myPointLights)
 	{
 		AM_Entity* pointLight = anEntityStorage.GetIfExist(id);

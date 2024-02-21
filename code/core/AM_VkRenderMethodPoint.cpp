@@ -9,6 +9,7 @@ AM_VkRenderMethodPoint::AM_VkRenderMethodPoint(
 	const VkRenderPass aRenderPass,
 	const std::string& aVertexShaderPath,
 	const std::string& aFragmentShaderPath,
+	VkDescriptorSetLayout aGlobalLayout,
 	uint32_t aBindingDescriptionCount /*= 1*/,
 	uint32_t anAttributeDescriptionCount /*= 1*/,
 	const VkVertexInputBindingDescription* aBindingDescription /*= nullptr*/,
@@ -21,7 +22,8 @@ AM_VkRenderMethodPoint::AM_VkRenderMethodPoint(
 		aBindingDescriptionCount,
 		anAttributeDescriptionCount,
 		aBindingDescription,
-		anAttributeDescription)
+		anAttributeDescription,
+		aGlobalLayout)
 {
 }
 
@@ -34,7 +36,6 @@ void AM_VkRenderMethodPoint::CreatePipeline_Imp(AM_VkDescriptorSetLayoutBuilder&
 	rasterizer.polygonMode = VK_POLYGON_MODE_POINT;
 
 	outBuilder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS, 1);
-	outBuilder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 }
 
 void AM_VkRenderMethodPoint::Render_Imp(AM_FrameRenderInfo& someInfo, std::vector<AM_Entity*>& /*someEntities*/, const TempBuffer* aBuffer)

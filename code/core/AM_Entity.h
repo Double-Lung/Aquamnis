@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 
+VK_DEFINE_HANDLE(VmaAllocator);
 class AM_EntityStorage;
 class AM_Entity
 {
@@ -25,10 +26,11 @@ public:
 	struct EntityUBO
 	{
 		glm::mat4 transform{ 1.f };
-		glm::mat4 transform2{ 1.f };
-		glm::mat4 transform3{ 1.f };
-		glm::mat4 transform4{ 1.f };
+		glm::mat4 normalMat{1.f};
+		glm::vec4 color{1.f,1.f,1.f,1.f};
+		float radius{1.f};
 	};
+
 	AM_Entity(AM_Entity&& anEntity) noexcept
 	{
 		*this = std::move(anEntity);
@@ -75,6 +77,15 @@ public:
 	void SetIndexBufferSize(uint32_t aSize) { myIndexBufferSize = aSize; }
 	uint32_t GetIndexBufferSize() const { return myIndexBufferSize; }
 
+	void DestroyVkResources(AM_VkContext& aVkContext, VmaAllocator anAllocator);
+	void UpdateUBO_Transform();
+	void UpdateUBO_Color();
+
+	EntityUBO& GetUBO() { return myUBO; }
+	const EntityUBO& GetUBO() const { return myUBO; }
+	void ResetUpdateFlag() { myShouldUpdateUniformBuffer = false; }
+	bool GetShouldUpdateUniformBuffer() const { return myShouldUpdateUniformBuffer; }
+
 	glm::vec3 myTranslation{ 0.f, 0.f, 0.f };
 	glm::vec3 myScale{ 1.f, 1.f, 1.f };
 	glm::vec3 myRotation{ 0.f, 0.f, 0.f };
@@ -87,6 +98,7 @@ private:
 
 		myId = std::exchange(anEntity.myId, 0);
 		myDescriptorSets = std::move(anEntity.myDescriptorSets);
+		myUBO = anEntity.myUBO;
 		myTexture = anEntity.myTexture;
 		myTempVertexBuffer = anEntity.myTempVertexBuffer;
 		myTempIndexBuffer = anEntity.myTempIndexBuffer;
@@ -101,6 +113,7 @@ private:
 		myIsSkybox = anEntity.myIsSkybox;
 		myIsEmissive = anEntity.myIsEmissive;
 		myIsTransparent = anEntity.myIsTransparent;
+		myShouldUpdateUniformBuffer = anEntity.myShouldUpdateUniformBuffer;
 		return *this;
 	}
 
@@ -108,6 +121,7 @@ private:
 	static AM_Entity* CreateEntity();
 	void SetId(uint64_t anId) { myId = anId; }
 	
+	EntityUBO myUBO;
 	AM_Texture myTexture;
 	std::vector<VkDescriptorSet> myDescriptorSets;
 	TempBuffer myTempVertexBuffer;
@@ -121,5 +135,6 @@ private:
 	bool myIsSkybox : 1;
 	bool myIsEmissive : 1;
 	bool myIsTransparent : 1;
+	bool myShouldUpdateUniformBuffer : 1;
 };
 

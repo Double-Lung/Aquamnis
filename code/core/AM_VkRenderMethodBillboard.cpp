@@ -9,6 +9,7 @@ AM_VkRenderMethodBillboard::AM_VkRenderMethodBillboard(
 	const VkRenderPass aRenderPass,
 	const std::string& aVertexShaderPath,
 	const std::string& aFragmentShaderPath,
+	VkDescriptorSetLayout aGlobalLayout,
 	uint32_t aBindingDescriptionCount /*= 1*/,
 	uint32_t anAttributeDescriptionCount /*= 1*/,
 	const VkVertexInputBindingDescription* aBindingDescription /*= nullptr*/,
@@ -21,7 +22,8 @@ AM_VkRenderMethodBillboard::AM_VkRenderMethodBillboard(
 		aBindingDescriptionCount,
 		anAttributeDescriptionCount,
 		aBindingDescription,
-		anAttributeDescription)
+		anAttributeDescription,
+		aGlobalLayout)
 {
 }
 
@@ -65,20 +67,12 @@ void AM_VkRenderMethodBillboard::Render_Imp(AM_FrameRenderInfo& someInfo, std::v
 	for (AM_Entity* entity : normalEntities)
 	{
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 1, 1, &entity->GetDescriptorSets()[someInfo.myFrameIndex], 0, nullptr);
-// 		PointLightPushConstants push{};
-// 		push.position = glm::vec4(entity.GetTransformComponent().myTranslation, 1.f);
-// 		push.color = glm::vec4(entity.GetColor(), entity.GetPointLightIntensity());
-// 		push.radius = 0.1f;
 		vkCmdDraw(commandBuffer, 6, 1, 0, 0);  // draw 6 vertices for a quad
 	}
 
 	for (AM_Entity* entity : sortedEntities)
 	{
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, myPipeline.GetPipelineLayout(), 1, 1, &entity->GetDescriptorSets()[someInfo.myFrameIndex], 0, nullptr);
-// 		PointLightPushConstants push{};
-// 		push.position = glm::vec4(entity.GetTransformComponent().myTranslation, 1.f);
-// 		push.color = glm::vec4(entity.GetColor(), entity.GetPointLightIntensity());
-// 		push.radius = 0.1f;
 		vkCmdDraw(commandBuffer, 6, 1, 0, 0);
 	}
 }

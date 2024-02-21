@@ -18,7 +18,7 @@ struct GlobalUBO
 	glm::mat4 projectionMat{};
 	glm::vec4 ambientColor{};
 	glm::vec3 directLightDirection{};
-	unsigned char numPointLight{ 0 };
+	int numPointLight{ 0 };
 };
 
 class AM_Camera;
@@ -64,6 +64,7 @@ public:
 	void AddSkybox(uint64_t anId);
 
 	uint64_t GetSkyboxId() const { return mySkybox; }
+	void ResetUpdateFlag() { myShouldUpdateUniformBuffer = false; }
 	bool GetShouldUpdateUniformBuffer() const { return myShouldUpdateUniformBuffer; }
 
 private:

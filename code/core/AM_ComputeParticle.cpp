@@ -2,7 +2,7 @@
 #include "AM_PipelineUtils.h"
 #include "AM_VkDescriptorSetLayoutBuilder.h"
 
-AM_ComputeParticle::AM_ComputeParticle(AM_VkContext& aVkContext, const std::string& aComputeShaderPath)
+AM_ComputeParticle::AM_ComputeParticle(AM_VkContext& aVkContext, const std::string& aComputeShaderPath, VkDescriptorSetLayout aGlobalLayout)
 	: myVkContext(aVkContext)
 	, myComputePipeline(aVkContext)
 {
@@ -14,7 +14,7 @@ AM_ComputeParticle::AM_ComputeParticle(AM_VkContext& aVkContext, const std::stri
 	builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
 	builder.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1);
 
-	myComputePipeline.CreatePipeline(aComputeShaderPath, builder, pipelineInfo);
+	myComputePipeline.CreatePipeline(aComputeShaderPath, aGlobalLayout, builder, pipelineInfo);
 }
 
 void AM_ComputeParticle::DispatchWork(VkCommandBuffer aCommandBuffer, VkDescriptorSet& aDescriptorSet)

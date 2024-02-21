@@ -24,7 +24,8 @@ public:
 		uint32_t aBindingDescriptionCount,
 		uint32_t anAttributeDescriptionCount,
 		const VkVertexInputBindingDescription* aBindingDescription,
-		const VkVertexInputAttributeDescription* anAttributeDescription);
+		const VkVertexInputAttributeDescription* anAttributeDescription,
+		VkDescriptorSetLayout aGlobalLayout);
 
 	AM_VkRenderMethod(const AM_VkRenderMethod&) = delete;
 	AM_VkRenderMethod& operator=(const AM_VkRenderMethod&) = delete;
@@ -44,11 +45,12 @@ private:
 		uint32_t aBindingDescriptionCount,
 		uint32_t anAttributeDescriptionCount,
 		const VkVertexInputBindingDescription* aBindingDescription,
-		const VkVertexInputAttributeDescription* anAttributeDescription);
+		const VkVertexInputAttributeDescription* anAttributeDescription,
+		VkDescriptorSetLayout aGlobalLayout);
 };
 
 template <class ImpClass>
-AM_VkRenderMethod<ImpClass>::AM_VkRenderMethod(AM_VkContext& aVkContext, const VkRenderPass aRenderPass, const std::string& aVertexShaderPath, const std::string& aFragmentShaderPath, uint32_t aBindingDescriptionCount, uint32_t anAttributeDescriptionCount, const VkVertexInputBindingDescription* aBindingDescription, const VkVertexInputAttributeDescription* anAttributeDescription)
+AM_VkRenderMethod<ImpClass>::AM_VkRenderMethod(AM_VkContext& aVkContext, const VkRenderPass aRenderPass, const std::string& aVertexShaderPath, const std::string& aFragmentShaderPath, uint32_t aBindingDescriptionCount, uint32_t anAttributeDescriptionCount, const VkVertexInputBindingDescription* aBindingDescription, const VkVertexInputAttributeDescription* anAttributeDescription, VkDescriptorSetLayout aGlobalLayout)
 	: myVkContext(aVkContext)
 	, myPipeline(aVkContext)
 {
@@ -59,7 +61,8 @@ AM_VkRenderMethod<ImpClass>::AM_VkRenderMethod(AM_VkContext& aVkContext, const V
 		aBindingDescriptionCount,
 		anAttributeDescriptionCount,
 		aBindingDescription,
-		anAttributeDescription);
+		anAttributeDescription,
+		aGlobalLayout);
 }
 
 template <class ImpClass>
@@ -69,7 +72,7 @@ void AM_VkRenderMethod<ImpClass>::Render(AM_FrameRenderInfo& someInfo, std::vect
 }
 
 template <class ImpClass>
-void AM_VkRenderMethod<ImpClass>::CreatePipeline(const VkRenderPass aRenderPass, const std::string& aVertexShaderPath, const std::string& aFragmentShaderPath, uint32_t aBindingDescriptionCount, uint32_t anAttributeDescriptionCount, const VkVertexInputBindingDescription* aBindingDescription, const VkVertexInputAttributeDescription* anAttributeDescription)
+void AM_VkRenderMethod<ImpClass>::CreatePipeline(const VkRenderPass aRenderPass, const std::string& aVertexShaderPath, const std::string& aFragmentShaderPath, uint32_t aBindingDescriptionCount, uint32_t anAttributeDescriptionCount, const VkVertexInputBindingDescription* aBindingDescription, const VkVertexInputAttributeDescription* anAttributeDescription, VkDescriptorSetLayout aGlobalLayout)
 {
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.renderPass = aRenderPass;
@@ -92,7 +95,7 @@ void AM_VkRenderMethod<ImpClass>::CreatePipeline(const VkRenderPass aRenderPass,
 
 	VkPushConstantRange* rangePtr = pushConstantRange.size > 0 ? &pushConstantRange : nullptr;
 	AM_PipelineUtils::FillPiplineCreateInfo(pipelineInfo, graphicsInitializer);
-	myPipeline.CreatePipeline(aVertexShaderPath, aFragmentShaderPath, builder, pipelineInfo, rangePtr);
+	myPipeline.CreatePipeline(aVertexShaderPath, aFragmentShaderPath, aGlobalLayout, builder, pipelineInfo, rangePtr);
 }
 
-#undef THIS(DERIVED)
+#undef THIS

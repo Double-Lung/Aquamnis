@@ -10,37 +10,39 @@ layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragPosWorld;
 layout(location = 3) out vec3 fragNormalWorld;
 
-layout(push_constant)
-uniform Push
-{
-    mat4 normalMat;
-    mat4 transform;
-} push;
-
 struct PointLight
 {
-    vec4 position;
     vec4 color;
+    vec3 position;
 };
 
 layout(set = 0, binding = 0) 
-uniform UniformBufferObject 
+uniform GlobalUBO
 {
+    PointLight pointLights[10];
     mat4 view;
-    mat4 proj;
     mat4 invView;
+    mat4 proj;
     vec4 ambientColor;
-    PointLight pointLights[8];
+    vec3 directLightDirection;
     int numLights;
-    float deltaTime;
-} ubo;
+} globalUBO;
+
+layout(set = 1, binding = 0)
+uniform EntityUBO
+{
+    mat4 transform;
+    mat4 normalMat;
+	vec4 color;
+	float radius;
+} entityUBO;
 
 void main() 
 {
-    vec4 worldPosition = push.transform * vec4(inPosition, 1.0);
-    gl_Position = ubo.proj * ubo.view * worldPosition;
+    vec4 worldPosition = entityUBO.transform * vec4(inPosition, 1.0);
+    gl_Position = globalUBO.proj * globalUBO.view * worldPosition;
 
-    fragNormalWorld = normalize(mat3(push.normalMat) * inNormal);
+    fragNormalWorld = normalize(mat3(entityUBO.normalMat) * inNormal);
     fragPosWorld = worldPosition.xyz;
     fragColor = inColor;
     fragTexCoord = inTexCoord;

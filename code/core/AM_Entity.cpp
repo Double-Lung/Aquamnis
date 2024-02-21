@@ -1,8 +1,10 @@
 #include "AM_Entity.h"
 #include "AM_VkRenderCoreConstants.h"
+#include "AM_VmaUsage.h"
 
 AM_Entity::AM_Entity(uint64_t anID)
-	: myTexture{}
+	: myUBO{}
+	, myTexture{}
 	, myTempVertexBuffer{}
 	, myTempIndexBuffer{}
 	, myTempUniformBuffer{}
@@ -17,6 +19,7 @@ AM_Entity::AM_Entity(uint64_t anID)
 	, myIsSkybox(false)
 	, myIsEmissive(false)
 	, myIsTransparent(false)
+	, myShouldUpdateUniformBuffer(false)
 {
 }
 
@@ -96,4 +99,28 @@ glm::mat4 AM_Entity::GetMatrix()
 			1.0f
 		}
 	};
+}
+
+void AM_Entity::DestroyVkResources(AM_VkContext& aVkContext, VmaAllocator anAllocator)
+{
+	vmaDestroyBuffer(anAllocator, myTempVertexBuffer.myBuffer, myTempVertexBuffer.myAllocation);
+	vmaDestroyBuffer(anAllocator, myTempIndexBuffer.myBuffer, myTempIndexBuffer.myAllocation);
+	vmaDestroyBuffer(anAllocator, myTempUniformBuffer.myBuffer, myTempUniformBuffer.myAllocation);
+	vmaDestroyImage(anAllocator, myTexture.myImage.myImage, myTexture.myImage.myAllocation);
+	aVkContext.DestroyImageView(myTexture.myImageView);
+	aVkContext.DestroySampler(myTexture.mySampler);
+}
+
+void AM_Entity::UpdateUBO_Transform()
+{
+	myUBO.transform = GetMatrix();
+	myUBO.normalMat = GetNormalMatrix();
+	myUBO.radius = myScale.x;
+	myShouldUpdateUniformBuffer = true;
+}
+
+void AM_Entity::UpdateUBO_Color()
+{
+	myUBO.color = glm::vec4(myColor, 1.f);
+	myShouldUpdateUniformBuffer = true;
 }

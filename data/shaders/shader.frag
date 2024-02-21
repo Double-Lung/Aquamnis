@@ -9,33 +9,40 @@ layout(location = 0) out vec4 outColor;
 
 struct PointLight
 {
-    vec4 position;
     vec4 color;
+    vec3 position;
 };
 
 layout(set = 0, binding = 0) 
-uniform UniformBufferObject 
+uniform GlobalUBO
 {
+    PointLight pointLights[10];
     mat4 view;
-    mat4 proj;
     mat4 invView;
+    mat4 proj;
     vec4 ambientColor;
-    PointLight pointLights[8];
+    vec3 directLightDirection;
     int numLights;
-    float deltaTime;
-} ubo;
+} globalUBO;
 
-layout(binding = 1) 
+layout(set = 1, binding = 0)
+uniform EntityUBO
+{
+    mat4 transform;
+    mat4 normalMat;
+	vec4 color;
+	float radius;
+} entityUBO;
+
+layout(set = 1, binding = 1) 
 uniform sampler2D texSampler;
 
-const vec3 DIRECTION_TO_LIGHT = normalize(vec3(1.0, 1.0, 1.0));
-
 void main() {
-    vec3 diffuseLight = ubo.ambientColor.xyz * ubo.ambientColor.w;
+    vec3 diffuseLight = globalUBO.ambientColor.xyz * globalUBO.ambientColor.w;
     vec3 specularLight = vec3(0.0);
     vec3 surfaceNormal = normalize(fragNormalWorld);
 
-    vec3 cameraPosWorld = ubo.invView[3].xyz;
+    vec3 cameraPosWorld = globalUBO.invView[3].xyz;
     vec3 viewDir = normalize(cameraPosWorld - fragPosWorld);
 
     // global specular Light
@@ -45,9 +52,9 @@ void main() {
     // blinnTermG = pow(blinnTermG, 32.0);
     // specularLight += vec3(1.f, 1.f, 1.f) * blinnTermG;
 
-    for (int i = 0; i < ubo.numLights; ++i)
+    for (int i = 0; i < globalUBO.numLights; ++i)
     {
-        PointLight light = ubo.pointLights[i];
+        PointLight light = globalUBO.pointLights[i];
         vec3 dirToPointLight = light.position.xyz - fragPosWorld;
         float ligthFallOff = 1.0 / dot(dirToPointLight, dirToPointLight);
         dirToPointLight = normalize(dirToPointLight);
@@ -63,6 +70,6 @@ void main() {
         specularLight += singleLightColor * blinnTerm;
     }
 
-    float directLight = max(dot(surfaceNormal, DIRECTION_TO_LIGHT), 0.0);
+    float directLight = max(dot(surfaceNormal, normalize(globalUBO.directLightDirection)), 0.0);
     outColor = vec4(fragColor * (diffuseLight + specularLight), 1.0); // texture(texSampler, fragTexCoord) * 
 }

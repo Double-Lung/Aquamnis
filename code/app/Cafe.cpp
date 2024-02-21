@@ -7,8 +7,20 @@
 #include <AM_VkRenderCore.h>
 #include <glm/glm.hpp>
 
+Cafe::Cafe()
+	: myWindowInstance{}
+	, myRenderCore{ nullptr }
+	, myEntityStorage{ nullptr }
+	, myMainCamera{ nullptr }
+	, myDefaultScene{ nullptr }
+{
+}
+
 Cafe::~Cafe()
 {
+	delete myMainCamera;
+	delete myEntityStorage;
+	delete myDefaultScene;
 	delete myRenderCore;
 }
 
@@ -19,7 +31,7 @@ void Cafe::Engage()
 	myRenderCore->Setup();
 	LoadDefaultScene();
 	MainLoop();
-	myRenderCore->OnEnd();
+	CleanUp();
 }
 
 void Cafe::MainLoop()
@@ -29,14 +41,12 @@ void Cafe::MainLoop()
 		glfwPollEvents();
 		float deltaTime = AM_SimpleTimer::GetInstance().GetDeltaTime();
 
-		// update runtime data
-		// - camera
-		// - lighting
-		// - per entity data
-
 		bool cameraUpdated = UpdateCameraTransform(deltaTime);
 		if (cameraUpdated)
 			myDefaultScene->UpdateUBO_Camera();
+
+		// entity update logic should be here
+		// it is not needed right now since the scene is fully static
 
 		myRenderCore->Render(*myDefaultScene->GetCamera(), *myDefaultScene, *myEntityStorage);
 
@@ -49,6 +59,13 @@ void Cafe::MainLoop()
 			myDefaultScene->UpdateUBO_Camera();
 		}
 	}
+}
+
+void Cafe::CleanUp()
+{
+	myRenderCore->OnEnd();
+	myRenderCore->DestroyEntities(*myEntityStorage);
+	myRenderCore->DestroyScene(*myDefaultScene);
 }
 
 bool Cafe::UpdateCameraTransform(float aDeltaTime)
@@ -150,16 +167,19 @@ void Cafe::LoadDefaultScene()
 	static const char* vikingRoomTextures[] = { "../data/textures/vikingroom.png" };
 	AM_Entity* vikingRoom = myRenderCore->LoadEntity(vikingRoomTextures, "../data/models/vikingroom.obj", *myEntityStorage, AM_Entity::MESH);
 	vikingRoom->myTranslation = { 12.f, 0.f, 0.f };
+	vikingRoom->UpdateUBO_Transform();
 	myDefaultScene->AddMeshObject(vikingRoom->GetId());
 
 	AM_Entity* vase = myRenderCore->LoadEntity(nullptr, "../data/models/smooth_vase.obj", *myEntityStorage, AM_Entity::MESH);
 	vase->myTranslation = { -8.f, 0.f, 0.f };
 	vase->myScale = { 20.f, 20.f, 20.f };
+	vase->UpdateUBO_Transform();
 	myDefaultScene->AddMeshObject(vase->GetId());
 
 	AM_Entity* quad = myRenderCore->LoadEntity(nullptr, "../data/models/quad.obj", *myEntityStorage, AM_Entity::MESH);
 	quad->myTranslation = { 0.f, -1.f, 0.f };
 	quad->myScale = { 42.f, 1.f, 42.f };
+	quad->UpdateUBO_Transform();
 	myDefaultScene->AddMeshObject(quad->GetId());
 
 	static const char* CUBEMAP_TEXTURE_PATH[6] =
@@ -177,15 +197,23 @@ void Cafe::LoadDefaultScene()
 
 	AM_Entity* pointLight1 = myRenderCore->LoadEntity(nullptr, nullptr, *myEntityStorage, AM_Entity::BILLBOARD);
 	pointLight1->myTranslation = { -5.f, 2.f, -.7f };
+	pointLight1->myScale = { .1f, .1f, .1f };
 	pointLight1->SetIsEmissive(true);
 	pointLight1->SetTransparency(true);
 	pointLight1->SetColor({ 1.f, 0.1f, 0.1f });
 	pointLight1->SetLightIntensity(1.f);
+	pointLight1->UpdateUBO_Transform();
+	pointLight1->UpdateUBO_Color();
 
 	AM_Entity* pointLight2 = myRenderCore->LoadEntity(nullptr, nullptr, *myEntityStorage, AM_Entity::BILLBOARD);
 	pointLight2->myTranslation = { -5.f, 2.f, .7f };
+	pointLight2->myScale = { .1f, .1f, .1f };
 	pointLight2->SetIsEmissive(true);
 	pointLight2->SetTransparency(true);
+	pointLight1->SetColor({ 1.f, 1.0f, 0.1f });
+	pointLight2->SetLightIntensity(1.f);
+	pointLight1->UpdateUBO_Transform();
+	pointLight1->UpdateUBO_Color();
 
 	myDefaultScene->AddPointLight(pointLight1->GetId());
 	myDefaultScene->AddPointLight(pointLight2->GetId());
