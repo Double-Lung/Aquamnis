@@ -1,5 +1,4 @@
 #version 450
-#extension GL_KHR_vulkan_glsl: enable
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
@@ -39,12 +38,12 @@ layout(set = 1, binding = 1)
 uniform sampler2D texSampler;
 
 void main() {
-    // vec3 diffuseLight = globalUBO.ambientColor.xyz * globalUBO.ambientColor.w;
-    // vec3 specularLight = vec3(0.0);
-    // vec3 surfaceNormal = normalize(fragNormalWorld);
+    vec3 diffuseLight = globalUBO.ambientColor.xyz * globalUBO.ambientColor.w;
+    vec3 specularLight = vec3(0.0);
+    vec3 surfaceNormal = normalize(fragNormalWorld);
 
-    // vec3 cameraPosWorld = globalUBO.invView[3].xyz;
-    // vec3 viewDir = normalize(cameraPosWorld - fragPosWorld);
+    vec3 cameraPosWorld = globalUBO.invView[3].xyz;
+    vec3 viewDir = normalize(cameraPosWorld - fragPosWorld);
 
     // global specular Light
     // vec3 halfAngleVecG = normalize(DIRECTION_TO_LIGHT + viewDir);
@@ -52,7 +51,7 @@ void main() {
     // blinnTermG = clamp(blinnTermG, 0, 1);
     // blinnTermG = pow(blinnTermG, 32.0);
     // specularLight += vec3(1.f, 1.f, 1.f) * blinnTermG;
-    /*
+    
     for (int i = 0; i < globalUBO.numLights; ++i)
     {
         PointLight light = globalUBO.pointLights[i];
@@ -69,8 +68,8 @@ void main() {
         blinnTerm = clamp(blinnTerm, 0, 1);
         blinnTerm = pow(blinnTerm, 32.0);
         specularLight += singleLightColor * blinnTerm;
-    }*/
+    }
 
     //float directLight = max(dot(surfaceNormal, normalize(globalUBO.directLightDirection)), 0.0);
-    outColor = texture(texSampler, fragTexCoord); //vec4(fragColor * (diffuseLight + specularLight), 1.0); // texture(texSampler, fragTexCoord) * 
+    outColor = texture(texSampler, fragTexCoord) * vec4((diffuseLight + specularLight), 1.0);
 }

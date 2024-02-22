@@ -988,8 +988,8 @@ void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_Entity
 		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::MESH);
 		myMeshRenderMethod->Render(info, entities);
 
-// 		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::BILLBOARD);
-// 		myBillboardRenderMethod->Render(info, entities);
+		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::BILLBOARD);
+		myBillboardRenderMethod->Render(info, entities);
 
 		myRenderContext->EndRenderPass(commandBufer);
 		myRenderContext->EndFrame();

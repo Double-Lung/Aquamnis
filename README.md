@@ -1,5 +1,5 @@
 ### Vulkan API Learning Project Using GLFW
-![Preview](/preview-viking-room.png)
+![Preview](/extra/preview.png)
 #### TODOs:
 - [x] Create base program
 - [x] Fix viewport orientation

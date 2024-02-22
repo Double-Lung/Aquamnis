@@ -41,8 +41,7 @@ const vec2 OFFSETS[6] = vec2[](
 void main() 
 {
     fragOffset = OFFSETS[gl_VertexIndex];
-    vec4 worldPosition = entityUBO.transform * vec4(0.0, 0.0, 0.0, 1.0);
-    gl_Position = globalUBO.proj * globalUBO.view * worldPosition;
+    gl_Position = globalUBO.proj * globalUBO.view * entityUBO.transform[3];
     gl_Position /= gl_Position.w;
     gl_Position.xy += entityUBO.radius * vec2(3.0/4.0, 1.0)  * fragOffset;
 }
