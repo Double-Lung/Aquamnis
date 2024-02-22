@@ -1,4 +1,4 @@
-### Vulkan API Learning Project Using GLFW
+### Lame Vulkan Renderer Project
 ![Preview](/extra/preview.png)
 #### TODOs:
 - [x] Create base program
