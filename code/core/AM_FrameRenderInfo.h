@@ -1,8 +1,7 @@
 #pragma once
-#include "AM_Camera.h"
-#include "AM_EntityStorage.h"
 #include <vulkan/vulkan.h>
-
+class AM_Camera;
+class AM_EntityStorage;
 struct AM_FrameRenderInfo
 {
 	VkCommandBuffer myCommandBuffer{nullptr};

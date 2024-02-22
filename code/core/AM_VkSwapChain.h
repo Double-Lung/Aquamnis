@@ -1,5 +1,6 @@
 #pragma once
 #include "AM_VkContext.h"
+#include <vector>
 
 class AM_VkSwapChain
 {

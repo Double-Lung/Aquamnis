@@ -1,5 +1,7 @@
 #include "AM_TempScene.h"
+
 #include "AM_Camera.h"
+#include "AM_Entity.h"
 #include "AM_EntityStorage.h"
 
 void AM_TempScene::UpdateUBO_Camera()

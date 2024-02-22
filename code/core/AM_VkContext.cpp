@@ -1,5 +1,8 @@
 #include "AM_VkContext.h"
 
+#include "AM_VkRenderCoreConstants.h"
+#include <GLFW/glfw3.h>
+
 AM_VkContext::AM_VkContext() 
 	: deviceProperties{}
 	, deviceFeatures{}

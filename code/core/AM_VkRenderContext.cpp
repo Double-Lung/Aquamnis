@@ -1,4 +1,7 @@
 #include "AM_VkRenderContext.h"
+
+#include "AM_RenderUtils.h"
+#include "AM_VkRenderCoreConstants.h"
 #include "AM_VmaUsage.h"
 #include <array>
 
@@ -362,7 +365,13 @@ void AM_VkRenderContext::CreateColorResources()
 	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myColorImage.myImage, &myColorImage.myAllocation, nullptr);
 	assert(result == VK_SUCCESS && "failed to create image!");
 
-	CreateImageView(myColorImageView, myColorImage.myImage, myVkContext.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	myColorImageView = AM_RenderUtils::CreateImageView(
+		myVkContext, 
+		myColorImage.myImage, 
+		myVkContext.surfaceFormat.format, 
+		VK_IMAGE_VIEW_TYPE_2D,
+		VK_IMAGE_ASPECT_COLOR_BIT,
+		1, 1);
 }
 
 void AM_VkRenderContext::CreateDepthResources()
@@ -389,12 +398,17 @@ void AM_VkRenderContext::CreateDepthResources()
 	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &myDepthImage.myImage, &myDepthImage.myAllocation, nullptr);
 	assert(result == VK_SUCCESS && "failed to create image!");
 
-	CreateImageView(myDepthImageView, myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	myDepthImageView = AM_RenderUtils::CreateImageView(
+		myVkContext,
+		myDepthImage.myImage,
+		myVkContext.depthFormat,
+		VK_IMAGE_VIEW_TYPE_2D,
+		VK_IMAGE_ASPECT_DEPTH_BIT,
+		1, 1);
 
-	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[myCurrentFrame]);
-	TransitionImageLayout(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, commandBuffer);
-	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[myCurrentFrame]);
+	VkCommandBuffer commandBuffer = AM_RenderUtils::BeginOneTimeCommands(myVkContext, myVkContext.myCommandPools[myCurrentFrame]);
+	AM_RenderUtils::TransitionImageLayout(myDepthImage.myImage, myVkContext.depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1, commandBuffer);
+	AM_RenderUtils::EndOneTimeCommands(myVkContext, commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[myCurrentFrame]);
 }
 
 void AM_VkRenderContext::CreateFramebuffers()
@@ -435,113 +449,3 @@ void AM_VkRenderContext::CreateSyncObjects()
 	}
 }
 
-void AM_VkRenderContext::CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels)
-{
-	VkImageViewCreateInfo viewInfo{};
-	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewInfo.image = image;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewInfo.format = format;
-	viewInfo.subresourceRange.aspectMask = aspectFlags;
-	viewInfo.subresourceRange.baseMipLevel = 0;
-	viewInfo.subresourceRange.levelCount = aMipLevels;
-	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = 1;
-
-	outImageView = myVkContext.CreateImageView(viewInfo);
-}
-
-void AM_VkRenderContext::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
-{
-	VkCommandBufferAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = aCommandPool;
-	allocInfo.commandBufferCount = 1;
-
-	vkAllocateCommandBuffers(myVkContext.device, &allocInfo, &aCommandBuffer);
-
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(aCommandBuffer, &beginInfo);
-}
-
-void AM_VkRenderContext::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool)
-{
-	vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(aVkQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(aVkQueue);
-
-	vkFreeCommandBuffers(myVkContext.device, aCommandPool, 1, &commandBuffer);
-}
-
-void AM_VkRenderContext::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer)
-{
-	VkImageMemoryBarrier barrier{};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = oldLayout;
-	barrier.newLayout = newLayout;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.image = image;
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = aMipLevels;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-
-	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | (HasStencilComponent(format) ? VK_IMAGE_ASPECT_STENCIL_BIT : 0);
-	else
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-
-	VkPipelineStageFlags sourceStage;
-	VkPipelineStageFlags destinationStage;
-	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	}
-	else
-		throw std::invalid_argument("unsupported layout transition!");
-
-	vkCmdPipelineBarrier(
-		aCommandBuffer,
-		sourceStage, destinationStage,
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &barrier
-	);
-}
-
-bool AM_VkRenderContext::HasStencilComponent(VkFormat format)
-{
-	return !((format ^ VK_FORMAT_D32_SFLOAT_S8_UINT) && (format ^ VK_FORMAT_D24_UNORM_S8_UINT));
-}

@@ -1,7 +1,7 @@
 #pragma once
 #include "TempBuffer.h"
-#include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
 #include <vector>
 
 struct PointLightData

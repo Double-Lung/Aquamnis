@@ -1,26 +1,24 @@
 #include "AM_VkRenderCore.h"
+
+#include "AM_Camera.h"
+#include "AM_Entity.h"
+#include "AM_EntityStorage.h"
+#include "AM_FrameRenderInfo.h"
+#include "AM_RenderUtils.h"
+#include "AM_Texture.h"
+#include "AM_TempScene.h"
+#include "AM_VkDescriptorSetWritesBuilder.h"
 #include "AM_VkRenderContext.h"
+#include "AM_VkRenderCoreConstants.h"
 #include "AM_VkRenderMethodBillboard.h"
 #include "AM_VkRenderMethodCubeMap.h"
 #include "AM_VkRenderMethodMesh.h"
-#include "AM_VkRenderMethodPoint.h"
-#include "AM_Camera.h"
-#include "AM_SimpleTimer.h"
-#include "AM_Texture.h"
-#include "AM_VkDescriptorSetWritesBuilder.h"
-#include "AM_Window.h"
 #include "AM_VmaUsage.h"
-#include "AM_EntityStorage.h"
-#include "AM_TempScene.h"
-#include "AM_FrameRenderInfo.h"
-#include <glm/glm.hpp>
-#include <cstdint>
-#include <cstdlib>
-#include <fstream>
-#include <tiny_obj_loader.h>
+#include "AM_Window.h"
+#include "TempBuffer.h"
+#include "TempImage.h"
 #include <stb_image.h>
-#include <random>
-#include <unordered_map>
+#include <tiny_obj_loader.h>
 
 AM_VkRenderCore::AM_VkRenderCore(AM_Window& aWindowInstance)
 	: myWindowInstance(aWindowInstance)
@@ -92,23 +90,7 @@ bool AM_VkRenderCore::CheckInstanceLayerSupport()
 	return true;
 }
 
-void AM_VkRenderCore::CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageViewType aViewType, VkImageAspectFlags aspectFlags, uint32_t aMipLevels, uint32_t aLayerCount)
-{
-	VkImageViewCreateInfo viewInfo{};
-	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewInfo.image = image;
-	viewInfo.viewType = aViewType;
-	viewInfo.format = format;
-	viewInfo.subresourceRange.aspectMask = aspectFlags;
-	viewInfo.subresourceRange.baseMipLevel = 0;
-	viewInfo.subresourceRange.levelCount = aMipLevels;
-	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = aLayerCount;
-
-	outImageView = myVkContext.CreateImageView(viewInfo);
-}
-
-void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount, VkImageCreateFlags someFlags) // #FIX_ME: move to a common util class
+void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** somePaths, uint32_t aLayerCount, VkImageCreateFlags someFlags)
 {
 	int texWidth = 0, texHeight = 0, texChannels = 0;
 	std::vector<void*> imageLayers(aLayerCount, nullptr);
@@ -151,9 +133,8 @@ void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** someP
 	VkResult result = vmaCreateImage(myVMA, &imageInfo, &allocationInfo, &outImage.myImage, &outImage.myAllocation, nullptr);
 	assert(result == VK_SUCCESS && "failed to create image!");
 
-	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool);
-	TransitionImageLayout(outImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, aLayerCount, commandBuffer);
+	VkCommandBuffer commandBuffer = AM_RenderUtils::BeginOneTimeCommands(myVkContext, myVkContext.myTransferCommandPool);
+	AM_RenderUtils::TransitionImageLayout(outImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, myMipLevels, aLayerCount, commandBuffer);
 	CopyBufferToImage(stagingBuffer.myBuffer, outImage.myImage, texWidth, texHeight, aLayerCount, commandBuffer);
 
 	VkImageMemoryBarrier postCopyTransferMemoryBarrier{};
@@ -183,8 +164,7 @@ void AM_VkRenderCore::CreateTextureImage(TempImage& outImage, const char** someP
 
 	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0]);
 
-	VkCommandBuffer graphicsCommandBuffer;
-	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0]);
+	VkCommandBuffer graphicsCommandBuffer = AM_RenderUtils::BeginOneTimeCommands(myVkContext, myVkContext.myCommandPools[0]);
 
 	VkImageMemoryBarrier postCopyGraphicsMemoryBarrier{};
 	postCopyGraphicsMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -252,8 +232,7 @@ void AM_VkRenderCore::CopyBufferToImage(VkBuffer aSourceBuffer, VkImage anImage,
 
 void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocationInfo* anAllocationInfo, const TempBuffer* aDestinationBuffer)
 {
-	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myTransferCommandPool);
+	VkCommandBuffer commandBuffer = AM_RenderUtils::BeginOneTimeCommands(myVkContext, myVkContext.myTransferCommandPool);
 
 	VkBufferCopy copyRegion{ 0, 0, anAllocationInfo->size };
 	vkCmdCopyBuffer(commandBuffer, aSourceBuffer, aDestinationBuffer->myBuffer, 1, &copyRegion);
@@ -280,8 +259,7 @@ void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocationInfo* anAl
 
 	BeginOwnershipTransfer(commandBuffer, myVkContext.transferQueue, myTransferSemaphores[0]);
 
-	VkCommandBuffer graphicsCommandBuffer;
-	BeginOneTimeCommands(graphicsCommandBuffer, myVkContext.myCommandPools[0]);
+	VkCommandBuffer graphicsCommandBuffer = AM_RenderUtils::BeginOneTimeCommands(myVkContext, myVkContext.myCommandPools[0]);
 
 	bufferMemoryBarrier.srcAccessMask = 0;
 	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
@@ -305,64 +283,6 @@ void AM_VkRenderCore::CopyBuffer(VkBuffer aSourceBuffer, VmaAllocationInfo* anAl
 	vkFreeCommandBuffers(myVkContext.device, myVkContext.myCommandPools[0], 1, &graphicsCommandBuffer);
 }
 
-void AM_VkRenderCore::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer)
-{
-	VkImageMemoryBarrier barrier{};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = oldLayout;
-	barrier.newLayout = newLayout;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.image = image;
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = aMipLevels;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = aLayerCount;
-
-	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | (HasStencilComponent(format) ? VK_IMAGE_ASPECT_STENCIL_BIT : 0);
-	else
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-
-	VkPipelineStageFlags sourceStage;
-	VkPipelineStageFlags destinationStage;
-	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	}
-	else
-		throw std::invalid_argument("unsupported layout transition!");
-
-	vkCmdPipelineBarrier(
-		aCommandBuffer,
-		sourceStage, destinationStage,
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &barrier
-	);
-}
-
 void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t aMipLevels)
 {
 	// Check if image format supports linear blitting
@@ -375,8 +295,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 	// Usually they are pre-generated and stored in the texture file alongside the base level to improve loading speed. 
 	// Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
 
-	VkCommandBuffer commandBuffer;
-	BeginOneTimeCommands(commandBuffer, myVkContext.myCommandPools[0]);
+	VkCommandBuffer commandBuffer = AM_RenderUtils::BeginOneTimeCommands(myVkContext, myVkContext.myCommandPools[0]);
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -467,7 +386,7 @@ void AM_VkRenderCore::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32
 		0, nullptr,
 		1, &barrier);
 
-	EndOneTimeCommands(commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[0]);
+	AM_RenderUtils::EndOneTimeCommands(myVkContext, commandBuffer, myVkContext.graphicsQueue, myVkContext.myCommandPools[0]);
 }
 
 void AM_VkRenderCore::CreateFilledStagingBuffer(TempBuffer& outBuffer, uint64_t aBufferSize, uint64_t aStrideSize, std::vector<void*>& someSources)
@@ -674,23 +593,6 @@ void AM_VkRenderCore::WriteSceneUbiformBuffer(AM_TempScene& aScene)
 	aScene.ResetUpdateFlag(frameIdx);
 }
 
-void AM_VkRenderCore::BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool)
-{
-	VkCommandBufferAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = aCommandPool;
-	allocInfo.commandBufferCount = 1;
-
-	aCommandBuffer = myVkContext.AllocateCommandBuffer(allocInfo);
-
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(aCommandBuffer, &beginInfo);
-}
-
 void AM_VkRenderCore::BeginOwnershipTransfer(VkCommandBuffer& aSrcCommandBuffer, VkQueue& aSrcQueue, VkSemaphore& aSignalSemaphore)
 {
 	vkEndCommandBuffer(aSrcCommandBuffer);
@@ -720,48 +622,6 @@ void AM_VkRenderCore::EndOwnershipTransfer(VkCommandBuffer& aDstCommandBuffer, V
 	submitInfo.pWaitDstStageMask = waitStages;
 
 	vkQueueSubmit(aDstQueue, 1, &submitInfo, VK_NULL_HANDLE);
-}
-
-void AM_VkRenderCore::EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool)
-{
-	vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(aVkQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(aVkQueue);
-
-	vkFreeCommandBuffers(myVkContext.device, aCommandPool, 1, &commandBuffer);
-}
-
-void AM_VkRenderCore::CreateTextureSampler(VkSampler& outSampler, VkSamplerAddressMode anAddressMode, VkBorderColor aBorderColor, VkCompareOp aCompareOp)
-{
-	VkSamplerCreateInfo samplerInfo{};
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.addressModeU = anAddressMode;
-	samplerInfo.addressModeV = anAddressMode;
-	samplerInfo.addressModeW = anAddressMode;
-	samplerInfo.anisotropyEnable = VK_TRUE;
-	samplerInfo.maxAnisotropy = myVkContext.deviceProperties.limits.maxSamplerAnisotropy;
-	samplerInfo.borderColor = aBorderColor;
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
-	samplerInfo.compareEnable = VK_FALSE;
-	samplerInfo.compareOp = aCompareOp;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.mipLodBias = 0.0f;
-	samplerInfo.minLod = 0.f;
-	samplerInfo.maxLod = static_cast<float>(myMipLevels); // or VK_LOD_CLAMP_NONE
-	outSampler = myVkContext.CreateSampler(samplerInfo);
-}
-
-bool AM_VkRenderCore::HasStencilComponent(VkFormat format)
-{
-	return !((format ^ VK_FORMAT_D32_SFLOAT_S8_UINT) && (format ^ VK_FORMAT_D24_UNORM_S8_UINT));
 }
 
 void AM_VkRenderCore::LoadModel(std::vector<Vertex>& outVertices, std::vector<uint32_t>& outIndices, const char* aFilePath)
@@ -862,8 +722,8 @@ void AM_VkRenderCore::LoadDefaultTexture()
 {
 	const char* defaultTexture[] = { "../data/textures/default.png" };
 	CreateTextureImage(myDefaultTexture.myImage, defaultTexture, 1);
-	CreateImageView(myDefaultTexture.myImageView, myDefaultTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
-	CreateTextureSampler(myDefaultTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
+	myDefaultTexture.myImageView = AM_RenderUtils::CreateImageView(myVkContext, myDefaultTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
+	myDefaultTexture.mySampler = AM_RenderUtils::CreateTextureSampler(myVkContext, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS, myMipLevels);
 }
 
 void AM_VkRenderCore::Setup()
@@ -876,10 +736,10 @@ void AM_VkRenderCore::Setup()
 
 	VkApplicationInfo appInfo{};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = ApplicationConstants::WINDOWNAME;
-	appInfo.applicationVersion = ApplicationConstants::APP_VERSION;
-	appInfo.pEngineName = ApplicationConstants::WINDOWNAME;
-	appInfo.engineVersion = ApplicationConstants::APP_VERSION;
+	appInfo.pApplicationName = "dummy";
+	appInfo.applicationVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
+	appInfo.pEngineName = "dummy";
+	appInfo.engineVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
 	appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 3, 257);
 
 	VkInstanceCreateInfo createInfo{};
@@ -1059,16 +919,16 @@ AM_Entity* AM_VkRenderCore::LoadSkybox(const char** someTexturePaths, AM_EntityS
 	LoadVertexData(*skybox, "../data/models/cube.obj");
 	AM_Texture& skyboxTexture = skybox->GetTexture();
 	CreateTextureImage(skyboxTexture.myImage, someTexturePaths, 6, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
-	CreateImageView(skyboxTexture.myImageView, skyboxTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 6);
-	CreateTextureSampler(skyboxTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER);
+	skyboxTexture.myImageView = AM_RenderUtils::CreateImageView(myVkContext, skyboxTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 6);
+	skyboxTexture.mySampler = AM_RenderUtils::CreateTextureSampler(myVkContext, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, myMipLevels);
 	AllocatePerEntityDescriptorSets(*skybox);
 	return skybox;
 }
 
-AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, AM_Entity::EntityType aType)
+AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, uint8_t aType)
 {
 	AM_Entity* entity = anEntityStorage.Add();
-	entity->SetType(aType);
+	entity->SetType(AM_Entity::EntityType(aType));
 
 	if (aModelPath)
 		LoadVertexData(*entity, aModelPath);
@@ -1077,8 +937,8 @@ AM_Entity* AM_VkRenderCore::LoadEntity(const char** someTexturePaths, const char
 	{
 		AM_Texture& entityTexture = entity->GetTexture();
 		CreateTextureImage(entityTexture.myImage, someTexturePaths, 1);
-		CreateImageView(entityTexture.myImageView, entityTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
-		CreateTextureSampler(entityTexture.mySampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS);
+		entityTexture.myImageView = AM_RenderUtils::CreateImageView(myVkContext, entityTexture.myImage.myImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, myMipLevels, 1);
+		entityTexture.mySampler = AM_RenderUtils::CreateTextureSampler(myVkContext, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_COMPARE_OP_ALWAYS, myMipLevels);
 	}
 	else
 	{

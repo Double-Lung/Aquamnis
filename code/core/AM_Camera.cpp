@@ -1,6 +1,7 @@
 #include "AM_Camera.h"
-#include <cassert>
+
 #include <glm/gtc/matrix_transform.hpp>
+#include <cassert>
 
 AM_Camera::AM_Camera()
 	: myTranslation{}

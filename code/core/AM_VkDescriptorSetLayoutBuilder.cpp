@@ -1,4 +1,5 @@
 #include "AM_VkDescriptorSetLayoutBuilder.h"
+
 #include <cassert>
 
 void AM_VkDescriptorSetLayoutBuilder::AddBinding(uint32_t aBinding, VkDescriptorType aDescriptorType, VkShaderStageFlags someShaderStageFlags, uint32_t aCount)

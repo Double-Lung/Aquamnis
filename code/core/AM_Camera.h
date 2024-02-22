@@ -1,5 +1,4 @@
 #pragma once
-#include "AM_Entity.h"
 #include <glm/glm.hpp>
 
 class AM_Camera

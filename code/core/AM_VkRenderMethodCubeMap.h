@@ -2,9 +2,9 @@
 #include "AM_VkRenderMethod.h"
 #include <glm/glm.hpp>
 
-struct TempBuffer;
-class AM_Entity;
 class AM_Camera;
+class AM_Entity;
+struct TempBuffer;
 class AM_VkRenderMethodCubeMap : public AM_VkRenderMethod<AM_VkRenderMethodCubeMap>
 {
 public:

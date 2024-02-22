@@ -4,7 +4,6 @@
 #include "TempBuffer.h"
 #include <glm/glm.hpp>
 #include <vector>
-#include <memory>
 
 VK_DEFINE_HANDLE(VmaAllocator);
 class AM_EntityStorage;

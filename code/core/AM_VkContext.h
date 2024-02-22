@@ -1,15 +1,13 @@
 #pragma once
-#include <algorithm>
 #ifdef _DEBUG
 #include "extensionProxy.h"
 #endif
-#include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
-#include "AM_VkRenderCoreConstants.h"
-#include <vulkan/vulkan.h>
 
 struct AM_VkContext
 {

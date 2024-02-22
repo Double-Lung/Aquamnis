@@ -1,6 +1,5 @@
 #pragma once
-
-#include "AM_VkContext.h"
+#include <vulkan/vulkan.h>
 #include <unordered_map>
 
 class AM_VkDescriptorSetLayoutBuilder

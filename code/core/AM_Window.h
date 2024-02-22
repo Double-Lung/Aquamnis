@@ -1,6 +1,16 @@
 #pragma once
-#include "ApplicationConstants.h"
 #include <GLFW/glfw3.h>
+
+struct AM_WindowCreateInfo
+{
+	int width;
+	int height;
+	int minWidth;
+	int minHeight;
+	int maxWidth;
+	int maxHeight;
+	const char* windowName;
+};
 
 class AM_Window
 {
@@ -10,13 +20,6 @@ public:
 		, myIsFramebufferResized(false)
 		, myShouldUpdateCamera(false)
 	{
-		glfwInit();
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-		myWindow = glfwCreateWindow(ApplicationConstants::MIN_WIDTH,
-			ApplicationConstants::MIN_HEIGHT,
-			ApplicationConstants::WINDOWNAME,
-			nullptr, nullptr);
 	}
 
 	~AM_Window()
@@ -25,17 +28,22 @@ public:
 		glfwTerminate();
 	}
 
-	void Init()
+	void Init(AM_WindowCreateInfo& someInfo)
 	{
+		glfwInit();
+		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+		myWindow = glfwCreateWindow(someInfo.width, someInfo.height, someInfo.windowName, nullptr, nullptr);
+
 		glfwSetWindowUserPointer(myWindow, this);
 		glfwSetFramebufferSizeCallback(myWindow, FramebufferResizeCallback);
 		glfwSetWindowSizeLimits
 		(
 			myWindow,
-			ApplicationConstants::MIN_WIDTH,
-			ApplicationConstants::MIN_HEIGHT,
-			ApplicationConstants::MAX_WIDTH,
-			ApplicationConstants::MAX_HEIGHT
+			someInfo.minWidth,
+			someInfo.minHeight,
+			someInfo.maxWidth,
+			someInfo.maxHeight
 		);
 	}
 

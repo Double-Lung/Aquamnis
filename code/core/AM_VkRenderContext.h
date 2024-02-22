@@ -1,5 +1,4 @@
 #pragma once
-
 #include "AM_VkSwapChain.h"
 #include "AM_Window.h"
 #include "TempImage.h"
@@ -44,7 +43,7 @@ private:
 	void FreeCommandBuffers();
 	void RecreateSwapChain();
 
-	// these should go into swapchain
+	// #FIX_ME: these should go into swapchain, but it is not needed for now
 	void CreateRenderPass();
 	void CreateSwapChain();
 	void CleanupSwapChain();
@@ -52,13 +51,6 @@ private:
 	void CreateDepthResources();
 	void CreateFramebuffers();
 	void CreateSyncObjects();
-
-	// #FIX_ME: temp utils
-	void CreateImageView(VkImageView& outImageView, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t aMipLevels);
-	void BeginOneTimeCommands(VkCommandBuffer& aCommandBuffer, VkCommandPool& aCommandPool);
-	void EndOneTimeCommands(VkCommandBuffer commandBuffer, VkQueue aVkQueue, VkCommandPool aCommandPool);
-	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, VkCommandBuffer aCommandBuffer);
-	bool HasStencilComponent(VkFormat format);
 
 	AM_VkContext& myVkContext;
 	AM_Window& myWindow;

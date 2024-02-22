@@ -1,6 +1,8 @@
 #include "Cafe.h"
 
+#include "ApplicationConstants.h"
 #include <AM_Camera.h>
+#include <AM_Entity.h>
 #include <AM_EntityStorage.h>
 #include <AM_SimpleTimer.h>
 #include <AM_TempScene.h>
@@ -26,12 +28,26 @@ Cafe::~Cafe()
 
 void Cafe::Engage()
 {
-	myWindowInstance.Init();
+	InitWindow();
 	myRenderCore = new AM_VkRenderCore(myWindowInstance);
 	myRenderCore->Setup();
 	LoadDefaultScene();
 	MainLoop();
 	CleanUp();
+}
+
+void Cafe::InitWindow()
+{
+	AM_WindowCreateInfo info{};
+	info.width = ApplicationConstants::MIN_WIDTH;
+	info.height = ApplicationConstants::MIN_HEIGHT;
+	info.minWidth = ApplicationConstants::MIN_WIDTH;
+	info.minHeight = ApplicationConstants::MIN_HEIGHT;
+	info.maxWidth = ApplicationConstants::MAX_WIDTH;
+	info.maxHeight = ApplicationConstants::MAX_HEIGHT;
+	info.windowName = ApplicationConstants::WINDOWNAME;
+
+	myWindowInstance.Init(info);
 }
 
 void Cafe::MainLoop()
@@ -54,7 +70,7 @@ void Cafe::MainLoop()
 		{
 			int width, height;
 			myWindowInstance.GetFramebufferSize(width, height);
-			myMainCamera->SetPerspectiveProjection(0.7854f, (float)width / (float)height, 0.1f, 100.f);
+			myMainCamera->SetPerspectiveProjection(0.7854f, 4.f/3.f, 0.1f, 100.f);
 			myWindowInstance.ResetCameraUpdateFlag();
 			myDefaultScene->UpdateUBO_Camera();
 		}

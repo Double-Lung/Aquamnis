@@ -1,5 +1,5 @@
 #pragma once
-#include "AM_VkContext.h"
+#include <vulkan/vulkan.h>
 #include <vector>
 
 namespace AM_PipelineUtils
@@ -14,10 +14,7 @@ namespace AM_PipelineUtils
 		VkPipelineColorBlendStateCreateInfo colorBlendState{};
 		VkPipelineDynamicStateCreateInfo dynamicState{};
 		VkPipelineDepthStencilStateCreateInfo depthStencilState{};
-
 		VkPipelineVertexInputStateCreateInfo vertexInputState{};
-
-
 		std::vector<VkDynamicState> dynamicStates;
 	};
 

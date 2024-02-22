@@ -2,6 +2,7 @@
 
 #include "AM_Camera.h"
 #include "AM_Entity.h"
+#include "AM_FrameRenderInfo.h"
 #include "TempBuffer.h"
 
 AM_VkRenderMethodCubeMap::AM_VkRenderMethodCubeMap(

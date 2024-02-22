@@ -1,17 +1,15 @@
 #pragma once
-#include "AM_VkContext.h"
-#include "AM_VkPipeline.h"
 #include "AM_PipelineUtils.h"
-#include "AM_FrameRenderInfo.h"
+#include "AM_VkContext.h"
 #include "AM_VkDescriptorSetLayoutBuilder.h"
-#include <unordered_map>
+#include "AM_VkPipeline.h"
 
 #define THIS(DERIVED) static_cast<DERIVED*>(this)
 
-struct TempBuffer;
-class AM_Entity;
 class AM_Camera;
-
+class AM_Entity;
+struct AM_FrameRenderInfo;
+struct TempBuffer;
 template <class ImpClass>
 class AM_VkRenderMethod
 {

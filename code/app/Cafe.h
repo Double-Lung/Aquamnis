@@ -13,6 +13,7 @@ public:
 	~Cafe();
 	void Engage();
 private:
+	void InitWindow();
 	void MainLoop();
 	void CleanUp();
 	bool UpdateCameraTransform(float aDeltaTime);

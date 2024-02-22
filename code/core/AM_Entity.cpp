@@ -1,6 +1,7 @@
 #include "AM_Entity.h"
-#include "AM_VkRenderCoreConstants.h"
+
 #include "AM_VmaUsage.h"
+#include "AM_VkRenderCoreConstants.h"
 
 AM_Entity::AM_Entity(uint64_t anID)
 	: myUBO{}
