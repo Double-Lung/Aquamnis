@@ -853,6 +853,12 @@ void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_Entity
 
 		myRenderContext->EndRenderPass(commandBufer);
 		myRenderContext->EndFrame();
+
+		if (myWindowInstance.ShouldUpdateCamera())
+		{
+			aScene.GetCamera()->SetPerspectiveProjection(0.7854f, myRenderContext->GetAspectRatio(), 0.1f, 200.f);
+			aScene.UpdateUBO_Camera();
+		}
 	}
 }
 

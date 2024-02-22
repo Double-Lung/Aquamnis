@@ -14,6 +14,7 @@ public:
 	AM_Entity* GetIfExist(uint64_t anId);
 	void GetEntitiesOfType(std::vector<AM_Entity*>& outEntities, uint8_t aType);
 	void DestroyEntities(AM_VkContext& aVkContext, VmaAllocator anAllocator);
+
 	const std::unordered_map<uint64_t, AM_Entity*>& GetStorage() const { return myEntities; }
 
 private:

@@ -67,6 +67,8 @@ public:
 	void ResetUpdateFlag(uint32_t aFrameIndex);
 	bool GetShouldUpdateUniformBuffer(uint32_t aFrameIndex) const;
 
+	const std::vector<uint64_t>& GetPointLights() const { return myPointLights; }
+
 private:
 	GlobalUBO myUBO;
 	std::vector<VkDescriptorSet> myDescriptorSets;

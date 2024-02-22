@@ -43,5 +43,5 @@ void main()
     fragOffset = OFFSETS[gl_VertexIndex];
     gl_Position = globalUBO.proj * globalUBO.view * entityUBO.transform[3];
     gl_Position /= gl_Position.w;
-    gl_Position.xy += entityUBO.radius * vec2(3.0/4.0, 1.0)  * fragOffset;
+    gl_Position.xy += entityUBO.radius * vec2(1.0, globalUBO.proj[1][1]/globalUBO.proj[0][0]) * fragOffset; 
 }

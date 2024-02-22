@@ -28,7 +28,7 @@ public:
 private:
 	struct PushConstantData
 	{
-		glm::mat4 normalMat;
-		glm::mat4 transform;
+		glm::mat4 proj;
+		glm::mat4 view;
 	};
 };

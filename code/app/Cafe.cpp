@@ -68,11 +68,17 @@ void Cafe::MainLoop()
 
 		if (myWindowInstance.ShouldUpdateCamera())
 		{
-			int width, height;
-			myWindowInstance.GetFramebufferSize(width, height);
-			myMainCamera->SetPerspectiveProjection(0.7854f, 4.f/3.f, 0.1f, 100.f);
+			auto& pointLightIds = myDefaultScene->GetPointLights();
+			for (uint64_t id : pointLightIds)
+			{
+				AM_Entity* light = myEntityStorage->GetIfExist(id);
+				int width, height;
+				myWindowInstance.GetFramebufferSize(width, height);
+				float newScale = 1.f / ((float)width / (float)ApplicationConstants::MIN_WIDTH) * 0.1f;
+				light->myScale = { newScale, newScale, newScale };
+				light->UpdateUBO_Transform();
+			}
 			myWindowInstance.ResetCameraUpdateFlag();
-			myDefaultScene->UpdateUBO_Camera();
 		}
 	}
 }
