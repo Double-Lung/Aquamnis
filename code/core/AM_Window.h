@@ -1,5 +1,7 @@
 #pragma once
 #include <GLFW/glfw3.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 
 struct AM_WindowCreateInfo
 {
@@ -26,6 +28,8 @@ public:
 	{
 		glfwDestroyWindow(myWindow);
 		glfwTerminate();
+
+		SDL_DestroyWindow(mySDLWindow);
 	}
 
 	void Init(AM_WindowCreateInfo& someInfo)
@@ -44,6 +48,14 @@ public:
 			someInfo.minHeight,
 			someInfo.maxWidth,
 			someInfo.maxHeight
+		);
+
+		SDL_Init(SDL_INIT_VIDEO);
+		mySDLWindow = SDL_CreateWindow(
+			someInfo.windowName,
+			someInfo.minWidth,
+			someInfo.minHeight,
+			SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
 		);
 	}
 
@@ -84,4 +96,5 @@ private:
 	bool myIsFramebufferResized;
 	bool myShouldUpdateCamera;
 	GLFWwindow* myWindow;
+	SDL_Window* mySDLWindow = nullptr;
 };

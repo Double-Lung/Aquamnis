@@ -31,6 +31,7 @@ project("AMRenderCore")
 		includedirs 
 		{ 
 			"../extern/GLFW_Debug/include",
+			"../extern/SDL3_Debug/include",
 		}
 
 	filter "configurations:Release"
@@ -41,5 +42,6 @@ project("AMRenderCore")
 		includedirs 
 		{ 
 			"../extern/GLFW/include",
+			"../extern/SDL3/include",
 		}
 	  

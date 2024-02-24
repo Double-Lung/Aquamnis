@@ -35,7 +35,8 @@ project "MainExe"
 	{
 		"AMRenderCore",
 		"glfw3",
-		"vulkan-1"
+		"sdl3",
+		"vulkan-1",
 	}
 
     targetdir ("../../bin/" .. OutputDir .. "/%{prj.name}")
@@ -53,10 +54,16 @@ project "MainExe"
 		includedirs 
 		{ 
 			"../extern/GLFW_Debug/include",
+			"../extern/SDL3_Debug/include",
 		}
 	    libdirs
 		{
 			"../extern/GLFW_Debug/lib",
+			"../extern/SDL3_Debug/lib",
+		}
+		postbuildcommands
+		{
+			"{COPY} ../code/extern/SDL3_Debug/bin/* %{cfg.targetdir}",
 		}
 
     filter "configurations:Release"
@@ -69,8 +76,14 @@ project "MainExe"
 		includedirs 
 		{ 
 			"../extern/GLFW/include",
+			"../extern/SDL3/include",
 		}
 	    libdirs
 		{
 			"../extern/GLFW/lib",
+			"../extern/SLD3/lib",
+		}
+		postbuildcommands
+		{
+			"{COPY} ../code/extern/SDL3/bin/* %{cfg.targetdir}",
 		}
