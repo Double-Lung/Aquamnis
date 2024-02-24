@@ -30,7 +30,6 @@ project("AMRenderCore")
 		optimize "Off"
 		includedirs 
 		{ 
-			"../extern/GLFW_Debug/include",
 			"../extern/SDL3_Debug/include",
 		}
 
@@ -41,7 +40,6 @@ project("AMRenderCore")
 		optimize "On"
 		includedirs 
 		{ 
-			"../extern/GLFW/include",
 			"../extern/SDL3/include",
 		}
 	  

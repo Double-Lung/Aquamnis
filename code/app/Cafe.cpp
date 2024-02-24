@@ -52,9 +52,24 @@ void Cafe::InitWindow()
 
 void Cafe::MainLoop()
 {
-	while (!myWindowInstance.ShouldCloseWindow())
+	SDL_Event event;
+	bool shouldKeepWindow = true;
+	while (shouldKeepWindow)
 	{
-		glfwPollEvents();
+		while (SDL_PollEvent(&event) != 0)
+		{
+			if (event.type == SDL_EventType::SDL_EVENT_QUIT)
+			{
+				shouldKeepWindow = false;
+				break;
+			}
+
+			if (event.type == SDL_EventType::SDL_EVENT_WINDOW_RESIZED)
+				myWindowInstance.SetFramebufferResized();
+
+			SetCameraVelocity(event);
+		}
+
 		float deltaTime = AM_SimpleTimer::GetInstance().GetDeltaTime();
 
 		bool cameraUpdated = UpdateCameraTransform(deltaTime);
@@ -92,82 +107,34 @@ void Cafe::CleanUp()
 
 bool Cafe::UpdateCameraTransform(float aDeltaTime)
 {
-	bool rotationChanged = false;
-	glm::vec3 rotation{ 0.f };
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_LEFT) == GLFW_PRESS)
+	bool rotated = glm::dot(myMainCamera->myRotationDir, myMainCamera->myRotationDir) > 0.0001f;
+	if (rotated)
 	{
-		rotationChanged = true;
-		rotation.y += 1.f;
-	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_RIGHT) == GLFW_PRESS)
-	{
-		rotationChanged = true;
-		rotation.y -= 1.f;
-	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_UP) == GLFW_PRESS)
-	{
-		rotationChanged = true;
-		rotation.x += 1.f;
-	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_DOWN) == GLFW_PRESS)
-	{
-		rotationChanged = true;
-		rotation.x -= 1.f;
+		myMainCamera->myRotation += 1.5f * aDeltaTime * glm::normalize(myMainCamera->myRotationDir);
+		myMainCamera->myRotation.x = glm::clamp(myMainCamera->myRotation.x, -1.5f, 1.5f);
+		myMainCamera->myRotation.y = glm::mod(myMainCamera->myRotation.y, glm::two_pi<float>());
 	}
 
-	AM_Camera* camera = myDefaultScene->GetCamera();
-
-	if (rotationChanged)
-		camera->myRotation += 1.5f * aDeltaTime * glm::normalize(rotation);
-
-	camera->myRotation.x = glm::clamp(camera->myRotation.x, -1.5f, 1.5f);
-	camera->myRotation.y = glm::mod(camera->myRotation.y, glm::two_pi<float>());
-
-	const float yaw = camera->myRotation.y;
-	glm::vec3 forwardDir{ -sin(yaw), 0.f, -cos(yaw) }; // camera is facing -z axis by default
-	glm::vec3 rightDir{ -forwardDir.z, 0.f, forwardDir.x };
-	glm::vec3 upDir{ 0.f, 1.f, 0.f };
-
-	bool translateChanged = false;
-	glm::vec3 translate{ 0.f };
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_A) == GLFW_PRESS)
+	bool moved = glm::dot(myMainCamera->myVelocity, myMainCamera->myVelocity) > 0.0001f;
+	if (moved)
 	{
-		translateChanged = true;
-		translate -= rightDir;
+		const float yaw = myMainCamera->myRotation.y;
+		glm::vec3 forwardDir{ -sin(yaw), 0.f, -cos(yaw) }; // camera is facing -z axis by default
+		glm::vec3 rightDir{ -forwardDir.z, 0.f, forwardDir.x };
+		glm::vec3 upDir{ 0.f, 1.f, 0.f };
+		glm::vec3 translationDelta{0.f};
+		translationDelta += forwardDir * myMainCamera->myVelocity.z;
+		translationDelta += upDir * myMainCamera->myVelocity.y;
+		translationDelta += rightDir * myMainCamera->myVelocity.x;
+		myMainCamera->myTranslation += 5.f * aDeltaTime * glm::normalize(translationDelta);
 	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_D) == GLFW_PRESS)
+ 	
+	if (rotated || moved)
 	{
-		translateChanged = true;
-		translate += rightDir;
+		myMainCamera->SetRotation(myMainCamera->myTranslation, myMainCamera->myRotation);
+		return true;
 	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_W) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate += forwardDir;
-	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_S) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate -= forwardDir;
-	}
-	if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_Q) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate += upDir;
-	}
-	else if (glfwGetKey(myWindowInstance.GetWindow(), GLFW_KEY_E) == GLFW_PRESS)
-	{
-		translateChanged = true;
-		translate -= upDir;
-	}
-
-	if (translateChanged)
-		camera->myTranslation += 5.f * aDeltaTime * glm::normalize(translate);
-
-	if (translateChanged || rotationChanged)
-		camera->SetRotation(camera->myTranslation, camera->myRotation);
-
-	return translateChanged || rotationChanged;
+	return false;
 }
 
 void Cafe::LoadDefaultScene()
@@ -246,5 +213,37 @@ void Cafe::LoadDefaultScene()
 	myDefaultScene->UpdateUBO_AmbientColor({ 1.f, 1.f, 1.f, 0.03f });
 	myDefaultScene->UpdateUBO_Camera();
 	myDefaultScene->UpdateUBO_PointLights(*myEntityStorage);
+}
+
+void Cafe::SetCameraVelocity(SDL_Event& anEvent)
+{
+	glm::vec3& velocity = myMainCamera->myVelocity;
+	glm::vec3& rotation = myMainCamera->myRotationDir;
+	if (anEvent.type == SDL_EVENT_KEY_DOWN)
+	{
+		if (anEvent.key.keysym.sym == SDLK_w) { velocity.z = 1.f; }
+		if (anEvent.key.keysym.sym == SDLK_s) { velocity.z = -1.f; }
+		if (anEvent.key.keysym.sym == SDLK_a) { velocity.x = -1.f; }
+		if (anEvent.key.keysym.sym == SDLK_d) { velocity.x = 1.f; }
+		if (anEvent.key.keysym.sym == SDLK_q) { velocity.y = 1.f; }
+		if (anEvent.key.keysym.sym == SDLK_e) { velocity.y = -1.f; }
+		if (anEvent.key.keysym.sym == SDLK_LEFT) { rotation.y = 1.f; }
+		if (anEvent.key.keysym.sym == SDLK_RIGHT) { rotation.y = -1.f; }
+		if (anEvent.key.keysym.sym == SDLK_UP) { rotation.x = 1.f; }
+		if (anEvent.key.keysym.sym == SDLK_DOWN) { rotation.x = -1.f; }
+    }
+
+    if (anEvent.type == SDL_EVENT_KEY_UP) {
+		if (anEvent.key.keysym.sym == SDLK_w) { velocity.z = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_s) { velocity.z = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_a) { velocity.x = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_d) { velocity.x = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_q) { velocity.y = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_e) { velocity.y = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_LEFT) { rotation.y = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_RIGHT) { rotation.y = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_UP) { rotation.x = 0.f; }
+		if (anEvent.key.keysym.sym == SDLK_DOWN) { rotation.x = 0.f; }
+    }
 }
 

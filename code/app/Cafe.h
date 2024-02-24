@@ -18,6 +18,7 @@ private:
 	void CleanUp();
 	bool UpdateCameraTransform(float aDeltaTime);
 	void LoadDefaultScene();
+	void SetCameraVelocity(SDL_Event& anEvent);
 
 	AM_Window myWindowInstance;
 	AM_VkRenderCore* myRenderCore;

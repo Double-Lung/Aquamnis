@@ -1,7 +1,7 @@
 #include "AM_VkContext.h"
 
 #include "AM_VkRenderCoreConstants.h"
-#include <GLFW/glfw3.h>
+#include <SDL3/SDL_vulkan.h>
 
 AM_VkContext::AM_VkContext() 
 	: deviceProperties{}
@@ -139,10 +139,11 @@ void AM_VkContext::GetAvailableInstanceExtensions()
 
 void AM_VkContext::GetRequiredInstanceExtensions()
 {
-	uint32_t glfwExtensionCount = 0;
-	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-	requiredInstanceExtensions.reserve(glfwExtensionCount + 1);
-	requiredInstanceExtensions.insert(requiredInstanceExtensions.end(), glfwExtensions, glfwExtensions + glfwExtensionCount);
+	uint32_t sdlExtensionCount = 0;
+	const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&sdlExtensionCount);
+
+	requiredInstanceExtensions.reserve(sdlExtensionCount + 1);
+	requiredInstanceExtensions.insert(requiredInstanceExtensions.end(), extensions, extensions + sdlExtensionCount);
 #ifdef _DEBUG
 	requiredInstanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif

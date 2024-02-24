@@ -729,7 +729,7 @@ void AM_VkRenderCore::LoadDefaultTexture()
 void AM_VkRenderCore::Setup()
 {
 	if (!CheckExtensionSupport())
-		throw std::runtime_error("extensions requested by GLFW, but not available!");
+		throw std::runtime_error("extensions requested by SDL3, but not available!");
 
 	if (!CheckInstanceLayerSupport())
 		throw std::runtime_error("layers requested by application, but not available!");
@@ -768,7 +768,7 @@ void AM_VkRenderCore::Setup()
 	if (vkCreateInstance(&createInfo, nullptr, &myVkContext.instance) != VK_SUCCESS)
 		throw std::runtime_error("failed to create Vulkan instance!");
 
-	if (glfwCreateWindowSurface(myVkContext.instance, myWindowInstance.GetWindow(), nullptr, &myVkContext.surface) != VK_SUCCESS)
+	if (SDL_Vulkan_CreateSurface(myWindowInstance.GetSDLWindow(), myVkContext.instance, nullptr, &myVkContext.surface) == SDL_FALSE)
 		throw std::runtime_error("failed to create window surface!");
 
 	myVkContext.Init();

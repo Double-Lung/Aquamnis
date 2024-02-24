@@ -21,6 +21,9 @@ public:
 	glm::vec3 myTranslation;
 	glm::vec3 myRotation;
 
+	glm::vec3 myVelocity;
+	glm::vec3 myRotationDir;
+
 private:
 	glm::mat4 myProjectionMatrix;
 	glm::mat4 myViewMatrix;

@@ -9,6 +9,8 @@ AM_Camera::AM_Camera()
 	, myProjectionMatrix{1.0f}
 	, myViewMatrix{1.0f}
 	, myInverseViewMatrix{1.f}
+	, myVelocity{}
+	, myRotationDir{}
 {
 }
 

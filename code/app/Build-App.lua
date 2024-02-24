@@ -34,7 +34,6 @@ project "MainExe"
 	links
 	{
 		"AMRenderCore",
-		"glfw3",
 		"sdl3",
 		"vulkan-1",
 	}
@@ -53,12 +52,10 @@ project "MainExe"
         symbols "On"
 		includedirs 
 		{ 
-			"../extern/GLFW_Debug/include",
 			"../extern/SDL3_Debug/include",
 		}
 	    libdirs
 		{
-			"../extern/GLFW_Debug/lib",
 			"../extern/SDL3_Debug/lib",
 		}
 		postbuildcommands
@@ -75,12 +72,10 @@ project "MainExe"
         symbols "On"
 		includedirs 
 		{ 
-			"../extern/GLFW/include",
 			"../extern/SDL3/include",
 		}
 	    libdirs
 		{
-			"../extern/GLFW/lib",
 			"../extern/SLD3/lib",
 		}
 		postbuildcommands
