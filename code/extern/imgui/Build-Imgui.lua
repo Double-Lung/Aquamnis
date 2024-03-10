@@ -1,26 +1,20 @@
-project("AMRenderCore")
-    kind "StaticLib"
+project("ImguiVkSDL3")
+	kind "StaticLib"
     language "C++"
     cppdialect "C++17"
     staticruntime "off"
-
-    files { "**.h", "**.cpp", "**.cxx", "**.hpp", "**.inl" }
-    removefiles { "*_DEPRECATED/**" }
-   
-    includedirs 
+	
+	files { "**.h", "**.cpp", "**.cxx", "**.hpp", "**.inl" }
+	
+	includedirs 
     { 
 		"$(VULKAN_SDK)/Include",
-	    "../extern/glm",
-	    "../extern/stb",
-  	    "../extern/tinyobjloader",
-		"../extern/VMA",
-		"../extern/imgui",
     }
-   
-    targetdir ("../../bin/" .. OutputDir .. "/%{prj.name}")
+	
+	targetdir ("../../bin/" .. OutputDir .. "/%{prj.name}")
     objdir ("../../bin/" .. OutputDir .. "/%{prj.name}/obj")
-   
-    filter "system:windows"
+	
+	filter "system:windows"
 		systemversion "latest"
 		defines { }
    
@@ -31,7 +25,7 @@ project("AMRenderCore")
 		optimize "Off"
 		includedirs 
 		{ 
-			"../extern/SDL3_Debug/include",
+			"../SDL3_Debug/include",
 		}
 
 	filter "configurations:Release"
@@ -41,6 +35,5 @@ project("AMRenderCore")
 		optimize "On"
 		includedirs 
 		{ 
-			"../extern/SDL3/include",
+			"../SDL3/include",
 		}
-	  

@@ -23,7 +23,8 @@ project "MainExe"
 	    "../extern/glm",
 	    "../extern/stb",
   	    "../extern/tinyobjloader",
-		"../extern/VMA"
+		"../extern/VMA",
+		"../extern/imgui",
     }
 
 	libdirs
@@ -36,6 +37,7 @@ project "MainExe"
 		"AMRenderCore",
 		"sdl3",
 		"vulkan-1",
+		"ImguiVkSDL3",
 	}
 
     targetdir ("../../bin/" .. OutputDir .. "/%{prj.name}")

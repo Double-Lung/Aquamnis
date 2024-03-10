@@ -14,4 +14,5 @@ namespace AM_RenderUtils
 
 	bool HasStencilComponent(VkFormat format);
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t aMipLevels, uint32_t aLayerCount, VkCommandBuffer aCommandBuffer);
+	void check_vk_result(VkResult err);
 }

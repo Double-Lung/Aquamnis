@@ -15,7 +15,7 @@
 - [x] Simple compute shader (disabled)
 - [x] Integrate GPU Open VMA
 - [x] Adding a cubemap skybox
-- [ ] Add imgui
+- [x] Add imgui
 - [ ] Implement material (pipeline cache, shader permutation, descriptor Management, dynamic uniforms)
 - [ ] Pregenerated mipmap
 - [ ] Instanced rendering

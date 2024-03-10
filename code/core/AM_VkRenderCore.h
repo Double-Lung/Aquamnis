@@ -27,6 +27,7 @@ class AM_VkRenderCore
 {
 public:
 	void Setup();
+	void CreateImguiContext();
 	void Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_EntityStorage& anEntityStorage);
 	void OnEnd();
 	void InitScene(AM_TempScene& aScene);
@@ -34,6 +35,7 @@ public:
 	AM_Entity* LoadEntity(const char** someTexturePaths, const char* aModelPath, AM_EntityStorage& anEntityStorage, uint8_t aType);
 	void DestroyEntities(AM_EntityStorage& anEntityStorage);
 	void DestroyScene(AM_TempScene& aScene);
+	void DestroyImguiContext();
 
 	explicit AM_VkRenderCore(AM_Window& aWindowInstance);
 	~AM_VkRenderCore();

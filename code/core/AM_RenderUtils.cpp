@@ -152,3 +152,12 @@ void AM_RenderUtils::TransitionImageLayout(VkImage image, VkFormat format, VkIma
 		1, &barrier
 	);
 }
+
+void AM_RenderUtils::check_vk_result(VkResult err)
+{
+	if (err == 0)
+		return;
+	fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+	if (err < 0)
+		abort();
+}

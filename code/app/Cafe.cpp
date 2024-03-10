@@ -8,6 +8,9 @@
 #include <AM_TempScene.h>
 #include <AM_VkRenderCore.h>
 #include <glm/glm.hpp>
+#include "imgui.h"
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_vulkan.h"
 
 Cafe::Cafe()
 	: myWindowInstance{}
@@ -31,6 +34,7 @@ void Cafe::Engage()
 	InitWindow();
 	myRenderCore = new AM_VkRenderCore(myWindowInstance);
 	myRenderCore->Setup();
+	myRenderCore->CreateImguiContext();
 	LoadDefaultScene();
 	MainLoop();
 	CleanUp();
@@ -67,6 +71,7 @@ void Cafe::MainLoop()
 			if (event.type == SDL_EventType::SDL_EVENT_WINDOW_RESIZED)
 				myWindowInstance.SetFramebufferResized();
 
+			ImGui_ImplSDL3_ProcessEvent(&event);
 			SetCameraVelocity(event);
 		}
 
@@ -83,12 +88,17 @@ void Cafe::MainLoop()
 
 		if (myWindowInstance.ShouldUpdateCamera())
 		{
+			int width, height;
+			myWindowInstance.GetFramebufferSize(width, height);
+			float aspectRatio = (float)width / (float)height;
+
+			myMainCamera->SetPerspectiveProjection(0.7854f, aspectRatio, 0.1f, 200.f);
+			myDefaultScene->UpdateUBO_Camera();
+
 			auto& pointLightIds = myDefaultScene->GetPointLights();
 			for (uint64_t id : pointLightIds)
 			{
 				AM_Entity* light = myEntityStorage->GetIfExist(id);
-				int width, height;
-				myWindowInstance.GetFramebufferSize(width, height);
 				float newScale = 1.f / ((float)width / (float)ApplicationConstants::MIN_WIDTH) * 0.1f;
 				light->myScale = { newScale, newScale, newScale };
 				light->UpdateUBO_Transform();
@@ -103,6 +113,7 @@ void Cafe::CleanUp()
 	myRenderCore->OnEnd();
 	myRenderCore->DestroyEntities(*myEntityStorage);
 	myRenderCore->DestroyScene(*myDefaultScene);
+	myRenderCore->DestroyImguiContext();
 }
 
 bool Cafe::UpdateCameraTransform(float aDeltaTime)

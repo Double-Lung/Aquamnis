@@ -4,6 +4,7 @@
 #include "AM_Entity.h"
 #include "AM_EntityStorage.h"
 #include "AM_FrameRenderInfo.h"
+#include "AM_ImguiUsage.h"
 #include "AM_RenderUtils.h"
 #include "AM_Texture.h"
 #include "AM_TempScene.h"
@@ -815,8 +816,42 @@ void AM_VkRenderCore::Setup()
 	LoadDefaultTexture();
 }
 
+void AM_VkRenderCore::CreateImguiContext()
+{
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // IF using Docking Branch
+
+	ImGui_ImplSDL3_InitForVulkan(myWindowInstance.GetSDLWindow());
+	ImGui_ImplVulkan_InitInfo init_info{};
+	init_info.Instance = myVkContext.instance;
+	init_info.PhysicalDevice = myVkContext.physicalDevice;
+	init_info.Device = myVkContext.device;
+	init_info.QueueFamily = myVkContext.graphicsFamilyIndex;
+	init_info.Queue = myVkContext.graphicsQueue;
+	init_info.PipelineCache = nullptr;
+	init_info.DescriptorPool = myGlobalDescriptorPool;
+	init_info.Subpass = 0;
+	init_info.RenderPass = myRenderContext->GetRenderPass();
+	init_info.MinImageCount = 2;
+	init_info.ImageCount = 2;
+	init_info.MSAASamples = myVkContext.globalMSAASamples;
+	init_info.Allocator = nullptr;
+	init_info.CheckVkResultFn = AM_RenderUtils::check_vk_result;
+	ImGui_ImplVulkan_Init(&init_info);
+}
+
 void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_EntityStorage& anEntityStorage)
 {
+	// Start the Dear ImGui frame
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplSDL3_NewFrame();
+	ImGui::NewFrame();
+	ImGui::ShowDemoWindow();
+
 	if (auto commandBufer = myRenderContext->BeginFrame())
 	{
 		WriteSceneUbiformBuffer(aScene);
@@ -851,14 +886,11 @@ void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_Entity
 		anEntityStorage.GetEntitiesOfType(entities, AM_Entity::BILLBOARD);
 		myBillboardRenderMethod->Render(info, entities);
 
+		ImGui::Render();
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBufer);
+
 		myRenderContext->EndRenderPass(commandBufer);
 		myRenderContext->EndFrame();
-
-		if (myWindowInstance.ShouldUpdateCamera())
-		{
-			aScene.GetCamera()->SetPerspectiveProjection(0.7854f, myRenderContext->GetAspectRatio(), 0.1f, 200.f);
-			aScene.UpdateUBO_Camera();
-		}
 	}
 }
 
@@ -969,4 +1001,11 @@ void AM_VkRenderCore::DestroyScene(AM_TempScene& aScene)
 	myVkContext.DestroyDescriptorSetLayout(aScene.GetDescriptorSetLayout());
 	if (auto* uniformBuffer = aScene.GetUniformBuffer())
 		vmaDestroyBuffer(myVMA, uniformBuffer->myBuffer, uniformBuffer->myAllocation);
+}
+
+void AM_VkRenderCore::DestroyImguiContext()
+{
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplSDL3_Shutdown();
+	ImGui::DestroyContext();
 }

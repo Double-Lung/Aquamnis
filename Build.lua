@@ -24,6 +24,10 @@ group "Core"
 	include "code/core/Build-Core.lua"
 group ""
 
+group "Extern"
+	include "code/extern/imgui/Build-Imgui.lua"
+group ""
+
 group "Exetutables"
 	include "code/app/Build-App.lua"
 group ""
