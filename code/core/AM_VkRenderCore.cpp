@@ -850,7 +850,27 @@ void AM_VkRenderCore::Render(AM_Camera& aCamera, AM_TempScene& aScene, AM_Entity
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
-	ImGui::ShowDemoWindow();
+
+	static bool showLoadModelPanel = false;
+	static bool showLoadTexturePanel = false;
+	static bool showPropertiesPanel = false;
+
+	if (showLoadModelPanel)
+		ImGui::ShowDemoWindow();
+// 	if (showLoadTexturePanel);
+// 	if (showPropertiesPanel);
+
+	if (ImGui::BeginMainMenuBar())
+	{
+ 		if (ImGui::BeginMenu("Options"))
+ 		{
+			ImGui::MenuItem("Load Model", NULL, &showLoadModelPanel);
+			ImGui::MenuItem("Load Texture", NULL, &showLoadTexturePanel);
+			ImGui::MenuItem("Properties", NULL, &showPropertiesPanel);
+			ImGui::EndMenu();
+ 		}
+		ImGui::EndMainMenuBar();
+	}
 
 	if (auto commandBufer = myRenderContext->BeginFrame())
 	{
