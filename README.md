@@ -16,12 +16,6 @@
 - [x] Integrate GPU Open VMA
 - [x] Adding a cubemap skybox
 - [x] Add imgui
-- [ ] Implement material (pipeline cache, shader permutation, descriptor Management, dynamic uniforms)
-- [ ] Pregenerated mipmap
-- [ ] Instanced rendering
-#### Extra TODOs
-- [ ] Headless support
-- [ ] Separate images and sampler descriptors
-- [ ] Async queue submission
-- [ ] Multi-threaded command buffer generation
-- [ ] Multiple subpasses
+- [ ] Asset loading UI
+- [ ] Panning with mouse
+- [ ] Interactive direct light
